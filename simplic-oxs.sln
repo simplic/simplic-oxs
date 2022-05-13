@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32414.248
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Server", "Simplic.OxS.Server\Simplic.OxS.Server.csproj", "{FA92B5C7-88ED-4385-A060-4F9978784A9D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Data", "Simplic.OxS.Data\Simplic.OxS.Data.csproj", "{682AB2D6-8E35-4CFF-A292-02CA939A3E83}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Data.MongoDB", "Simplic.OxS.Data.MongoDB\Simplic.OxS.Data.MongoDB.csproj", "{4A62CFB9-EA2E-45C2-A0AB-3992239E1473}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.MessageBroker", "Simplic.OxS.MessageBroker\Simplic.OxS.MessageBroker.csproj", "{AE309A79-C90D-491D-8888-B1547A51D8F6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FA92B5C7-88ED-4385-A060-4F9978784A9D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA92B5C7-88ED-4385-A060-4F9978784A9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA92B5C7-88ED-4385-A060-4F9978784A9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA92B5C7-88ED-4385-A060-4F9978784A9D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{682AB2D6-8E35-4CFF-A292-02CA939A3E83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{682AB2D6-8E35-4CFF-A292-02CA939A3E83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{682AB2D6-8E35-4CFF-A292-02CA939A3E83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{682AB2D6-8E35-4CFF-A292-02CA939A3E83}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A62CFB9-EA2E-45C2-A0AB-3992239E1473}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A62CFB9-EA2E-45C2-A0AB-3992239E1473}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A62CFB9-EA2E-45C2-A0AB-3992239E1473}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A62CFB9-EA2E-45C2-A0AB-3992239E1473}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE309A79-C90D-491D-8888-B1547A51D8F6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE309A79-C90D-491D-8888-B1547A51D8F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE309A79-C90D-491D-8888-B1547A51D8F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE309A79-C90D-491D-8888-B1547A51D8F6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FA52CAFF-7CBF-4E64-9C54-DC8A18223567}
+	EndGlobalSection
+EndGlobal

@@ -10,5 +10,9 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0" />
     <PackageReference Include="MongoDB.Driver" Version="2.15.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.Data\Simplic.OxS.Data.csproj" />
+  </ItemGroup>
   
 </Project>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.Auth.Data.MongoDB\Simplic.OxS.Auth.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Auth.SchemaRegistry\Simplic.OxS.Auth.SchemaRegistry.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Auth.Service\Simplic.OxS.Auth.Service.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Auth\Simplic.OxS.Auth.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
+    <ProjectReference Include="..\Simplix.OxS.Mail.SchemaRegistry\Simplix.OxS.Mail.SchemaRegistry.csproj" />
+    <ProjectReference Include="..\Simplix.OxS.Sms.SchemaRegistry\Simplix.OxS.Sms.SchemaRegistry.csproj" />
+  </ItemGroup>
+
+</Project>

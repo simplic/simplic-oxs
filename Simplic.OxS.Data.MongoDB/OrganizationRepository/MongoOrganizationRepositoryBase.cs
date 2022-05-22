@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MongoDB.Driver;
-using Simplic.Data.MongoDB;
+using Simplic.OxS.Data.MongoDB;
 using Simplic.OxS.Data;
 
 namespace Simplic.OxS.Data.MongoDB

@@ -18,6 +18,6 @@ namespace Simplic.OxS.Server
         /// <summary>
         /// Gets or sets the default issuer
         /// </summary>
-        public string Issuer { get; set; } = "Academy";
+        public string Issuer { get; set; } = "Simplic.OxS";
     }
 }

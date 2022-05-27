@@ -1,4 +1,4 @@
-﻿namespace Simplic.OxS.Server
+﻿namespace Simplic.OxS.Server.Controller
 {
     /// <summary>
     /// Represents the simplic oxs base controller

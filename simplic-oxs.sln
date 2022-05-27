@@ -25,11 +25,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Auth.Server", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Auth.SchemaRegistry", "Simplic.OxS.Auth.SchemaRegistry\Simplic.OxS.Auth.SchemaRegistry.csproj", "{E5BF5980-0C49-450E-8C95-C551F4698121}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Mail", "Mail", "{77DDACAC-E3BF-4C7C-A2A2-C08AEE70729B}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SchemaRegistry", "SchemaRegistry", "{77DDACAC-E3BF-4C7C-A2A2-C08AEE70729B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplix.OxS.Mail.SchemaRegistry", "Simplix.OxS.Mail.SchemaRegistry\Simplix.OxS.Mail.SchemaRegistry.csproj", "{8E8FFD1E-115B-4D75-8EAF-28127A5D818F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplix.OxS.Mail.SchemaRegistry", "Simplix.OxS.Mail.SchemaRegistry\Simplix.OxS.Mail.SchemaRegistry.csproj", "{8E8FFD1E-115B-4D75-8EAF-28127A5D818F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplix.OxS.Sms.SchemaRegistry", "Simplix.OxS.SMS.SchemaRegistry\Simplix.OxS.Sms.SchemaRegistry.csproj", "{1EED5251-2469-4718-8F05-DC524943F4B2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplix.OxS.Sms.SchemaRegistry", "Simplix.OxS.SMS.SchemaRegistry\Simplix.OxS.Sms.SchemaRegistry.csproj", "{1EED5251-2469-4718-8F05-DC524943F4B2}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Sms", "Simplic.OxS.Sms\Simplic.OxS.Sms.csproj", "{CE49A20D-CD45-4AEE-88E7-7C0214C7D543}"
 EndProject

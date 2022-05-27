@@ -21,7 +21,7 @@ namespace Simplic.OxS.Auth.Server.Migration
 
             if (user == null)
             {
-                user = await userService.RegisterAsync("admin_1@simplic-ox.de", "J7&$TU'c+KQ%Yn=X", "+4915124145570", "student");
+                user = await userService.RegisterAsync("admin_1@simplic-ox.de", "J7&$TU'c+KQ%Yn=X", "+4915124145570");
                 user.MailVerified = true;
                 user.MailVerificationCode = $"{Guid.NewGuid()}";
                 user.Roles = new[] { "admin" }; // Reset roles

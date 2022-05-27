@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Simplic.OxS.Server
+namespace Simplic.OxS.Server.Settings
 {
     /// <summary>
     /// Authentication settings
@@ -19,5 +19,10 @@ namespace Simplic.OxS.Server
         /// Gets or sets the default issuer
         /// </summary>
         public string Issuer { get; set; } = "Simplic.OxS";
+
+        /// <summary>
+        /// Gets or sets the internal API key
+        /// </summary>
+        public string InternalApiKey { get; set; }
     }
 }

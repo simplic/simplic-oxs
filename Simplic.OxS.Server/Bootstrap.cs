@@ -12,14 +12,16 @@ using Microsoft.OpenApi.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Simplic.OxS.Server.Settings;
 
 namespace Simplic.OxS.Server
 {
     public abstract class Bootstrap
     {
-        public Bootstrap(IConfiguration configuration)
+        public Bootstrap(IConfiguration configuration, IWebHostEnvironment currentEnvironment)
         {
             Configuration = configuration;
+            CurrentEnvironment = currentEnvironment;
         }
 
         // This method gets called by the runtime. Use this method to add services to the container.
@@ -101,7 +103,19 @@ namespace Simplic.OxS.Server
                     Scheme = "Bearer"
                 });
 
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+                if (CurrentEnvironment.IsDevelopment() || CurrentEnvironment.EnvironmentName.ToLower() == "local")
+                {
+                    c.AddSecurityDefinition("i-api-key", new OpenApiSecurityScheme
+                    {
+                        Description = "For internal network calls.\r\n\r\nExample: \"i-api-key 12345abcdef\"",
+                        Name = "Authorization",
+                        In = ParameterLocation.Header,
+                        Type = SecuritySchemeType.ApiKey,
+                        Scheme = "i-api-key"
+                    });
+                }
+
+                var securityRequirements = new OpenApiSecurityRequirement()
                 {
                     {
                         new OpenApiSecurityScheme
@@ -118,7 +132,25 @@ namespace Simplic.OxS.Server
                         },
                         new List<string>()
                     }
-                });
+                };
+
+                if (CurrentEnvironment.IsDevelopment() || CurrentEnvironment.EnvironmentName.ToLower() == "local")
+                {
+                    securityRequirements.Add(new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "i-api-key"
+                        },
+                        Scheme = "api-key",
+                        Name = "i-api-key",
+                        In = ParameterLocation.Header,
+
+                    }, new List<string>());
+                }
+
+                c.AddSecurityRequirement(securityRequirements);
             });
         }
 
@@ -150,8 +182,8 @@ namespace Simplic.OxS.Server
         }
 
         protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration)
-        { 
-            
+        {
+
         }
 
         protected abstract void ConfigureEndpointConventions(IServiceCollection services, MessageBrokerSettings settings);
@@ -163,5 +195,7 @@ namespace Simplic.OxS.Server
         protected virtual string ApiVersion { get; } = "v1";
 
         public IConfiguration Configuration { get; }
+
+        private IWebHostEnvironment CurrentEnvironment { get; set; }
     }
 }

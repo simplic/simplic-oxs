@@ -8,6 +8,7 @@ namespace Simplic.OxS.Auth
         [BsonId]
         public Guid Id { get; set; }
         public string EMail { get; set; }
+        public string UserName { get; set; }
         public string PhoneNumber { get; set; }
         public bool MailVerified { get; set; }
         public string MailVerificationCode { get; set; }

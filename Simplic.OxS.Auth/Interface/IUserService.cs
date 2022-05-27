@@ -10,11 +10,9 @@ namespace Simplic.OxS.Auth
 
         Task<User> GetAsync(string email);
 
-        Task<User> RegisterAsync(string email, string password, string phoneNumber, string type);
+        Task<User> RegisterAsync(string email, string password, string phoneNumber);
 
         Task<User> LoginAsync(string email, string password);
-
-        IList<string> UserTypes { get; }
 
         string GetPasswordHash(User user, string password);
 

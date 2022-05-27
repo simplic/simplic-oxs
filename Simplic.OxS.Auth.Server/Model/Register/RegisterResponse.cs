@@ -6,7 +6,5 @@ namespace Simplic.OxS.Auth.Model
     {
         [JsonPropertyName("email")]
         public string EMail { get; set; }
-
-        public string Type { get; set; }
     }
 }

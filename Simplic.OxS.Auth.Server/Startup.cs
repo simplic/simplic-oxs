@@ -8,7 +8,7 @@ namespace Simplic.OxS.Auth.Server
 {
     public class Startup : Bootstrap
     {
-        public Startup(IConfiguration configuration) : base(configuration)
+        public Startup(IConfiguration configuration, IWebHostEnvironment currentEnvironment) : base(configuration, currentEnvironment)
         {
 
         }

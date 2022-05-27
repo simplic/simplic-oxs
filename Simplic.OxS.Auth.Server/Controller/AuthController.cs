@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Simplic.OxS.Server;
+using Simplic.OxS.Server.Controller;
+using Simplic.OxS.Server.Settings;
 using Simplix.OxS.Mail.SchemaRegistry;
 using Simplix.OxS.Sms.SchemaRegistry;
 using System.Diagnostics.CodeAnalysis;
@@ -12,7 +13,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 
-namespace Simplic.OxS.Auth.Server
+namespace Simplic.OxS.Auth.Server.Controller
 {
     [ApiController]
     [Route("[controller]")]
@@ -130,10 +131,7 @@ namespace Simplic.OxS.Auth.Server
             if (user != null)
                 return BadRequest(new { error = $"User already existss: {model.EMail}" });
 
-            if (!userService.UserTypes.Contains(model.Type))
-                return BadRequest(new { error = $"Invalid user type `{model.Type}`. User must be of type {string.Join(";", userService.UserTypes)}" });
-
-            user = await userService.RegisterAsync(model.EMail, model.Password, model.PhoneNumber, model.Type);
+            user = await userService.RegisterAsync(model.EMail, model.Password, model.PhoneNumber);
 
             // Send mail and create verification token
             await busControl.Send<SendMailCommand>(new
@@ -159,8 +157,7 @@ namespace Simplic.OxS.Auth.Server
 
             var response = new Model.RegisterResponse
             {
-                EMail = user.EMail,
-                Type = model.Type
+                EMail = user.EMail
             };
 
             return Ok(response);

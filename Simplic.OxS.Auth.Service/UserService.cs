@@ -52,11 +52,8 @@ namespace Simplic.OxS.Auth.Service
             return null;
         }
 
-        public async Task<User> RegisterAsync(string email, string password, string phoneNumber, string type)
+        public async Task<User> RegisterAsync(string email, string password, string phoneNumber)
         {
-            if (!UserTypes.Contains(type))
-                throw new ArgumentOutOfRangeException($"Invalid type: {type}");
-
             StringBuilder code = new StringBuilder();
 
             // Create new random number generator with some seed
@@ -74,7 +71,7 @@ namespace Simplic.OxS.Auth.Service
                 MailVerified = false,
                 RegistrationDate = DateTime.Now,
                 Salt = $"{Guid.NewGuid()}",
-                Roles = new[] { type }
+                Roles = new string[] { }
             };
 
             user.Password = GetPasswordHash(user, password);
@@ -133,13 +130,5 @@ namespace Simplic.OxS.Auth.Service
         {
             return ComputeSha256Hash($"{password}_{user.Salt}");
         }
-
-        /// <summary>
-        /// Gets all available user types
-        /// </summary>
-        public IList<string> UserTypes { get; } = new List<string>
-        {
-            "student", "company"
-        };
     }
 }

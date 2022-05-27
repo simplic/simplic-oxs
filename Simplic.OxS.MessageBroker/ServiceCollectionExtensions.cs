@@ -1,5 +1,4 @@
 ﻿using MassTransit;
-using MassTransit.ExtensionsDependencyInjectionIntegration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +8,7 @@ namespace Simplic.OxS.MessageBroker
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection InitializeMassTransit(this IServiceCollection services, IConfiguration configuration, Action<IServiceCollectionBusConfigurator> additionalConfiguration = null)
+        public static IServiceCollection InitializeMassTransit(this IServiceCollection services, IConfiguration configuration, Action<IBusRegistrationConfigurator> additionalConfiguration = null)
         {
             var consumerTypes = Assembly.GetEntryAssembly().GetTypes()
                 .Where(t => typeof(IConsumer).IsAssignableFrom(t))
@@ -61,13 +60,13 @@ namespace Simplic.OxS.MessageBroker
 
                         cfg.ConfigureSend(sendPipeConfigurator => sendPipeConfigurator.UseExecute(ctx =>
                         {
-                            ctx.Headers.Set(MassTransitHeaders.OrganizationId, GetOrganizationId(context) ?? Guid.Empty.ToString());
+                            ctx.Headers.Set(MassTransitHeaders.OrganizationId, GetTenantId(context) ?? Guid.Empty.ToString());
                             ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context) ?? Guid.Empty.ToString());
                         }));
 
                         cfg.ConfigurePublish(publishPipeConfigurator => publishPipeConfigurator.UseExecute(ctx =>
                         {
-                            ctx.Headers.Set(MassTransitHeaders.OrganizationId, GetOrganizationId(context) ?? Guid.Empty.ToString());
+                            ctx.Headers.Set(MassTransitHeaders.OrganizationId, GetTenantId(context) ?? Guid.Empty.ToString());
                             ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context) ?? Guid.Empty.ToString());
                         }));
                     }
@@ -82,7 +81,7 @@ namespace Simplic.OxS.MessageBroker
         /// </summary>
         /// <param name="context"></param>
         /// <returns>Organization Id</returns>
-        private static string? GetOrganizationId(IBusRegistrationContext context)
+        private static string? GetTenantId(IBusRegistrationContext context)
         {
             var httpContextAccessor = context.GetService<IHttpContextAccessor>();
 

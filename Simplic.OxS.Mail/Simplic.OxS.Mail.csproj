@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="sib_api_v3_sdk" Version="3.2.0" />
+    <PackageReference Include="sib_api_v3_sdk" Version="3.3.0" />
   </ItemGroup>
 
   <ItemGroup>

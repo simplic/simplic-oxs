@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Simplic.OxS.Server.Settings;
+using Simplic.OxS.Server.Middleware;
 
 namespace Simplic.OxS.Server
 {
@@ -171,6 +172,8 @@ namespace Simplic.OxS.Server
 
             app.UseAuthentication();
             app.UseAuthorization();
+
+            app.UseMiddleware<CorrelationIdMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

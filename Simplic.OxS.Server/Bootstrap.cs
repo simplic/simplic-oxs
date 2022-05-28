@@ -90,6 +90,7 @@ namespace Simplic.OxS.Server
             IMapper mapper = mapperConfig.CreateMapper();
             services.AddSingleton(mapper);
             services.AddScoped<IRequestContext, RequestContext>();
+            services.AddTransient<IInternalClient, InternalClient>();
 
             // Register web-api controller. Must be executed before creating swagger configuration
             services.AddControllers();
@@ -188,10 +189,7 @@ namespace Simplic.OxS.Server
             migrationService?.Migrate().Wait();
         }
 
-        protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration)
-        {
-
-        }
+        protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration) { }
 
         protected abstract void ConfigureEndpointConventions(IServiceCollection services, MessageBrokerSettings settings);
 

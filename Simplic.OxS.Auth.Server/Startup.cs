@@ -3,6 +3,7 @@ using Simplic.OxS.Auth.Data.MongoDB;
 using Simplic.OxS.Auth.Service;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server;
+using Simplic.OxS.Server.Interface;
 
 namespace Simplic.OxS.Auth.Server
 {

@@ -14,6 +14,8 @@ using System.Collections.Generic;
 using System.Text;
 using Simplic.OxS.Server.Settings;
 using Simplic.OxS.Server.Middleware;
+using Simplic.OxS.Server.Interface;
+using Simplic.OxS.Server.Services;
 
 namespace Simplic.OxS.Server
 {
@@ -87,6 +89,7 @@ namespace Simplic.OxS.Server
 
             IMapper mapper = mapperConfig.CreateMapper();
             services.AddSingleton(mapper);
+            services.AddScoped<IRequestContext, RequestContext>();
 
             // Register web-api controller. Must be executed before creating swagger configuration
             services.AddControllers();
@@ -174,6 +177,7 @@ namespace Simplic.OxS.Server
             app.UseAuthorization();
 
             app.UseMiddleware<CorrelationIdMiddleware>();
+            app.UseMiddleware<RequestContextMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

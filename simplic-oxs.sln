@@ -35,6 +35,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Sms", "Simplic.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Mail", "Simplic.OxS.Mail\Simplic.OxS.Mail.csproj", "{15F3AA55-F16D-48B6-93A3-78642D68D320}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS", "Simplic.OxS\Simplic.OxS.csproj", "{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -93,6 +95,10 @@ Global
 		{15F3AA55-F16D-48B6-93A3-78642D68D320}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{15F3AA55-F16D-48B6-93A3-78642D68D320}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{15F3AA55-F16D-48B6-93A3-78642D68D320}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

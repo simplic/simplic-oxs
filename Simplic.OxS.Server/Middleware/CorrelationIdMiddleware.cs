@@ -28,7 +28,7 @@ namespace Simplic.OxS.Server.Middleware
         public async Task Invoke(HttpContext httpContext)
         {
             string correlationId;
-
+            
             if (httpContext.Request.Headers.TryGetValue(CorrelationIdHeaderKey, out StringValues correlationIds))
             {
                 correlationId = correlationIds.FirstOrDefault(k => k == CorrelationIdHeaderKey) ??

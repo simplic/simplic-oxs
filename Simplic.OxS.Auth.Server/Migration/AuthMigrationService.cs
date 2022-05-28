@@ -1,4 +1,4 @@
-﻿using Simplic.OxS.Server;
+﻿using Simplic.OxS.Server.Interface;
 
 namespace Simplic.OxS.Auth.Server.Migration
 {

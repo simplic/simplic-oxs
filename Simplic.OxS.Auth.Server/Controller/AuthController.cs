@@ -118,6 +118,12 @@ namespace Simplic.OxS.Auth.Server.Controller
             return Ok(response);
         }
 
+        [HttpPost("select-tenant")]
+        public async Task<IActionResult> SelectTenant()
+        {
+            return Ok();
+        }
+
         [HttpPost("register")]
         [ProducesResponseType(typeof(Model.RegisterResponse), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.BadRequest)]

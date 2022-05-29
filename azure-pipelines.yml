@@ -50,6 +50,7 @@ steps:
     displayName: 'Create nuget packages'
 
   - task: CopyFiles@2
+    displayName: 'Copy nuget packages'
     inputs:
       Contents: '**/*.nupkg'
       TargetFolder: '$(Build.ArtifactStagingDirectory)'

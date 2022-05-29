@@ -1,6 +1,6 @@
 ﻿using MassTransit;
 using sib_api_v3_sdk.Api;
-using Simplix.OxS.Mail.SchemaRegistry;
+using Simplic.OxS.Mail.SchemaRegistry;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 

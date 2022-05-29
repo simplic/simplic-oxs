@@ -27,15 +27,20 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Auth.SchemaRegi
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SchemaRegistry", "SchemaRegistry", "{77DDACAC-E3BF-4C7C-A2A2-C08AEE70729B}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplix.OxS.Mail.SchemaRegistry", "Simplix.OxS.Mail.SchemaRegistry\Simplix.OxS.Mail.SchemaRegistry.csproj", "{8E8FFD1E-115B-4D75-8EAF-28127A5D818F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Mail.SchemaRegistry", "Simplic.OxS.Mail.SchemaRegistry\Simplic.OxS.Mail.SchemaRegistry.csproj", "{8E8FFD1E-115B-4D75-8EAF-28127A5D818F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplix.OxS.Sms.SchemaRegistry", "Simplix.OxS.SMS.SchemaRegistry\Simplix.OxS.Sms.SchemaRegistry.csproj", "{1EED5251-2469-4718-8F05-DC524943F4B2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Sms.SchemaRegistry", "Simplic.OxS.SMS.SchemaRegistry\Simplic.OxS.Sms.SchemaRegistry.csproj", "{1EED5251-2469-4718-8F05-DC524943F4B2}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Sms", "Simplic.OxS.Sms\Simplic.OxS.Sms.csproj", "{CE49A20D-CD45-4AEE-88E7-7C0214C7D543}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Mail", "Simplic.OxS.Mail\Simplic.OxS.Mail.csproj", "{15F3AA55-F16D-48B6-93A3-78642D68D320}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS", "Simplic.OxS\Simplic.OxS.csproj", "{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS", "Simplic.OxS\Simplic.OxS.csproj", "{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ENV", "ENV", "{28D72077-C469-464D-9AB4-E9F123ACAD3D}"
+	ProjectSection(SolutionItems) = preProject
+		..\azure-pipelines.yml = ..\azure-pipelines.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
-    <ProjectReference Include="..\Simplix.OxS.Mail.SchemaRegistry\Simplix.OxS.Mail.SchemaRegistry.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Mail.SchemaRegistry\Simplic.OxS.Mail.SchemaRegistry.csproj" />
   </ItemGroup>
 
   <ItemGroup>

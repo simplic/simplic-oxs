@@ -1,4 +1,4 @@
-﻿namespace Simplix.OxS.Mail.SchemaRegistry
+﻿namespace Simplic.OxS.Mail.SchemaRegistry
 {
     public interface SendMailCommand
     {

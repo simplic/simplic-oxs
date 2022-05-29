@@ -1,4 +1,4 @@
-﻿namespace Simplix.OxS.Sms.SchemaRegistry
+﻿namespace Simplic.OxS.Sms.SchemaRegistry
 {
     public interface SendSmsCommand
     {

@@ -1,5 +1,5 @@
 ﻿using MassTransit;
-using Simplix.OxS.Sms.SchemaRegistry;
+using Simplic.OxS.Sms.SchemaRegistry;
 using System.Threading.Tasks;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;

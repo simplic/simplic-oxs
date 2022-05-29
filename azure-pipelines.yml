@@ -40,5 +40,5 @@ steps:
       version: $(dotNetVersion)
       includePreviewVersions: true
 
-  - script: dotnet restore **/*.sln --configuration $(buildConfiguration)
+  - script: dotnet restore src/simplic-oxs.sln
     displayName: 'Restore solution'

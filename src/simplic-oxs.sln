@@ -42,6 +42,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ENV", "ENV", "{28D72077-C46
 		..\azure-pipelines.yml = ..\azure-pipelines.yml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Server.Test", "Simplic.OxS.Server.Test\Simplic.OxS.Server.Test.csproj", "{B000A7EA-0D60-4B1C-A35B-E4595A71E996}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -104,6 +106,10 @@ Global
 		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AAF4ACC9-FE39-4665-9440-BAD3389C5FC0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B000A7EA-0D60-4B1C-A35B-E4595A71E996}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B000A7EA-0D60-4B1C-A35B-E4595A71E996}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B000A7EA-0D60-4B1C-A35B-E4595A71E996}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B000A7EA-0D60-4B1C-A35B-E4595A71E996}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

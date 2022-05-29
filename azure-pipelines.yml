@@ -48,3 +48,11 @@ steps:
 
   - script: dotnet pack src/simplic-oxs.sln
     displayName: 'Create nuget packages'
+
+  - task: NuGetCommand@2
+    displayName: 'Publish nuget packages'
+    inputs:
+      command: 'push'
+      packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
+      nuGetFeedType: 'internal'
+      publishVstsFeed: 'f7087ef5-bf6f-48b2-8b8b-5e513f4a7a9e'

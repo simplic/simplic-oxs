@@ -43,9 +43,8 @@ steps:
   - script: dotnet restore src/simplic-oxs.sln
     displayName: 'Restore solution'
 
-  - script: dotnet build src/simplic-oxs.sln --configuration $(buldConfiguration)
+  - script: dotnet build src/simplic-oxs.sln --configuration $(buildConfiguration)
     displayName: 'Build solution'
-
 
   - script: dotnet pack src/simplic-oxs.sln
     displayName: 'Create nuget packages'

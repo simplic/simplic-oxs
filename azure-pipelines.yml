@@ -49,6 +49,12 @@ steps:
   - script: dotnet pack src/simplic-oxs.sln
     displayName: 'Create nuget packages'
 
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: '**'
+      Contents: '*.nupack'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
   - task: NuGetCommand@2
     displayName: 'Publish nuget packages'
     inputs:

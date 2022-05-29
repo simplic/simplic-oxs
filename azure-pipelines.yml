@@ -1,0 +1,37 @@
+trigger:
+  branches:
+    include:
+      - master
+      - dev
+  paths:
+    include:
+      - src/*
+      - test/*
+      - azure-pipelines.yml
+
+pr:
+  branches:
+    include:
+      - "*"
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+- name: buildConfiguration
+  value: "Release"
+
+resources:
+  repositories:
+    - repository: infrastructure
+      type: github
+      name: simplic/build-infrastructure
+      endpoint: simplic-bot
+      
+steps:
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'restore'
+      projects: '/src/simplic-oxs.sln'
+      feedsToUse: 'select'
+      vstsFeed: 'f7087ef5-bf6f-48b2-8b8b-5e513f4a7a9e'

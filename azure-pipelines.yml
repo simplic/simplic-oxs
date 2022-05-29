@@ -20,6 +20,12 @@ pool:
 variables:
 - name: buildConfiguration
   value: "Release"
+- name: dotNetFramework
+  value: 'net6.0'
+- name: dotNetVersion
+  value: '6.0.x'
+- name: targetRuntime
+  value: 'linux-x64'
 
 resources:
   repositories:
@@ -29,9 +35,10 @@ resources:
       endpoint: simplic-bot
       
 steps:
-  - task: NuGetCommand@2
+  - task: UseDotNet@2
     inputs:
-      command: 'restore'
-      restoreSolution: '**/*.sln'
-      feedsToUse: 'select'
-      vstsFeed: 'f7087ef5-bf6f-48b2-8b8b-5e513f4a7a9e'
+      version: $(dotNetVersion)
+      includePreviewVersions: true
+
+  - script: dotnet restore **/*.sln --configuration $(buildConfiguration)
+    displayName: 'Restore solution'

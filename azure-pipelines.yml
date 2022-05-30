@@ -18,6 +18,7 @@ pool:
   vmImage: "ubuntu-latest"
 
 variables:
+- group: simplic-deployment
 - name: buildConfiguration
   value: "Release"
 - name: dotNetVersion

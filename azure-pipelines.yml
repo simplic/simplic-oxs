@@ -20,12 +20,8 @@ pool:
 variables:
 - name: buildConfiguration
   value: "Release"
-- name: dotNetFramework
-  value: 'net6.0'
 - name: dotNetVersion
   value: '6.0.x'
-- name: targetRuntime
-  value: 'linux-x64'
 
 resources:
   repositories:
@@ -73,6 +69,7 @@ steps:
 
   - task: NuGetCommand@2
     displayName: 'Publish nuget packages'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
     inputs:
       command: 'push'
       packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'

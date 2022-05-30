@@ -46,8 +46,10 @@ steps:
   - script: dotnet build src/simplic-oxs.sln --configuration $(buildConfiguration)
     displayName: 'Build solution'
 
-  - script: dotnet test src/simplic-oxs.sln
-    displayName: 'Execute tests'
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'test'
+      projects: '**/*.sln'
 
   - script: dotnet pack src/simplic-oxs.sln
     displayName: 'Create nuget packages'

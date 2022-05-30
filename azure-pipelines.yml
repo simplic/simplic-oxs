@@ -65,7 +65,7 @@ steps:
     displayName: 'Create nuget packages'
     inputs:
       command: 'pack'
-      packagesToPack: '**/*.csproj'
+      packagesToPack: '**/*.sln'
       configuration: '$(buildConfiguration)'
       nobuild: true
       versioningScheme: 'off'

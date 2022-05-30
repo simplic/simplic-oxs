@@ -40,25 +40,36 @@ steps:
       version: $(dotNetVersion)
       includePreviewVersions: true
 
-  - script: dotnet restore src/simplic-oxs.sln
+  - task: DotNetCoreCLI@2
     displayName: 'Restore solution'
-
-  - script: dotnet build src/simplic-oxs.sln --configuration $(buildConfiguration)
-    displayName: 'Build solution'
+    inputs:
+      command: 'restore'
+      projects: '**/*.sln'
+      feedsToUse: 'select'
+      vstsFeed: 'f7087ef5-bf6f-48b2-8b8b-5e513f4a7a9e'
 
   - task: DotNetCoreCLI@2
+    displayName: 'Build solution'
+    inputs:
+      command: 'build'
+      projects: '**/*.sln'
+      arguments: '--configuration $(buildConfiguration)'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Execute and publish tests'
     inputs:
       command: 'test'
       projects: '**/*.sln'
 
-  - script: dotnet pack src/simplic-oxs.sln
+  - task: DotNetCoreCLI@2
     displayName: 'Create nuget packages'
-
-  - task: CopyFiles@2
-    displayName: 'Copy nuget packages'
     inputs:
-      Contents: '**/*.nupkg'
-      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+      command: 'pack'
+      packagesToPack: '**/*.csproj'
+      configuration: '$(buildConfiguration)'
+      nobuild: true
+      versioningScheme: 'off'
+      packDirectory: '$(Build.ArtifactStagingDirectory)'
 
   - task: NuGetCommand@2
     displayName: 'Publish nuget packages'

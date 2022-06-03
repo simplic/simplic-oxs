@@ -31,16 +31,15 @@ namespace Simplic.OxS.Server
             // Set authorization header
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(Constants.InternalApiKeyAuth, settings.Value.InternalApiKey);
 
-            // TODO: Use consts
             // Set context header
             if (requestContext.UserId != null)
-                client.DefaultRequestHeaders.Add("UserId", $"{requestContext.UserId}");
+                client.DefaultRequestHeaders.Add(Constants.HttpHeaderUserIdKey, $"{requestContext.UserId}");
 
             if (requestContext.TenantId != null)
-                client.DefaultRequestHeaders.Add("TenantId", $"{requestContext.TenantId}");
+                client.DefaultRequestHeaders.Add(Constants.HttpHeaderTenantIdKey, $"{requestContext.TenantId}");
 
             if (requestContext.CorrelationId != null)
-                client.DefaultRequestHeaders.Add("X-Correlation-ID", $"{requestContext.CorrelationId}");
+                client.DefaultRequestHeaders.Add(Constants.HttpHeaderCorrelationIdKey, $"{requestContext.CorrelationId}");
         }
 
         /// <summary>

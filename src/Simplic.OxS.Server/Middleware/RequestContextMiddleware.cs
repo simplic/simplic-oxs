@@ -9,8 +9,6 @@ namespace Simplic.OxS.Server.Middleware
     /// </summary>
     internal class RequestContextMiddleware
     {
-        private const string CorrelationIdHeaderKey = "X-Correlation-ID";
-
         private readonly RequestDelegate _next;
 
         /// <summary>
@@ -31,7 +29,7 @@ namespace Simplic.OxS.Server.Middleware
         {
             if (requestContext is RequestContext context)
             {
-                context.CorrelationId = GetFromHeader(httpContext, CorrelationIdHeaderKey);
+                context.CorrelationId = GetFromHeader(httpContext, Constants.HttpHeaderCorrelationIdKey);
 
                 var authorization = httpContext.Request.Headers.Authorization.ToString()?.Split(" ").ToList();
 
@@ -44,8 +42,8 @@ namespace Simplic.OxS.Server.Middleware
                 if (authorization != null && authorization[0].ToLower() == Constants.InternalApiKeyAuth)
                 {
                     // TODO: Use consts here
-                    context.UserId = GetFromHeader(httpContext, "UserId");
-                    context.TenantId = GetFromHeader(httpContext, "TenantId");
+                    context.UserId = GetFromHeader(httpContext, Constants.HttpHeaderUserIdKey);
+                    context.TenantId = GetFromHeader(httpContext, Constants.HttpHeaderTenantIdKey);
                 }
             }
 
@@ -54,7 +52,7 @@ namespace Simplic.OxS.Server.Middleware
 
         private Guid? GetFromHeader(HttpContext httpContext, string key)
         {
-            if (httpContext.Request.Headers.TryGetValue(CorrelationIdHeaderKey, out StringValues correlationIds))
+            if (httpContext.Request.Headers.TryGetValue(Constants.HttpHeaderCorrelationIdKey, out StringValues correlationIds))
             {
                 var correlationId = correlationIds.FirstOrDefault(k => k == key);
 

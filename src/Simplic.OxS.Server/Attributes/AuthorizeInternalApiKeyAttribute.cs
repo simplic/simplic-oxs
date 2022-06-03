@@ -34,7 +34,7 @@ namespace Simplic.OxS.Server
                 return;
             }
 
-            if (authParts[0] != "i-api-key")
+            if (authParts[0] != Constants.InternalApiKeyAuth)
             {
                 context.Result = GetUnauthorized();
                 return;

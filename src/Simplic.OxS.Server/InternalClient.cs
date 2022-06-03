@@ -8,11 +8,20 @@ using System.Web;
 
 namespace Simplic.OxS.Server
 {
+    /// <summary>
+    /// Client for sending network internal requests
+    /// </summary>
     public class InternalClient : IInternalClient
     {
         private readonly HttpClient client;
         private readonly ILogger<InternalClient> logger;
 
+        /// <summary>
+        /// Initialize http client
+        /// </summary>
+        /// <param name="settings">Authentication settings</param>
+        /// <param name="requestContext">Current request context</param>
+        /// <param name="logger">Logger instance</param>
         public InternalClient(IOptions<AuthSettings> settings, IRequestContext requestContext, ILogger<InternalClient> logger)
         {
             this.logger = logger;
@@ -20,7 +29,7 @@ namespace Simplic.OxS.Server
             client = new HttpClient();
 
             // Set authorization header
-            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("i-api-key", settings.Value.InternalApiKey);
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(Constants.InternalApiKeyAuth, settings.Value.InternalApiKey);
 
             // TODO: Use consts
             // Set context header
@@ -34,6 +43,16 @@ namespace Simplic.OxS.Server
                 client.DefaultRequestHeaders.Add("X-Correlation-ID", $"{requestContext.CorrelationId}");
         }
 
+        /// <summary>
+        /// Send http get request. Throws an exception if no success-code is returned from the given endpoint.
+        /// </summary>
+        /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
+        /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
+        /// <param name="action">Action name (e.g. get, search, ...)</param>
+        /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <returns>Result object</returns>
+        /// <exception cref="Exception"></exception>
         public virtual async Task<T?> Get<T>([NotNull] string host, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, controller, action, parameter);
@@ -55,6 +74,18 @@ namespace Simplic.OxS.Server
             return await result.Content.ReadFromJsonAsync<T>();
         }
 
+        /// <summary>
+        /// Send http post request. Throws an exception if no success-code is returned from the given endpoint.
+        /// </summary>
+        /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
+        /// <typeparam name="O">Input object type. Will be send as json in the http body.</typeparam>
+        /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
+        /// <param name="action">Action name (e.g. get, search, ...)</param>
+        /// <param name="body">Object to post as json</param>
+        /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <returns>Result object</returns>
+        /// <exception cref="Exception"></exception>
         public virtual async Task<T?> Post<T, O>([NotNull] string host, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, controller, action, parameter);
@@ -76,6 +107,18 @@ namespace Simplic.OxS.Server
             return await result.Content.ReadFromJsonAsync<T>();
         }
 
+        /// <summary>
+        /// Send http put request. Throws an exception if no success-code is returned from the given endpoint.
+        /// </summary>
+        /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
+        /// <typeparam name="O">Input object type. Will be send as json in the http body.</typeparam>
+        /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
+        /// <param name="action">Action name (e.g. get, search, ...)</param>
+        /// <param name="body">Object to put as json</param>
+        /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <returns>Result object</returns>
+        /// <exception cref="Exception"></exception>
         public virtual async Task<T?> Put<T, O>([NotNull] string host, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, controller, action, parameter);
@@ -95,6 +138,17 @@ namespace Simplic.OxS.Server
 
             return await result.Content.ReadFromJsonAsync<T>();
         }
+
+        /// <summary>
+        /// Send http delete request. Throws an exception if no success-code is returned from the given endpoint.
+        /// </summary>
+        /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
+        /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
+        /// <param name="action">Action name (e.g. get, search, ...)</param>
+        /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <returns>Result object</returns>
+        /// <exception cref="Exception"></exception>
         public virtual async Task<T?> Delete<T>([NotNull] string host, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, controller, action, parameter);
@@ -116,16 +170,30 @@ namespace Simplic.OxS.Server
             return await result.Content.ReadFromJsonAsync<T>();
         }
 
+        /// <summary>
+        /// Dispose http client <see cref="HttpClient"/>
+        /// </summary>
         public void Dispose()
         {
             client?.Dispose();
         }
 
+        /// <summary>
+        /// Gets a formatted error message
+        /// </summary>
+        /// <param name="method">Http method</param>
+        /// <param name="endpoint">Endpoint query (url)</param>
+        /// <param name="result">Result as string</param>
         private async Task<string> GetErrorMessage(string method, string endpoint, HttpResponseMessage result)
         {
             return $"Internal client error. Endpoint: [{method}] {endpoint} / Status {result.StatusCode} / {await result.Content.ReadAsStringAsync()}";
         }
 
+        /// <summary>
+        /// Convert parameter to query-string
+        /// </summary>
+        /// <param name="parameter">Parameter as dictionary</param>
+        /// <returns>Query-string (http encoded)</returns>
         private string GenerateParameter(IDictionary<string, string>? parameter)
         {
             if (parameter == null)
@@ -146,6 +214,14 @@ namespace Simplic.OxS.Server
             return parameterBuilder.ToString();
         }
 
+        /// <summary>
+        /// Build complete url (query-string)
+        /// </summary>
+        /// <param name="host">Host name</param>
+        /// <param name="controller">Controller name</param>
+        /// <param name="action">Action name</param>
+        /// <param name="parameter">Parameter (dictionary will be converted to ?...=...&...=...</param>
+        /// <returns>Url as string</returns>
         private string BuildUrl(string host, string controller, string action, IDictionary<string, string>? parameter)
         {
             var builder = new StringBuilder();

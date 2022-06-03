@@ -1,13 +1,23 @@
 ﻿using MassTransit;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Simplic.OxS.MessageBroker.Filter;
 using System.Reflection;
 
 namespace Simplic.OxS.MessageBroker
 {
+    /// <summary>
+    /// Service collection extension
+    /// </summary>
     public static class ServiceCollectionExtensions
     {
+        /// <summary>
+        /// Initialize mass transit
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        /// <param name="configuration">Configuration instance</param>
+        /// <param name="additionalConfiguration">Delegate for invoking masstransit pipeline creation</param>
+        /// <returns>Service collection instance</returns>
         public static IServiceCollection InitializeMassTransit(this IServiceCollection services, IConfiguration configuration, Action<IBusRegistrationConfigurator>? additionalConfiguration = null)
         {
             var consumerTypes = Assembly.GetEntryAssembly().GetTypes()
@@ -54,20 +64,28 @@ namespace Simplic.OxS.MessageBroker
 
                         foreach (var consumer in consumers)
                         {
-                            cfg.ReceiveEndpoint(consumer.Key,
-                                ep => { ep.ConfigureConsumer(context, consumer.Value); });
+                            cfg.ReceiveEndpoint(consumer.Key, ep =>
+                            {
+                                // Inject pipeline and set request context
+                                ep.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+                                ep.ConfigureConsumer(context, consumer.Value);
+                            });
                         }
 
                         cfg.ConfigureSend(sendPipeConfigurator => sendPipeConfigurator.UseExecute(ctx =>
                         {
-                            ctx.Headers.Set(MassTransitHeaders.OrganizationId, GetTenantId(context) ?? Guid.Empty.ToString());
-                            ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context) ?? Guid.Empty.ToString());
+                            ctx.Headers.Set(MassTransitHeaders.TenantId, GetTenantId(context));
+                            ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context));
+
+                            ctx.CorrelationId = GetCorrelationId(context);
                         }));
 
                         cfg.ConfigurePublish(publishPipeConfigurator => publishPipeConfigurator.UseExecute(ctx =>
                         {
-                            ctx.Headers.Set(MassTransitHeaders.OrganizationId, GetTenantId(context) ?? Guid.Empty.ToString());
-                            ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context) ?? Guid.Empty.ToString());
+                            ctx.Headers.Set(MassTransitHeaders.TenantId, GetTenantId(context));
+                            ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context));
+
+                            ctx.CorrelationId = GetCorrelationId(context);
                         }));
                     }
                 });
@@ -77,37 +95,36 @@ namespace Simplic.OxS.MessageBroker
         }
 
         /// <summary>
-        /// Try to get organizationId from user claims (it's available if a user is logged into any organization)
+        /// Try to get the tenant id from the request context
         /// </summary>
-        /// <param name="context"></param>
-        /// <returns>Organization Id</returns>
+        /// <param name="context">Current bus context</param>
+        /// <returns>Tenant id</returns>
         private static string? GetTenantId(IBusRegistrationContext context)
         {
-            var httpContextAccessor = context.GetService<IHttpContextAccessor>();
-
-            if (httpContextAccessor == null)
-                return null;
-
-            var organizationId = httpContextAccessor.HttpContext.User.OrganizationId();
-
-            return organizationId;
+            var httpContextAccessor = context.GetService<IRequestContext>();
+            return httpContextAccessor?.TenantId?.ToString();
         }
 
         /// <summary>
-        /// Try to get userId from user claims (it's available if a user is logged in)
+        /// Try to get the user id from the request context
         /// </summary>
-        /// <param name="context"></param>
-        /// <returns>User Id</returns>
+        /// <param name="context">Current bus context</param>
+        /// <returns>User id</returns>
         private static string? GetUserId(IBusRegistrationContext context)
         {
-            var httpContextAccessor = context.GetService<IHttpContextAccessor>();
+            var httpContextAccessor = context.GetService<IRequestContext>();
+            return httpContextAccessor?.UserId?.ToString();
+        }
 
-            if (httpContextAccessor == null)
-                return null;
-
-            var userId = httpContextAccessor.HttpContext.User.Id();
-
-            return userId;
+        /// <summary>
+        /// Try to get the correlation id from the request context
+        /// </summary>
+        /// <param name="context">Current bus context</param>
+        /// <returns>Correlation id</returns>
+        private static Guid? GetCorrelationId(IBusRegistrationContext context)
+        {
+            var httpContextAccessor = context.GetService<IRequestContext>();
+            return httpContextAccessor?.CorrelationId ?? Guid.NewGuid();
         }
     }
 }

@@ -70,7 +70,7 @@ namespace Simplic.OxS.Server
             return new ContentResult()
             {
                 StatusCode = 401,
-                Content = "Api Key is not valid or not provided"
+                Content = $"Internal-api-key ({Constants.HttpAuthorizationSchemeInternalKey}) is not valid or not provided"
             };
         }
     }

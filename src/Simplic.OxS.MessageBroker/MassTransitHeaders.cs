@@ -1,14 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.MessageBroker
+﻿namespace Simplic.OxS.MessageBroker
 {
+    /// <summary>
+    /// Contains all a set of masstransit header
+    /// </summary>
     public class MassTransitHeaders
     {
-        public const string OrganizationId = "OrganizationId";
+        /// <summary>
+        /// Name of the tenant header (TenantId)
+        /// </summary>
+        public const string TenantId = "TenantId";
+
+        /// <summary>
+        /// Name of the user id (UserId)
+        /// </summary>
         public const string UserId = "UserId";
     }
 }

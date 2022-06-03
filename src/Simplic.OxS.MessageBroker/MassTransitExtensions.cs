@@ -1,12 +1,19 @@
 ﻿using MassTransit;
-using MassTransit.RabbitMqTransport;
 using Microsoft.Extensions.Configuration;
 
 namespace Simplic.OxS.MessageBroker
 {
-    public static class MassTransitExtensions
+    /// <summary>
+    /// Mass transit extensions
+    /// </summary>
+    internal static class MassTransitExtensions
     {
-        public static void InitializeHost(this IRabbitMqBusFactoryConfigurator rabbitMQConfigurator, IConfiguration configuration)
+        /// <summary>
+        /// Initialize masstransit host
+        /// </summary>
+        /// <param name="rabbitMQConfigurator">Configurator instance</param>
+        /// <param name="configuration">Asp.net core configuration instance</param>
+        internal static void InitializeHost(this IRabbitMqBusFactoryConfigurator rabbitMQConfigurator, IConfiguration configuration)
         {
             var rabbitMQSettings = configuration.GetSection("RabbitMQ").Get<MessageBrokerSettings>();
             System.Console.WriteLine($"Initialize RabbitMQ host: {rabbitMQSettings?.Host}");

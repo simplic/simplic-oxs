@@ -9,7 +9,7 @@ using System.Web;
 namespace Simplic.OxS.Server
 {
     /// <summary>
-    /// Client for sending network internal requests
+    /// Client for sending network/cluster internal requests
     /// </summary>
     public class InternalClient : IInternalClient
     {

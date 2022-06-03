@@ -7,4 +7,8 @@
     <Version>1.0.822.603</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS\Simplic.OxS.csproj" />
+  </ItemGroup>
+
 </Project>

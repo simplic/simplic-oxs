@@ -36,6 +36,8 @@ namespace Simplic.OxS.MessageBroker.Filter
             if (context.TryGetHeader(MassTransitHeaders.TenantId, out string? tenantHeaderId))
                 if (Guid.TryParse(tenantHeaderId, out Guid tenantId))
                     requestContext.TenantId = tenantId;
+
+            await Task.CompletedTask;
         }
 
         public void Probe(ProbeContext context) { }

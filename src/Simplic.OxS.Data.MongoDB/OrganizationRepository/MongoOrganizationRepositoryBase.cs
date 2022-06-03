@@ -12,11 +12,11 @@ namespace Simplic.OxS.Data.MongoDB
         where TDocument : OrganizationDocumentBase
         where TFilter : OrganizationFilterBase, new()
     {
-        private readonly IOrganizationIdProvider _organizationIdProvider;
+        private readonly IRequestContext requestContext;
 
-        protected MongoOrganizationRepositoryBase(IMongoContext context, IOrganizationIdProvider organizationIdProvider) : base(context)
+        protected MongoOrganizationRepositoryBase(IMongoContext context, IRequestContext requestContext) : base(context)
         {
-            _organizationIdProvider = organizationIdProvider;
+            this.requestContext = requestContext;
         }
 
         public override async Task<TDocument> GetAsync(Guid id)
@@ -60,7 +60,7 @@ namespace Simplic.OxS.Data.MongoDB
                 ? filter.OrganizationId
                 : filter.QueryAllOrganizations
                     ? null
-                    : _organizationIdProvider.GetOrganizationId();
+                    : requestContext.TenantId;
 
             return (await Collection.FindAsync(BuildFilterQuery(filter)))
                     .ToEnumerable();
@@ -105,7 +105,7 @@ namespace Simplic.OxS.Data.MongoDB
     public abstract class MongoOrganizationRepositoryBase<TDocument> : MongoOrganizationRepositoryBase<TDocument, OrganizationFilterBase>
         where TDocument : OrganizationDocumentBase
     {
-        protected MongoOrganizationRepositoryBase(IMongoContext context, IOrganizationIdProvider organizationIdProvider) : base(context, organizationIdProvider)
+        protected MongoOrganizationRepositoryBase(IMongoContext context, IRequestContext requestContext) : base(context, requestContext)
         {
         }
     }

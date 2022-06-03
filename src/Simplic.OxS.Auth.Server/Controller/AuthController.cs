@@ -24,14 +24,16 @@ namespace Simplic.OxS.Auth.Server.Controller
         private readonly ITwoFactorTokenService twoFactorTokenService;
         private readonly IOptions<AuthSettings> authSettings;
         private readonly IBusControl busControl;
+        private readonly IRequestContext requestContext;
 
-        public AuthController(ILogger<AuthController> logger, IUserService userService, ITwoFactorTokenService twoFactorTokenService, IOptions<AuthSettings> authSettings, IBusControl busControl)
+        public AuthController(IRequestContext requestContext, ILogger<AuthController> logger, IUserService userService, ITwoFactorTokenService twoFactorTokenService, IOptions<AuthSettings> authSettings, IBusControl busControl)
         {
             this.logger = logger;
             this.userService = userService;
             this.twoFactorTokenService = twoFactorTokenService;
             this.authSettings = authSettings;
             this.busControl = busControl;
+            this.requestContext = requestContext;
         }
 
         [HttpPost("login")]
@@ -269,7 +271,7 @@ namespace Simplic.OxS.Auth.Server.Controller
             if (!ModelState.IsValid)
                 return BadRequest();
 
-            var userId = GetUserId();
+            var userId = requestContext.UserId;
 
             if (userId == null)
                 return BadRequest();

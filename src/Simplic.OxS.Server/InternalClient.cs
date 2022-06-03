@@ -29,7 +29,7 @@ namespace Simplic.OxS.Server
             client = new HttpClient();
 
             // Set authorization header
-            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(Constants.InternalApiKeyAuth, settings.Value.InternalApiKey);
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(Constants.HttpAuthorizationSchemeInternalKey, settings.Value.InternalApiKey);
 
             // Set context header
             if (requestContext.UserId != null)

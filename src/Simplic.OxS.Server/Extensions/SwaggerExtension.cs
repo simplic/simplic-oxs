@@ -34,13 +34,13 @@ namespace Simplic.OxS.Server.Extensions
 
                 if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
                 {
-                    c.AddSecurityDefinition(Constants.InternalApiKeyAuth, new OpenApiSecurityScheme
+                    c.AddSecurityDefinition(Constants.HttpAuthorizationSchemeInternalKey, new OpenApiSecurityScheme
                     {
                         Description = "For internal network calls.\r\n\r\nExample: \"i-api-key 12345abcdef\"",
                         Name = "Authorization",
                         In = ParameterLocation.Header,
                         Type = SecuritySchemeType.ApiKey,
-                        Scheme = Constants.InternalApiKeyAuth
+                        Scheme = Constants.HttpAuthorizationSchemeInternalKey
                     });
                 }
 
@@ -70,10 +70,10 @@ namespace Simplic.OxS.Server.Extensions
                         Reference = new OpenApiReference
                         {
                             Type = ReferenceType.SecurityScheme,
-                            Id = Constants.InternalApiKeyAuth
+                            Id = Constants.HttpAuthorizationSchemeInternalKey
                         },
-                        Scheme = Constants.InternalApiKeyAuth,
-                        Name = Constants.InternalApiKeyAuth,
+                        Scheme = Constants.HttpAuthorizationSchemeInternalKey,
+                        Name = Constants.HttpAuthorizationSchemeInternalKey,
                         In = ParameterLocation.Header,
 
                     }, new List<string>());

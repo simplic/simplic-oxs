@@ -34,7 +34,7 @@ namespace Simplic.OxS.Server
                 return;
             }
 
-            if (authParts[0] != Constants.InternalApiKeyAuth)
+            if (authParts[0] != Constants.HttpAuthorizationSchemeInternalKey)
             {
                 context.Result = GetUnauthorized();
                 return;

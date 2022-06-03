@@ -39,7 +39,7 @@ namespace Simplic.OxS.Server.Middleware
                     context.TenantId = GetTenantId(httpContext);
                 }
 
-                if (authorization != null && authorization[0].ToLower() == Constants.InternalApiKeyAuth)
+                if (authorization != null && authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey)
                 {
                     // TODO: Use consts here
                     context.UserId = GetFromHeader(httpContext, Constants.HttpHeaderUserIdKey);

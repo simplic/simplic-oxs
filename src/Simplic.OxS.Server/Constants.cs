@@ -8,7 +8,7 @@
         /// <summary>
         /// Internal api key scheme (i-api-key).
         /// </summary>
-        public const string InternalApiKeyAuth = "i-api-key";
+        public const string HttpAuthorizationSchemeInternalKey = "i-api-key";
 
         /// <summary>
         /// Gets or sets the name/key of the http-header for the user id

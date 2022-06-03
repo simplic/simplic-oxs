@@ -61,20 +61,20 @@ namespace Simplic.OxS.Server
             //    };
             //}
 
-            if (context.Controller is Controller.OxSInternalController controller)
+            if (context.Controller is Controller.OxSInternalController internalController)
             {
                 if (context.HttpContext.Request.Headers.TryGetValue("TenantId", out StringValues tenantValues))
                 {
                     var tenantValue = tenantValues.FirstOrDefault();
                     if (!string.IsNullOrWhiteSpace(tenantValue))
-                        controller.TenantId = Guid.Parse(tenantValue);
+                        internalController.TenantId = Guid.Parse(tenantValue);
                 }
 
                 if (context.HttpContext.Request.Headers.TryGetValue("UserId", out StringValues userValues))
                 {
                     var userValue = userValues.FirstOrDefault();
                     if (!string.IsNullOrWhiteSpace(userValue))
-                        controller.UserId = Guid.Parse(userValue);
+                        internalController.UserId = Guid.Parse(userValue);
                 }
             }
             else

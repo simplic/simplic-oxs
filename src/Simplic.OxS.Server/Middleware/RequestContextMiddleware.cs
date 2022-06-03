@@ -10,7 +10,6 @@ namespace Simplic.OxS.Server.Middleware
     internal class RequestContextMiddleware
     {
         private const string CorrelationIdHeaderKey = "X-Correlation-ID";
-        private const string BearerHeaderKey = "X-Correlation-ID";
 
         private readonly RequestDelegate _next;
 

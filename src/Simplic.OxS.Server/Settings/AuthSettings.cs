@@ -8,7 +8,7 @@
         /// <summary>
         /// Gets or sets the auth token
         /// </summary>
-        public string Token { get; set; }
+        public string Token { get; set; } = $"{Guid.NewGuid()}";
 
         /// <summary>
         /// Gets or sets the default issuer
@@ -18,6 +18,6 @@
         /// <summary>
         /// Gets or sets the internal API key
         /// </summary>
-        public string InternalApiKey { get; set; }
+        public string InternalApiKey { get; set; } = $"{Guid.NewGuid()}";
     }
 }

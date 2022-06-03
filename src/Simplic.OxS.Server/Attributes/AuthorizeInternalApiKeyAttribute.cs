@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
 
 namespace Simplic.OxS.Server
 {
@@ -49,17 +48,6 @@ namespace Simplic.OxS.Server
                 context.Result = GetUnauthorized();
                 return;
             }
-
-            // Check whether the request is of type http. Internally only http requests are allowed
-            // Maybe we should only allow do this in prod?
-            //if (context.HttpContext.Request.Scheme.ToLower() != "http")
-            //{
-            //    context.Result = new ContentResult()
-            //    {
-            //        StatusCode = 400,
-            //        Content = "Only http is allowed for internal requests."
-            //    };
-            //}
 
             if (!(context.Controller is Controller.OxSInternalController))
             {

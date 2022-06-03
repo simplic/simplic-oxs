@@ -7,8 +7,17 @@ using System.Text;
 
 namespace Simplic.OxS.Server.Extensions
 {
+    /// <summary>
+    /// Extension method for adding Jwt authorization and authentication
+    /// </summary>
     internal static class JwtAuthenticationExtension
     {
+        /// <summary>
+        /// Add jwt authentication
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        /// <param name="configuration">Service configuration</param>
+        /// <returns>Service collection instance</returns>
         internal static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<AuthSettings>(options => configuration.GetSection("Auth").Bind(options));

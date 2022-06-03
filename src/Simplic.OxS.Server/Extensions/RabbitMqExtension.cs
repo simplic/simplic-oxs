@@ -5,8 +5,18 @@ using Simplic.OxS.MessageBroker;
 
 namespace Simplic.OxS.Server.Extensions
 {
+    /// <summary>
+    /// Messagebroker extension methods
+    /// </summary>
     internal static class RabbitMqExtension
     {
+        /// <summary>
+        /// Add rabbitmq/masstransit
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        /// <param name="configuration">Actual configuration instance</param>
+        /// <param name="configure">Configure rabbitmq</param>
+        /// <returns>Service collection</returns>
         internal static IServiceCollection AddRabbitMq(this IServiceCollection services, IConfiguration configuration, Action<IServiceCollection, MessageBrokerSettings> configure)
         {
             // Initialize broker system

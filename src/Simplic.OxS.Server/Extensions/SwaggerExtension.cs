@@ -5,9 +5,19 @@ using Microsoft.OpenApi.Models;
 
 namespace Simplic.OxS.Server.Extensions
 {
+    /// <summary>
+    /// Swagger extension methods
+    /// </summary>
     internal static class SwaggerExtension
-
     {
+        /// <summary>
+        /// Add swagger to the actual service/endpoint
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        /// <param name="env">Actual env</param>
+        /// <param name="apiVersion">Current application version</param>
+        /// <param name="serviceName">Current service name</param>
+        /// <returns>Service collection</returns>
         internal static IServiceCollection AddSwagger(this IServiceCollection services, IWebHostEnvironment env, string apiVersion, string serviceName)
         {
             services.AddSwaggerGen(c =>

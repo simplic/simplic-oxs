@@ -154,7 +154,7 @@ namespace Simplic.OxS.Server
 
             if (!string.IsNullOrWhiteSpace(controller))
                 builder.Append($"/{controller}");
-            
+
             if (!string.IsNullOrWhiteSpace(action))
                 builder.Append($"/{action}");
 
@@ -164,6 +164,9 @@ namespace Simplic.OxS.Server
             return builder.ToString();
         }
 
+        /// <summary>
+        /// Gets or sets the internal request schema. Should be http by default to ensure only internal calls.
+        /// </summary>
         public string Scheme { get; set; } = "http";
     }
 }

@@ -1,24 +1,22 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 
 namespace Simplic.OxS.Server
 {
+    /// <summary>
+    /// Attribute for securing an internal api controller.
+    /// </summary>
     [AttributeUsage(validOn: AttributeTargets.Class)]
     public class AuthorizeInternalApiKeyAttribute : Attribute, IAsyncActionFilter
     {
-        private ContentResult GetUnauthorized()
-        {
-            return new ContentResult()
-            {
-                StatusCode = 401,
-                Content = "Api Key is not valid or not provided"
-            };
-        }
-
+        /// <summary>
+        /// Will be executed by the asp.net core runtime for filtering user access.
+        /// </summary>
+        /// <param name="context">Current request context</param>
+        /// <param name="next">Next request step</param>
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
             var authHeader = context.HttpContext.Request.Headers.Authorization.ToString();
@@ -42,7 +40,7 @@ namespace Simplic.OxS.Server
                 context.Result = GetUnauthorized();
                 return;
             }
-            
+
             var appSettings = context.HttpContext.RequestServices.GetRequiredService<IOptions<Settings.AuthSettings>>();
 
             // Check whether the actual api key is correct.
@@ -89,6 +87,19 @@ namespace Simplic.OxS.Server
             }
 
             await next();
+        }
+
+        /// <summary>
+        /// Gets a result that determines the unauthorized state
+        /// </summary>
+        /// <returns>Content result (StatusCode = 401)</returns>
+        private ContentResult GetUnauthorized()
+        {
+            return new ContentResult()
+            {
+                StatusCode = 401,
+                Content = "Api Key is not valid or not provided"
+            };
         }
     }
 }

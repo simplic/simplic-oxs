@@ -1,14 +1,7 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using Simplic.OxS.Data.MongoDB;
-using Simplic.OxS.MessageBroker;
-using Simplic.OxS.Server.Settings;
-using System.Text;
 
 namespace Simplic.OxS.Server.Extensions
 {

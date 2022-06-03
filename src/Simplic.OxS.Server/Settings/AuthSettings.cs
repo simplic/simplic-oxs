@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.Server.Settings
+﻿namespace Simplic.OxS.Server.Settings
 {
     /// <summary>
     /// Authentication settings

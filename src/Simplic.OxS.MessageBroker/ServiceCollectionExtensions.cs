@@ -8,7 +8,7 @@ namespace Simplic.OxS.MessageBroker
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection InitializeMassTransit(this IServiceCollection services, IConfiguration configuration, Action<IBusRegistrationConfigurator> additionalConfiguration = null)
+        public static IServiceCollection InitializeMassTransit(this IServiceCollection services, IConfiguration configuration, Action<IBusRegistrationConfigurator>? additionalConfiguration = null)
         {
             var consumerTypes = Assembly.GetEntryAssembly().GetTypes()
                 .Where(t => typeof(IConsumer).IsAssignableFrom(t))

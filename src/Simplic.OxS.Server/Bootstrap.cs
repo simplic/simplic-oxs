@@ -1,24 +1,20 @@
 ﻿using AutoMapper;
-using Simplic.OxS.Data.MongoDB;
-using Simplic.OxS.MessageBroker;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using Simplic.OxS.Server.Settings;
-using Simplic.OxS.Server.Middleware;
+using Simplic.OxS.MessageBroker;
+using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Interface;
+using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
 
 namespace Simplic.OxS.Server
 {
+    /// <summary>
+    /// Base class for implementing a Simplic.OxS microservice
+    /// </summary>
     public abstract class Bootstrap
     {
         public Bootstrap(IConfiguration configuration, IWebHostEnvironment currentEnvironment)
@@ -27,61 +23,25 @@ namespace Simplic.OxS.Server
             CurrentEnvironment = currentEnvironment;
         }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
+        /// <summary>
+        /// This method gets called by the runtime. Use this method to add services to the container.
+        /// </summary>
+        /// <param name="services">Service collection</param>
         public virtual void ConfigureServices(IServiceCollection services)
         {
-            services.Configure<AuthSettings>(options => Configuration.GetSection("Auth").Bind(options));
-            services.Configure<ConnectionSettings>(options => Configuration.GetSection("MongoDB").Bind(options));
+            // Add logging and tracing systems
+            services.AddLoggingAndMetricTracing(ServiceName);
 
-            // Setup database stuff
-            var databaseSection = Configuration.GetSection("MongoDB");
-            if (databaseSection != null)
-            {
-                Console.WriteLine(" > Add MongoDB context");
-                services.AddTransient<IMongoContext, MongoContext>();
-            }
-            else
-            {
-                Console.WriteLine(" > NO MongoDB context found.");
-            }
+            // Add MongoDb context and bind configuration
+            services.AddMongoDb(Configuration);
 
-            // Initialize broker system
-            var rabbitMQSettings = Configuration.GetSection("rabbitMQ").Get<MessageBrokerSettings>();
-            if (rabbitMQSettings != null && !string.IsNullOrWhiteSpace(rabbitMQSettings.Host))
-            {
-                Console.WriteLine($" > Add MassTransit context: {rabbitMQSettings.Host}@{rabbitMQSettings.UserName}");
-                services.InitializeMassTransit(Configuration, null);
+            // Add RabbitMq context and bind configuration
+            services.AddRabbitMq(Configuration, ConfigureEndpointConventions);
 
-                ConfigureEndpointConventions(services, rabbitMQSettings);
-            }
-            else
-            {
-                Console.WriteLine(" > NO MassTransit context found.");
-            }
+            // Add Jwt authentication and bind configuration
+            services.AddJwtAuthentication(Configuration);
 
-            var authSettings = Configuration.GetSection("Auth").Get<AuthSettings>();
-
-            if (authSettings != null)
-            {
-                services.AddAuthentication(x =>
-                {
-                    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                    x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                }).AddJwtBearer(x =>
-                {
-                    x.RequireHttpsMetadata = false;
-                    x.SaveToken = true;
-
-                    x.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(authSettings.Token)),
-                        ValidateIssuer = false,
-                        ValidateAudience = false
-                    };
-                });
-            }
-
+            // Register custom services
             RegisterServices(services);
 
             // Create mapper profiles and register mapper
@@ -89,6 +49,8 @@ namespace Simplic.OxS.Server
 
             IMapper mapper = mapperConfig.CreateMapper();
             services.AddSingleton(mapper);
+
+            // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();
             services.AddTransient<IInternalClient, InternalClient>();
 
@@ -96,70 +58,14 @@ namespace Simplic.OxS.Server
             services.AddControllers();
 
             // Add swagger stuff
-            services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc(ApiVersion, new OpenApiInfo { Title = $"Simplic.OxS{ServiceName}", Version = ApiVersion });
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-                {
-                    Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\"",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey,
-                    Scheme = "Bearer"
-                });
-
-                if (CurrentEnvironment.IsDevelopment() || CurrentEnvironment.EnvironmentName.ToLower() == "local")
-                {
-                    c.AddSecurityDefinition("i-api-key", new OpenApiSecurityScheme
-                    {
-                        Description = "For internal network calls.\r\n\r\nExample: \"i-api-key 12345abcdef\"",
-                        Name = "Authorization",
-                        In = ParameterLocation.Header,
-                        Type = SecuritySchemeType.ApiKey,
-                        Scheme = "i-api-key"
-                    });
-                }
-
-                var securityRequirements = new OpenApiSecurityRequirement()
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            },
-                            Scheme = "oauth2",
-                            Name = "Bearer",
-                            In = ParameterLocation.Header,
-
-                        },
-                        new List<string>()
-                    }
-                };
-
-                if (CurrentEnvironment.IsDevelopment() || CurrentEnvironment.EnvironmentName.ToLower() == "local")
-                {
-                    securityRequirements.Add(new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "i-api-key"
-                        },
-                        Scheme = "api-key",
-                        Name = "i-api-key",
-                        In = ParameterLocation.Header,
-
-                    }, new List<string>());
-                }
-
-                c.AddSecurityRequirement(securityRequirements);
-            });
+            services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName);
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// <summary>
+        /// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// </summary>
+        /// <param name="app">Application context</param>
+        /// <param name="env">Env context</param>
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
@@ -189,18 +95,43 @@ namespace Simplic.OxS.Server
             migrationService?.Migrate().Wait();
         }
 
+        /// <summary>
+        /// Method for custom profile registrations. (AutoMapper)
+        /// </summary>
+        /// <param name="mapperConfiguration">Mapper configuration instance. Add profiles to this mapping.</param>
         protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration) { }
 
-        protected abstract void ConfigureEndpointConventions(IServiceCollection services, MessageBrokerSettings settings);
+        /// <summary>
+        /// Method for custom endpoint registration (MassTransit/RabbitMq). Register commands in this method
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        /// <param name="settings">MessageBroker settings</param>
+        protected virtual void ConfigureEndpointConventions(IServiceCollection services, MessageBrokerSettings settings) { }
 
+        /// <summary>
+        /// Will be called for registering custom services.
+        /// </summary>
+        /// <param name="services">Service collection for adding additional services</param>
         protected abstract void RegisterServices(IServiceCollection services);
 
+        /// <summary>
+        /// Gets the current service name. This will not contains Simplic.OxS.
+        /// </summary>
         protected abstract string ServiceName { get; }
 
+        /// <summary>
+        /// Gets the actual service version. Default is v1
+        /// </summary>
         protected virtual string ApiVersion { get; } = "v1";
 
+        /// <summary>
+        /// Gets the current configuration service
+        /// </summary>
         public IConfiguration Configuration { get; }
 
+        /// <summary>
+        /// Gets or sets the current environment.
+        /// </summary>
         private IWebHostEnvironment CurrentEnvironment { get; set; }
     }
 }

@@ -20,13 +20,13 @@ namespace Simplic.OxS.Server.Extensions
             // TODO: Add OPTL, CorrelationId, UserId, TenantId
 
             services.AddOpenTelemetryTracing((builder) => builder
-                .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService($"Simplic.OxS.{serviceName}"))
+                .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService($"Simplic.OxS.{serviceName}").AddTelemetrySdk())
                 .AddAspNetCoreInstrumentation()
                 .AddMassTransitInstrumentation()
                 .AddConsoleExporter()
                 .AddOtlpExporter(opt =>
                 {
-                    opt.Endpoint = new Uri("http://grafana:4317");
+                    opt.Endpoint = new Uri("http://otel-collector:4317");
                 }));
 
             return services;

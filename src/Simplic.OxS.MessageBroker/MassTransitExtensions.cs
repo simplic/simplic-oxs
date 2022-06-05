@@ -18,6 +18,9 @@ namespace Simplic.OxS.MessageBroker
             var rabbitMQSettings = configuration.GetSection("RabbitMQ").Get<MessageBrokerSettings>();
             System.Console.WriteLine($"Initialize RabbitMQ host: {rabbitMQSettings?.Host}");
 
+            if(rabbitMQSettings?.Host == null)
+                throw new Exception("No rabbitmq host found when trying to initialize rabbitmq host.");
+
             rabbitMQConfigurator.Host(rabbitMQSettings.Host, host =>
             {
                 host.Username(rabbitMQSettings.UserName);

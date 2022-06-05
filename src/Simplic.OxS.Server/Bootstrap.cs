@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.OpenApi.Models;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Interface;
@@ -68,13 +69,34 @@ namespace Simplic.OxS.Server
         /// <param name="env">Env context</param>
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            // Allow paths like /v1/<service-name>-api
+            var basePath = $"/{ApiVersion}/{ServiceName.ToLower()}-api";
+            app.UsePathBase(basePath);
+
             if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
             {
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseSwagger();
-            app.UseSwaggerUI(c => c.SwaggerEndpoint($"/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS{ServiceName} {ApiVersion}"));
+            app.UseSwagger(c =>
+            {
+                c.PreSerializeFilters.Add((swagger, httpReq) =>
+                {
+                    if (env.IsDevelopment())
+                    {
+                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"{httpReq.Scheme}://{httpReq.Host.Value}{basePath}" } };
+                    }
+                    else
+                    {
+                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"{httpReq.Scheme}://{httpReq.Host.Value}{basePath}" } };
+                    }
+                });
+            });
+
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
+            });
 
             app.UseHttpsRedirection();
 

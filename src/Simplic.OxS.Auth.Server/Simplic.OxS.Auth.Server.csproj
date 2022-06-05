@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Simplic.OxS.Auth.SchemaRegistry\Simplic.OxS.Auth.SchemaRegistry.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Auth.Service\Simplic.OxS.Auth.Service.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Auth\Simplic.OxS.Auth.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Hook\Simplic.OxS.Hook.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
     <ProjectReference Include="..\Simplic.OxS.SMS.SchemaRegistry\Simplic.OxS.Sms.SchemaRegistry.csproj" />
   </ItemGroup>

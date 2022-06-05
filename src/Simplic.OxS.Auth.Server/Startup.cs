@@ -4,6 +4,7 @@ using Simplic.OxS.Auth.Service;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server;
 using Simplic.OxS.Server.Interface;
+using Simplic.OxS.Hook;
 
 namespace Simplic.OxS.Auth.Server
 {
@@ -23,6 +24,8 @@ namespace Simplic.OxS.Auth.Server
 
         protected override void RegisterServices(IServiceCollection services)
         {
+            services.AddHookDefinition(new[] { "Simplic.OxS.Auth.SchemaRegistry" });
+
             services.AddTransient<IUserService, UserService>();
             services.AddTransient<IUserRepository, UserRepository>();
             services.AddTransient<ITwoFactorTokenRepository, TwoFactorTokenRepository>();

@@ -1,6 +1,6 @@
 ﻿namespace Simplic.OxS.Cache
 {
-    public interface IDataCacheService
+    public interface ICacheService
     {
         Task<T> Get<T>(string type, string keyName, string key, Func<Task<T>> func);
 

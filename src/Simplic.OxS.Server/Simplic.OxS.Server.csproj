@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Grpc.Core" Version="2.46.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="6.0.5" />
     <PackageReference Include="OpenTelemetry.Contrib.Instrumentation.MassTransit" Version="1.0.0-beta2" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.3.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.3.0" />
@@ -22,6 +23,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.Cache.Redis\Simplic.OxS.Cache.Redis.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Cache.Service\Simplic.OxS.Cache.Service.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Data.MongoDB\Simplic.OxS.Data.MongoDB.csproj" />
     <ProjectReference Include="..\Simplic.OxS.MessageBroker\Simplic.OxS.MessageBroker.csproj" />
     <ProjectReference Include="..\Simplic.OxS\Simplic.OxS.csproj" />

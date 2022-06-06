@@ -33,6 +33,9 @@ namespace Simplic.OxS.Server
             // Add logging and tracing systems
             services.AddLoggingAndMetricTracing(Configuration, ServiceName);
 
+            // Add Redis caching
+            services.AddRedisCaching(Configuration);
+
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);
 

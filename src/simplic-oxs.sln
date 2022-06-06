@@ -45,9 +45,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Server.Test", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Hook", "Simplic.OxS.Hook\Simplic.OxS.Hook.csproj", "{DD4E374E-7580-4D61-A044-0C473BCD681B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Cache", "Simplic.OxS.Cache\Simplic.OxS.Cache.csproj", "{E2E1F640-64C8-4B49-8A94-1E01700FDF4D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Cache", "Simplic.OxS.Cache\Simplic.OxS.Cache.csproj", "{E2E1F640-64C8-4B49-8A94-1E01700FDF4D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Caching", "Caching", "{DC522C9B-3BC3-4011-B9AC-72B7197BC645}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Cache.Service", "Simplic.OxS.Cache.Service\Simplic.OxS.Cache.Service.csproj", "{28F78DC8-FA1B-461B-A911-7BB316C2FBC2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Cache.Redis", "Simplic.OxS.Cache.Redis\Simplic.OxS.Cache.Redis.csproj", "{B15C5E42-B551-45CB-918D-CC5C769F1A12}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -115,6 +119,14 @@ Global
 		{E2E1F640-64C8-4B49-8A94-1E01700FDF4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E2E1F640-64C8-4B49-8A94-1E01700FDF4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E2E1F640-64C8-4B49-8A94-1E01700FDF4D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28F78DC8-FA1B-461B-A911-7BB316C2FBC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28F78DC8-FA1B-461B-A911-7BB316C2FBC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28F78DC8-FA1B-461B-A911-7BB316C2FBC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28F78DC8-FA1B-461B-A911-7BB316C2FBC2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B15C5E42-B551-45CB-918D-CC5C769F1A12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B15C5E42-B551-45CB-918D-CC5C769F1A12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B15C5E42-B551-45CB-918D-CC5C769F1A12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B15C5E42-B551-45CB-918D-CC5C769F1A12}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -128,6 +140,8 @@ Global
 		{1EED5251-2469-4718-8F05-DC524943F4B2} = {77DDACAC-E3BF-4C7C-A2A2-C08AEE70729B}
 		{CE49A20D-CD45-4AEE-88E7-7C0214C7D543} = {7E6C0D51-5EAF-4DB5-884F-4D35A30C3037}
 		{E2E1F640-64C8-4B49-8A94-1E01700FDF4D} = {DC522C9B-3BC3-4011-B9AC-72B7197BC645}
+		{28F78DC8-FA1B-461B-A911-7BB316C2FBC2} = {DC522C9B-3BC3-4011-B9AC-72B7197BC645}
+		{B15C5E42-B551-45CB-918D-CC5C769F1A12} = {DC522C9B-3BC3-4011-B9AC-72B7197BC645}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FA52CAFF-7CBF-4E64-9C54-DC8A18223567}

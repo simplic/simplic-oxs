@@ -15,7 +15,7 @@ namespace Simplic.OxS.Cache
         /// <param name="keyName">Key name of the object</param>
         /// <param name="key">Key value</param>
         /// <returns>Cachned object if exists</returns>
-        Task<T> Get<T>(string type, string keyName, string key);
+        Task<T?> Get<T>(string type, string keyName, string key);
 
         /// <summary>
         /// Write data to the cache

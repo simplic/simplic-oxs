@@ -1,3 +1,9 @@
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Exporter;
+
 namespace Simplic.OxS.Auth.Server
 {
     public class Program

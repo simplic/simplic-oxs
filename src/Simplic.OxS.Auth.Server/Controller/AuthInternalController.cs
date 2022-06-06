@@ -34,6 +34,14 @@ namespace Simplic.OxS.Auth.Server.Controller
             this.busControl = busControl;
         }
 
+        [HttpGet("sample")]
+        public async Task<IActionResult> Sample()
+        {
+            
+
+            return BadRequest();
+        }
+
         [HttpPost("register")]
         [ProducesResponseType(typeof(Model.RegisterResponse), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.BadRequest)]

@@ -46,15 +46,16 @@ namespace Simplic.OxS.Server
         /// Send http get request. Throws an exception if no success-code is returned from the given endpoint.
         /// </summary>
         /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
-        /// <param name="host">Host name (localhost, dns, ip-address)</param>
+            /// <param name="host">Host name (localhost, dns, ip-address)</param>
+            /// <param name="service">The name of the service that will be called</param>
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Get<T>([NotNull] string host, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Get<T>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
-            var endpoint = BuildUrl(host, controller, action, parameter);
+            var endpoint = BuildUrl(host, service, controller, action, parameter);
 
             var result = await client.GetAsync(endpoint);
 
@@ -79,15 +80,16 @@ namespace Simplic.OxS.Server
         /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
         /// <typeparam name="O">Input object type. Will be send as json in the http body.</typeparam>
         /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="service">The name of the service that will be called</param>
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="body">Object to post as json</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Post<T, O>([NotNull] string host, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Post<T, O>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
-            var endpoint = BuildUrl(host, controller, action, parameter);
+            var endpoint = BuildUrl(host, service, controller, action, parameter);
 
             var result = await client.PostAsJsonAsync(endpoint, body);
 
@@ -112,15 +114,16 @@ namespace Simplic.OxS.Server
         /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
         /// <typeparam name="O">Input object type. Will be send as json in the http body.</typeparam>
         /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="service">The name of the service that will be called</param>
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="body">Object to put as json</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Put<T, O>([NotNull] string host, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Put<T, O>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
-            var endpoint = BuildUrl(host, controller, action, parameter);
+            var endpoint = BuildUrl(host, service, controller, action, parameter);
             var result = await client.PutAsJsonAsync(endpoint, body);
 
             if (!result.IsSuccessStatusCode)
@@ -143,14 +146,15 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
         /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="service">The name of the service that will be called</param>
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Delete<T>([NotNull] string host, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Delete<T>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
-            var endpoint = BuildUrl(host, controller, action, parameter);
+            var endpoint = BuildUrl(host, service, controller, action, parameter);
 
             var result = await client.DeleteAsync(endpoint);
 
@@ -217,15 +221,16 @@ namespace Simplic.OxS.Server
         /// Build complete url (query-string)
         /// </summary>
         /// <param name="host">Host name</param>
+        /// <param name="service">The name of the service that will be called</param>
         /// <param name="controller">Controller name</param>
         /// <param name="action">Action name</param>
         /// <param name="parameter">Parameter (dictionary will be converted to ?...=...&...=...</param>
         /// <returns>Url as string</returns>
-        private string BuildUrl(string host, string controller, string action, IDictionary<string, string>? parameter)
+        private string BuildUrl(string host, string service, string controller, string action, IDictionary<string, string>? parameter)
         {
             var builder = new StringBuilder();
 
-            builder.Append($"{Scheme}://{host}/v1-0/api/interal");
+            builder.Append($"{Scheme}://{host}/v1/{service}-api/internal");
 
             if (!string.IsNullOrWhiteSpace(controller))
                 builder.Append($"/{controller}");

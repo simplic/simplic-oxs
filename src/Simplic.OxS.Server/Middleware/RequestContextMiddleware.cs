@@ -41,7 +41,6 @@ namespace Simplic.OxS.Server.Middleware
 
                 if (authorization != null && authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey)
                 {
-                    // TODO: Use consts here
                     context.UserId = GetFromHeader(httpContext, Constants.HttpHeaderUserIdKey);
                     context.TenantId = GetFromHeader(httpContext, Constants.HttpHeaderTenantIdKey);
                 }
@@ -52,9 +51,9 @@ namespace Simplic.OxS.Server.Middleware
 
         private Guid? GetFromHeader(HttpContext httpContext, string key)
         {
-            if (httpContext.Request.Headers.TryGetValue(Constants.HttpHeaderCorrelationIdKey, out StringValues correlationIds))
+            if (httpContext.Request.Headers.TryGetValue(key, out StringValues correlationIds))
             {
-                var correlationId = correlationIds.FirstOrDefault(k => k == key);
+                var correlationId = correlationIds.FirstOrDefault();
 
                 if (Guid.TryParse(correlationId, out Guid id))
                     return id;

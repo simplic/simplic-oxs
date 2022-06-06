@@ -31,7 +31,7 @@ namespace Simplic.OxS.Server
         public virtual void ConfigureServices(IServiceCollection services)
         {
             // Add logging and tracing systems
-            services.AddLoggingAndMetricTracing(ServiceName);
+            services.AddLoggingAndMetricTracing(Configuration, ServiceName);
 
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);

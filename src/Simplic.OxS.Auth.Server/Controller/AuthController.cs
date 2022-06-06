@@ -12,6 +12,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
+using Simplic.OxS.Server;
 
 namespace Simplic.OxS.Auth.Server.Controller
 {
@@ -25,8 +26,9 @@ namespace Simplic.OxS.Auth.Server.Controller
         private readonly IOptions<AuthSettings> authSettings;
         private readonly IBusControl busControl;
         private readonly IRequestContext requestContext;
+        private readonly IInternalClient internalClient;
 
-        public AuthController(IRequestContext requestContext, ILogger<AuthController> logger, IUserService userService, ITwoFactorTokenService twoFactorTokenService, IOptions<AuthSettings> authSettings, IBusControl busControl)
+        public AuthController(IRequestContext requestContext, ILogger<AuthController> logger, IUserService userService, ITwoFactorTokenService twoFactorTokenService, IOptions<AuthSettings> authSettings, IBusControl busControl, IInternalClient internalClient)
         {
             this.logger = logger;
             this.userService = userService;
@@ -34,6 +36,30 @@ namespace Simplic.OxS.Auth.Server.Controller
             this.authSettings = authSettings;
             this.busControl = busControl;
             this.requestContext = requestContext;
+
+            this.internalClient = internalClient;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Error()
+        {
+            logger.LogError("Some error occured!");
+
+            logger.LogWarning("Some warnung occured!");
+
+            logger.LogInformation("Some info occured!");
+
+            try
+            {
+                var result = await internalClient.Get<object>("simplic_auth:80", "auth", "AuthInternal", "sample");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+
+
+            return Ok();
         }
 
         [HttpPost("login")]

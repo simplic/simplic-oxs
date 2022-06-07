@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 using Simplic.OxS.Server.Controller;
 using Simplic.OxS.Server.Settings;
 using Simplic.OxS.Mail.SchemaRegistry;
-using Simplic.OxS.Sms.SchemaRegistry;
 using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
@@ -126,15 +125,15 @@ namespace Simplic.OxS.Auth.Server.Controller
             }
             else
             {
-                await busControl.Send<SendSmsCommand>(new
-                {
-                    PhoneNumber = user.PhoneNumber,
-                    TemplateId = "verification_sms",
-                    Parameter = new Dictionary<string, object>
-                    {
-                        { "Code", token.Code }
-                    }
-                });
+                // await busControl.Send<SendSmsCommand>(new
+                // {
+                //     PhoneNumber = user.PhoneNumber,
+                //     TemplateId = "verification_sms",
+                //     Parameter = new Dictionary<string, object>
+                //     {
+                //         { "Code", token.Code }
+                //     }
+                // });
             }
 
             var response = new Model.LoginResponse
@@ -270,12 +269,12 @@ namespace Simplic.OxS.Auth.Server.Controller
                     { "userId", $"{user.Id}" }
                 }, "change_password");
 
-                await busControl.Send<SendSmsCommand>(new
-                {
-                    PhoneNumber = user.PhoneNumber,
-                    TemplateId = "verification_sms",
-                    Parameter = new Dictionary<string, object> { { "Code", token.Code } }
-                });
+                // await busControl.Send<SendSmsCommand>(new
+                // {
+                //     PhoneNumber = user.PhoneNumber,
+                //     TemplateId = "verification_sms",
+                //     Parameter = new Dictionary<string, object> { { "Code", token.Code } }
+                // });
 
                 // Reset device, so that a verification is required with the next login
                 await userService.SetLoginDevice(user.Id, $"{Guid.NewGuid()}");
@@ -315,12 +314,12 @@ namespace Simplic.OxS.Auth.Server.Controller
                 { "userId", $"{userId}" }
             }, "change_password");
 
-            await busControl.Send<SendSmsCommand>(new
-            {
-                PhoneNumber = user.PhoneNumber,
-                TemplateId = "verification_sms",
-                Parameter = new Dictionary<string, object> { { "Code", token.Code } }
-            });
+            // await busControl.Send<SendSmsCommand>(new
+            // {
+            //     PhoneNumber = user.PhoneNumber,
+            //     TemplateId = "verification_sms",
+            //     Parameter = new Dictionary<string, object> { { "Code", token.Code } }
+            // });
 
             return Ok(new Model.ChangePasswordResponse
             {

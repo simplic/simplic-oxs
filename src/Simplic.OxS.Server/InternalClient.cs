@@ -46,8 +46,8 @@ namespace Simplic.OxS.Server
         /// Send http get request. Throws an exception if no success-code is returned from the given endpoint.
         /// </summary>
         /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>
-            /// <param name="host">Host name (localhost, dns, ip-address)</param>
-            /// <param name="service">The name of the service that will be called</param>
+        /// <param name="host">Host name (localhost, dns, ip-address)</param>
+        /// <param name="service">The name of the service that will be called</param>
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>

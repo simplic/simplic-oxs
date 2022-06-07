@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 using Simplic.OxS.Server.Controller;
 using Simplic.OxS.Server.Settings;
 using Simplic.OxS.Mail.SchemaRegistry;
-using Simplic.OxS.Sms.SchemaRegistry;
 using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;

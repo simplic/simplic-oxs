@@ -17,7 +17,7 @@ namespace Simplic.OxS.Server.Extensions
         /// <param name="configuration">Actual configuration instance</param>
         /// <param name="configure">Configure rabbitmq</param>
         /// <returns>Service collection</returns>
-        internal static IServiceCollection AddRabbitMq(this IServiceCollection services, IConfiguration configuration, Action<IServiceCollection, MessageBrokerSettings> configure)
+        internal static IServiceCollection AddRabbitMQ(this IServiceCollection services, IConfiguration configuration, Action<IServiceCollection, MessageBrokerSettings> configure)
         {
             // Initialize broker system
             var rabbitMQSettings = configuration.GetSection("rabbitMQ").Get<MessageBrokerSettings>();

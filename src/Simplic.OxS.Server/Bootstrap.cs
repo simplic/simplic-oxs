@@ -18,6 +18,11 @@ namespace Simplic.OxS.Server
     /// </summary>
     public abstract class Bootstrap
     {
+        /// <summary>
+        /// Initialize web api and configure services. Will be called from the host-builder.
+        /// </summary>
+        /// <param name="configuration">Configuration service</param>
+        /// <param name="currentEnvironment">Environment instance</param>
         public Bootstrap(IConfiguration configuration, IWebHostEnvironment currentEnvironment)
         {
             Configuration = configuration;
@@ -40,7 +45,7 @@ namespace Simplic.OxS.Server
             services.AddMongoDb(Configuration);
 
             // Add RabbitMq context and bind configuration
-            services.AddRabbitMq(Configuration, ConfigureEndpointConventions);
+            services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
 
             // Add Jwt authentication and bind configuration
             services.AddJwtAuthentication(Configuration);

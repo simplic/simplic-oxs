@@ -18,6 +18,11 @@ namespace Simplic.OxS.Server
     /// </summary>
     public abstract class Bootstrap
     {
+        /// <summary>
+        /// Initialize web api and configure services. Will be called from the host-builder.
+        /// </summary>
+        /// <param name="configuration">Configuration service</param>
+        /// <param name="currentEnvironment">Environment instance</param>
         public Bootstrap(IConfiguration configuration, IWebHostEnvironment currentEnvironment)
         {
             Configuration = configuration;

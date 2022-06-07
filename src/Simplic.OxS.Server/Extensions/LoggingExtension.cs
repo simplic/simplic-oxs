@@ -6,6 +6,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Simplic.OxS.Server.Settings;
+using StackExchange.Redis;
 
 namespace Simplic.OxS.Server.Extensions
 {
@@ -35,6 +36,16 @@ namespace Simplic.OxS.Server.Extensions
                 builder.SetResourceBuilder(resourceBuilder)
                 .AddAspNetCoreInstrumentation()
                 .AddMassTransitInstrumentation();
+
+                // Add redis instruments if connection is set
+                var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();
+                if (redisSettings != null && !string.IsNullOrWhiteSpace(redisSettings.RedisCacheUrl))
+                {
+                    var connection = ConnectionMultiplexer.Connect(redisSettings.RedisCacheUrl);
+                    builder.AddRedisInstrumentation(connection);
+
+                    Console.WriteLine("Add OpenTelemetry redis instruments");
+                }
 
                 if (UseConsoleExporter(monitoringSettings.TracingExporter))
                     builder.AddConsoleExporter();

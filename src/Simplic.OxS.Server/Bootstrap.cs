@@ -40,7 +40,7 @@ namespace Simplic.OxS.Server
             services.AddMongoDb(Configuration);
 
             // Add RabbitMq context and bind configuration
-            services.AddRabbitMq(Configuration, ConfigureEndpointConventions);
+            services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
 
             // Add Jwt authentication and bind configuration
             services.AddJwtAuthentication(Configuration);

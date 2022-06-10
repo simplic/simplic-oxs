@@ -28,11 +28,21 @@ namespace Simplic.OxS.MessageBroker
 
             services.AddMassTransit(configurator =>
             {
+                var registeredConsumer = new List<Type>();
+
                 Console.WriteLine(" > Add consumer");
-                foreach (var consumerType in consumerTypes)
+                foreach (var consumer in consumerTypes)
                 {
-                    Console.WriteLine($"  {consumerType.Name}");
-                    configurator.AddConsumer(consumerType);
+                    if (consumer.GetCustomAttributes().Any(x => x.GetType() == typeof(QueueAttribute))
+                        || consumer.GetCustomAttributes().Any(x => x.GetType() == typeof(NoQueueAttribute)))
+                    {
+                        var attribute = consumer.GetCustomAttributes()
+                                                .FirstOrDefault();
+
+                        Console.WriteLine($" Consumer found {consumer.FullName}");
+                        services.AddScoped(consumer);
+                        registeredConsumer.Add(consumer);
+                    }
                 }
 
                 additionalConfiguration?.Invoke(configurator);
@@ -44,31 +54,46 @@ namespace Simplic.OxS.MessageBroker
                     if (consumerTypes.Any())
                     {
                         var consumers = new Dictionary<string, Type>();
+                        var queuelessConsumer = new List<Type>();
 
-                        foreach (var type in consumerTypes)
+                        foreach (var consumerType in registeredConsumer)
                         {
-                            var attributes = type.GetCustomAttributes(typeof(QueueAttribute), true);
+                            var attributes = consumerType.GetCustomAttributes(typeof(QueueAttribute), true);
                             if (attributes.Any())
                             {
                                 var queueName = ((QueueAttribute)attributes[0]).Name;
-
-                                Console.WriteLine($"Add receiver: {queueName}");
-
-                                consumers.Add(queueName, type);
+                                consumers.Add(queueName, consumerType);
                             }
-                            else
-                            {
-                                Console.WriteLine($"Consumer {type.Name} does not consume any queue. Please use {nameof(QueueAttribute)}.");
-                            }
+
+                            attributes = consumerType.GetCustomAttributes(typeof(NoQueueAttribute), true);
+                            if (attributes.Any())
+                                queuelessConsumer.Add(consumerType);
                         }
+
+                        Console.WriteLine($"Consumers found: {consumers.Count}");
+                        Console.WriteLine($"Queueless consumers found: {queuelessConsumer.Count}");
 
                         foreach (var consumer in consumers)
                         {
-                            cfg.ReceiveEndpoint(consumer.Key, ep =>
+                            cfg.ReceiveEndpoint(consumer.Key, ec =>
                             {
-                                // Inject pipeline and set request context
-                                ep.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
-                                ep.ConfigureConsumer(context, consumer.Value);
+                                // // Inject pipeline and set request context
+                                // ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+                                ec.Consumer(consumer.Value, x =>
+                                {
+                                    return context.GetRequiredService(x);
+                                });
+                            });
+                        }
+
+                        // Register event-consumer without the need of having a queue
+                        foreach (var consumer in queuelessConsumer)
+                        {
+                            cfg.ReceiveEndpoint(ec =>
+                            {
+                                // // Inject pipeline and set request context
+                                // ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+                                ec.Consumer(consumer, x => { return context.GetRequiredService(x); });
                             });
                         }
 

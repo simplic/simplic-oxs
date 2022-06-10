@@ -29,6 +29,9 @@ namespace Simplic.OxS.Server.Extensions
             services.Configure<MonitoringSettings>(options => configuration.GetSection("Monitoring").Bind(options));
             var monitoringSettings = configuration.GetSection("Monitoring").Get<MonitoringSettings>();
 
+            if (monitoringSettings == null)
+                throw new Exception("Could not find monitoring section in app-settings. Please ensure that a valid enviornment-name is passed (e.g. Local, Development, ...).");
+
             var resourceBuilder = ResourceBuilder.CreateDefault()
                                                  .AddService($"Simplic.OxS.{serviceName}")
                                                  .AddTelemetrySdk();
@@ -36,10 +39,17 @@ namespace Simplic.OxS.Server.Extensions
             services.AddOpenTelemetryTracing((builder) =>
             {
                 builder.SetResourceBuilder(resourceBuilder)
-                       .AddAspNetCoreInstrumentation()
+                       .AddAspNetCoreInstrumentation(o =>
+                       {
+                           o.RecordException = true;
+                       })
                        .AddMassTransitInstrumentation()
-                       .AddHttpClientInstrumentation();
-                
+                       .AddHttpClientInstrumentation(o =>
+                       {
+                           o.RecordException = true;
+                       })
+                       .SetErrorStatusOnException(true);
+
                 // Add redis instruments if connection is set
                 var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();
                 if (redisSettings != null && !string.IsNullOrWhiteSpace(redisSettings.RedisCacheUrl))

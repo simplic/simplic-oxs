@@ -80,7 +80,7 @@ namespace Simplic.OxS.MessageBroker
                             {
                                 // Inject pipeline and set request context
                                 ec.UseMessageScope(context);
-                                // ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+                                ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
                                 ec.Consumer(consumer.Value, x =>
                                 {
                                     return context.GetRequiredService(x);

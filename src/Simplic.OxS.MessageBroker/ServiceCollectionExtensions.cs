@@ -58,6 +58,7 @@ namespace Simplic.OxS.MessageBroker
 
                         foreach (var consumerType in registeredConsumer)
                         {
+
                             var attributes = consumerType.GetCustomAttributes(typeof(QueueAttribute), true);
                             if (attributes.Any())
                             {
@@ -78,7 +79,7 @@ namespace Simplic.OxS.MessageBroker
                             cfg.ReceiveEndpoint(consumer.Key, ec =>
                             {
                                 // // Inject pipeline and set request context
-                                // ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+                                ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
                                 ec.Consumer(consumer.Value, x =>
                                 {
                                     return context.GetRequiredService(x);
@@ -92,7 +93,7 @@ namespace Simplic.OxS.MessageBroker
                             cfg.ReceiveEndpoint(ec =>
                             {
                                 // // Inject pipeline and set request context
-                                // ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+                                ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
                                 ec.Consumer(consumer, x => { return context.GetRequiredService(x); });
                             });
                         }
@@ -126,7 +127,7 @@ namespace Simplic.OxS.MessageBroker
         /// <returns>Tenant id</returns>
         private static string? GetTenantId(IBusRegistrationContext context)
         {
-            var httpContextAccessor = context.GetService<IRequestContext>();
+            var httpContextAccessor = context.GetRequiredService<IRequestContext>();
             return httpContextAccessor?.TenantId?.ToString();
         }
 
@@ -137,7 +138,7 @@ namespace Simplic.OxS.MessageBroker
         /// <returns>User id</returns>
         private static string? GetUserId(IBusRegistrationContext context)
         {
-            var httpContextAccessor = context.GetService<IRequestContext>();
+            var httpContextAccessor = context.GetRequiredService<IRequestContext>();
             return httpContextAccessor?.UserId?.ToString();
         }
 
@@ -148,7 +149,7 @@ namespace Simplic.OxS.MessageBroker
         /// <returns>Correlation id</returns>
         private static Guid? GetCorrelationId(IBusRegistrationContext context)
         {
-            var httpContextAccessor = context.GetService<IRequestContext>();
+            var httpContextAccessor = context.GetRequiredService<IRequestContext>();
             return httpContextAccessor?.CorrelationId ?? Guid.NewGuid();
         }
     }

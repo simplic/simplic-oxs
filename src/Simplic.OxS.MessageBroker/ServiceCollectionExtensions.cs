@@ -78,7 +78,8 @@ namespace Simplic.OxS.MessageBroker
                         {
                             cfg.ReceiveEndpoint(consumer.Key, ec =>
                             {
-                                // // Inject pipeline and set request context
+                                // Inject pipeline and set request context
+                                ec.UseMessageScope(context);
                                 ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
                                 ec.Consumer(consumer.Value, x =>
                                 {
@@ -92,7 +93,8 @@ namespace Simplic.OxS.MessageBroker
                         {
                             cfg.ReceiveEndpoint(ec =>
                             {
-                                // // Inject pipeline and set request context
+                                // Inject pipeline and set request context
+                                ec.UseMessageScope(context);
                                 ec.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
                                 ec.Consumer(consumer, x => { return context.GetRequiredService(x); });
                             });

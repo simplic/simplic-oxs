@@ -38,6 +38,8 @@ namespace Simplic.OxS.MessageBroker.Filter
                     requestContext.TenantId = tenantId;
 
             await Task.CompletedTask;
+
+            await next.Send(context);
         }
 
         public void Probe(ProbeContext context) { }

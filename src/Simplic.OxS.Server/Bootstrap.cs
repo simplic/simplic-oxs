@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server.Extensions;
+using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Interface;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
@@ -62,9 +63,13 @@ namespace Simplic.OxS.Server
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();
             services.AddTransient<IInternalClient, InternalClient>();
-
+            services.AddScoped<RequestContextActionFilter>();
+            
             // Register web-api controller. Must be executed before creating swagger configuration
-            services.AddControllers();
+            services.AddControllers(o =>
+            {
+                o.Filters.Add(typeof(RequestContextActionFilter));
+            });
 
             // Add swagger stuff
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName);
@@ -114,7 +119,6 @@ namespace Simplic.OxS.Server
             app.UseAuthorization();
 
             app.UseMiddleware<CorrelationIdMiddleware>();
-            app.UseMiddleware<RequestContextMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

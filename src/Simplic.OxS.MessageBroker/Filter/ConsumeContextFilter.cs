@@ -6,7 +6,7 @@ namespace Simplic.OxS.MessageBroker.Filter
     /// Consume filter for injecting <see cref="IRequestContext"/>
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class ConsumeContextFilter<T> : IFilter<ConsumeContext<T>> where T : class
+    internal class ConsumeContextFilter<T> : IFilter<ConsumeContext<T>> where T : class
     {
         private readonly IRequestContext requestContext;
 

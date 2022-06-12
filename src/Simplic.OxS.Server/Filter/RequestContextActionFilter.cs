@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Primitives;
-using Simplic.OxS.Server.Services;
 
 namespace Simplic.OxS.Server.Filter
 {
@@ -51,6 +50,12 @@ namespace Simplic.OxS.Server.Filter
         /// <exception cref="NotImplementedException"></exception>
         public void OnActionExecuted(ActionExecutedContext context) { }
 
+        /// <summary>
+        /// Get a value fro the http header by its key
+        /// </summary>
+        /// <param name="httpContext"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
         private Guid? GetFromHeader(HttpContext httpContext, string key)
         {
             if (httpContext.Request.Headers.TryGetValue(key, out StringValues correlationIds))
@@ -72,10 +77,13 @@ namespace Simplic.OxS.Server.Filter
         {
             var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "Id");
 
-            if (claim == null)
+            if (string.IsNullOrWhiteSpace(claim?.Value))
                 return null;
 
-            return Guid.Parse(claim.Value);
+            if (Guid.TryParse(claim.Value, out Guid result))
+                return result;
+
+            return null;
         }
 
         /// <summary>
@@ -86,10 +94,13 @@ namespace Simplic.OxS.Server.Filter
         {
             var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "TId");
 
-            if (claim == null)
+            if (string.IsNullOrWhiteSpace(claim?.Value))
                 return null;
 
-            return Guid.Parse(claim.Value);
+            if (Guid.TryParse(claim.Value, out Guid result))
+                return result;
+
+            return null;
         }
     }
 }

@@ -28,7 +28,7 @@ namespace Simplic.OxS.MessageBroker.Filter
         public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
         {
             requestContext.CorrelationId = context.CorrelationId ?? Guid.NewGuid();
-
+            
             if (context.TryGetHeader(MassTransitHeaders.UserId, out string? userHeaderId))
                 if (Guid.TryParse(userHeaderId, out Guid userId))
                     requestContext.UserId = userId;
@@ -37,11 +37,12 @@ namespace Simplic.OxS.MessageBroker.Filter
                 if (Guid.TryParse(tenantHeaderId, out Guid tenantId))
                     requestContext.TenantId = tenantId;
 
-            await Task.CompletedTask;
-
             await next.Send(context);
         }
 
-        public void Probe(ProbeContext context) { }
+        public void Probe(ProbeContext context) 
+        { 
+
+        }
     }
 }

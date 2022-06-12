@@ -8,7 +8,6 @@ namespace Simplic.OxS.Server.Middleware
     /// </summary>
     internal class CorrelationIdMiddleware
     {
-        private const string CorrelationIdHeaderKey = "X-Correlation-ID";
         private readonly RequestDelegate _next;
 
         /// <summary>
@@ -29,9 +28,9 @@ namespace Simplic.OxS.Server.Middleware
         {
             string correlationId;
             
-            if (httpContext.Request.Headers.TryGetValue(CorrelationIdHeaderKey, out StringValues correlationIds))
+            if (httpContext.Request.Headers.TryGetValue(Constants.HttpHeaderCorrelationIdKey, out StringValues correlationIds))
             {
-                correlationId = correlationIds.FirstOrDefault(k => k == CorrelationIdHeaderKey) ??
+                correlationId = correlationIds.FirstOrDefault(k => k == Constants.HttpHeaderCorrelationIdKey) ??
                                                 Guid.NewGuid().ToString();
             }
             else
@@ -40,13 +39,13 @@ namespace Simplic.OxS.Server.Middleware
                 correlationId = Guid.NewGuid().ToString();
 
                 // Add correlation id to the actual header
-                httpContext.Request.Headers.Add(CorrelationIdHeaderKey, correlationId);
+                httpContext.Request.Headers.Add(Constants.HttpHeaderCorrelationIdKey, correlationId);
             }
 
             httpContext.Response.OnStarting(() =>
             {
                 // Set actual correlation id
-                httpContext.Response.Headers[CorrelationIdHeaderKey] = correlationId;
+                httpContext.Response.Headers[Constants.HttpHeaderCorrelationIdKey] = correlationId;
 
                 return Task.CompletedTask;
             });

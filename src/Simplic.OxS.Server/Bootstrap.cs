@@ -83,6 +83,7 @@ namespace Simplic.OxS.Server
                 if (File.Exists(xmlPath))
                 {
                     c.IncludeXmlComments(xmlPath);
+                    Console.WriteLine($"Use xml documentation file `{xmlPath}`.");
                 }
                 else
                 {

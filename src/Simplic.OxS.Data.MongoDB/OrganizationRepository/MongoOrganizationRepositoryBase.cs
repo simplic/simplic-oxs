@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using MongoDB.Driver;
-using Simplic.OxS.Data.MongoDB;
-using Simplic.OxS.Data;
 
 namespace Simplic.OxS.Data.MongoDB
 {
@@ -60,7 +54,7 @@ namespace Simplic.OxS.Data.MongoDB
                 ? filter.OrganizationId
                 : filter.QueryAllOrganizations
                     ? null
-                    : requestContext.TenantId;
+                    : requestContext.OrganizationId;
 
             return (await Collection.FindAsync(BuildFilterQuery(filter)))
                     .ToEnumerable();

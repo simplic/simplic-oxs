@@ -1,6 +1,4 @@
-﻿using System;
-using MongoDB.Bson.Serialization.Attributes;
-using Simplic.OxS.Data;
+﻿using MongoDB.Bson.Serialization.Attributes;
 
 namespace Simplic.OxS.Data.MongoDB
 {

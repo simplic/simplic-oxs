@@ -29,10 +29,24 @@ namespace Simplic.OxS.MessageBroker
             services.AddMassTransit(configurator =>
             {
                 Console.WriteLine(" > Add consumer");
-                foreach (var consumerType in consumerTypes)
+                foreach (var consumer in consumerTypes)
                 {
-                    Console.WriteLine($"  {consumerType.Name}");
-                    configurator.AddConsumer(consumerType);
+                    if (consumer.GetCustomAttributes().Any(x => x.GetType() == typeof(ConsumerAttribute)))
+                    {
+                        var attribute = consumer.GetCustomAttributes()
+                                                .OfType<ConsumerAttribute>()
+                                                .FirstOrDefault();
+
+                        if (attribute == null)
+                            continue;
+
+                        if (attribute.ConsumerDefinition == null)
+                            configurator.AddConsumer(consumer);
+                        else
+                            configurator.AddConsumer(consumer, attribute.ConsumerDefinition);
+
+                        Console.WriteLine($" Consumer added {consumer.FullName} / Definition type: {attribute.ConsumerDefinition}");
+                    }
                 }
 
                 additionalConfiguration?.Invoke(configurator);
@@ -41,90 +55,15 @@ namespace Simplic.OxS.MessageBroker
                 {
                     cfg.InitializeHost(configuration);
 
-                    if (consumerTypes.Any())
-                    {
-                        var consumers = new Dictionary<string, Type>();
+                    cfg.UseSendFilter(typeof(SendUserHeaderFilter<>), context);
+                    cfg.UsePublishFilter(typeof(PublishUserHeaderFilter<>), context);
+                    cfg.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
 
-                        foreach (var type in consumerTypes)
-                        {
-                            var attributes = type.GetCustomAttributes(typeof(QueueAttribute), true);
-                            if (attributes.Any())
-                            {
-                                var queueName = ((QueueAttribute)attributes[0]).Name;
-
-                                Console.WriteLine($"Add receiver: {queueName}");
-
-                                consumers.Add(queueName, type);
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Consumer {type.Name} does not consume any queue. Please use {nameof(QueueAttribute)}.");
-                            }
-                        }
-
-                        foreach (var consumer in consumers)
-                        {
-                            cfg.ReceiveEndpoint(consumer.Key, ep =>
-                            {
-                                // Inject pipeline and set request context
-                                ep.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
-                                ep.ConfigureConsumer(context, consumer.Value);
-                            });
-                        }
-
-                        cfg.ConfigureSend(sendPipeConfigurator => sendPipeConfigurator.UseExecute(ctx =>
-                        {
-                            ctx.Headers.Set(MassTransitHeaders.TenantId, GetTenantId(context));
-                            ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context));
-
-                            ctx.CorrelationId = GetCorrelationId(context);
-                        }));
-
-                        cfg.ConfigurePublish(publishPipeConfigurator => publishPipeConfigurator.UseExecute(ctx =>
-                        {
-                            ctx.Headers.Set(MassTransitHeaders.TenantId, GetTenantId(context));
-                            ctx.Headers.Set(MassTransitHeaders.UserId, GetUserId(context));
-
-                            ctx.CorrelationId = GetCorrelationId(context);
-                        }));
-                    }
+                    cfg.ConfigureEndpoints(context);
                 });
             });
 
             return services;
-        }
-
-        /// <summary>
-        /// Try to get the tenant id from the request context
-        /// </summary>
-        /// <param name="context">Current bus context</param>
-        /// <returns>Tenant id</returns>
-        private static string? GetTenantId(IBusRegistrationContext context)
-        {
-            var httpContextAccessor = context.GetService<IRequestContext>();
-            return httpContextAccessor?.TenantId?.ToString();
-        }
-
-        /// <summary>
-        /// Try to get the user id from the request context
-        /// </summary>
-        /// <param name="context">Current bus context</param>
-        /// <returns>User id</returns>
-        private static string? GetUserId(IBusRegistrationContext context)
-        {
-            var httpContextAccessor = context.GetService<IRequestContext>();
-            return httpContextAccessor?.UserId?.ToString();
-        }
-
-        /// <summary>
-        /// Try to get the correlation id from the request context
-        /// </summary>
-        /// <param name="context">Current bus context</param>
-        /// <returns>Correlation id</returns>
-        private static Guid? GetCorrelationId(IBusRegistrationContext context)
-        {
-            var httpContextAccessor = context.GetService<IRequestContext>();
-            return httpContextAccessor?.CorrelationId ?? Guid.NewGuid();
         }
     }
 }

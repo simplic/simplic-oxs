@@ -6,7 +6,7 @@ namespace Simplic.OxS.MessageBroker.Filter
     /// Consume filter for injecting <see cref="IRequestContext"/>
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class ConsumeContextFilter<T> : IFilter<ConsumeContext<T>> where T : class
+    internal class ConsumeContextFilter<T> : IFilter<ConsumeContext<T>> where T : class
     {
         private readonly IRequestContext requestContext;
 
@@ -28,18 +28,21 @@ namespace Simplic.OxS.MessageBroker.Filter
         public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
         {
             requestContext.CorrelationId = context.CorrelationId ?? Guid.NewGuid();
-
+            
             if (context.TryGetHeader(MassTransitHeaders.UserId, out string? userHeaderId))
                 if (Guid.TryParse(userHeaderId, out Guid userId))
                     requestContext.UserId = userId;
 
-            if (context.TryGetHeader(MassTransitHeaders.TenantId, out string? tenantHeaderId))
+            if (context.TryGetHeader(MassTransitHeaders.OrganizationId, out string? tenantHeaderId))
                 if (Guid.TryParse(tenantHeaderId, out Guid tenantId))
-                    requestContext.TenantId = tenantId;
+                    requestContext.OrganizationId = tenantId;
 
-            await Task.CompletedTask;
+            await next.Send(context);
         }
 
-        public void Probe(ProbeContext context) { }
+        public void Probe(ProbeContext context) 
+        { 
+
+        }
     }
 }

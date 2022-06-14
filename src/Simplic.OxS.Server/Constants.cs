@@ -18,7 +18,7 @@
         /// <summary>
         /// Gets or sets the name/key of the http-header for the tenant id
         /// </summary>
-        public const string HttpHeaderTenantIdKey = "TenantId";
+        public const string HttpHeaderTenantIdKey = "OrganizationId";
 
         /// <summary>
         /// Gets or sets the name/key of the http-header for the correlation id

@@ -7,6 +7,8 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Simplic.OxS.Server.Settings;
 using StackExchange.Redis;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Simplic.OxS.Server.Extensions
 {
@@ -27,6 +29,9 @@ namespace Simplic.OxS.Server.Extensions
             services.Configure<MonitoringSettings>(options => configuration.GetSection("Monitoring").Bind(options));
             var monitoringSettings = configuration.GetSection("Monitoring").Get<MonitoringSettings>();
 
+            if (monitoringSettings == null)
+                throw new Exception("Could not find monitoring section in app-settings. Please ensure that a valid enviornment-name is passed (e.g. Local, Development, ...).");
+
             var resourceBuilder = ResourceBuilder.CreateDefault()
                                                  .AddService($"Simplic.OxS.{serviceName}")
                                                  .AddTelemetrySdk();
@@ -34,8 +39,16 @@ namespace Simplic.OxS.Server.Extensions
             services.AddOpenTelemetryTracing((builder) =>
             {
                 builder.SetResourceBuilder(resourceBuilder)
-                .AddAspNetCoreInstrumentation()
-                .AddMassTransitInstrumentation();
+                       .AddAspNetCoreInstrumentation(o =>
+                       {
+                           o.RecordException = true;
+                       })
+                       .AddMassTransitInstrumentation()
+                       .AddHttpClientInstrumentation(o =>
+                       {
+                           o.RecordException = true;
+                       })
+                       .SetErrorStatusOnException(true);
 
                 // Add redis instruments if connection is set
                 var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();

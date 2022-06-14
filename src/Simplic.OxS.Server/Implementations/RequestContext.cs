@@ -14,7 +14,7 @@
         /// <summary>
         /// Gets or sets the actual tenant id, that belongs to the current request.
         /// </summary>
-        public Guid? TenantId { get; set; }
+        public Guid? OrganizationId { get; set; }
 
         /// <summary>
         /// Gets or sets the current context/correlation id.

@@ -33,9 +33,9 @@ namespace Simplic.OxS.MessageBroker.Filter
                 if (Guid.TryParse(userHeaderId, out Guid userId))
                     requestContext.UserId = userId;
 
-            if (context.TryGetHeader(MassTransitHeaders.OrganizationId, out string? tenantHeaderId))
-                if (Guid.TryParse(tenantHeaderId, out Guid tenantId))
-                    requestContext.OrganizationId = tenantId;
+            if (context.TryGetHeader(MassTransitHeaders.OrganizationId, out string? organizationHeaderId))
+                if (Guid.TryParse(organizationHeaderId, out Guid organizationId))
+                    requestContext.OrganizationId = organizationId;
 
             await next.Send(context);
         }

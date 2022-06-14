@@ -6,7 +6,7 @@
     public class MassTransitHeaders
     {
         /// <summary>
-        /// Name of the tenant header (OrganizationId)
+        /// Name of the organization header (OrganizationId)
         /// </summary>
         public const string OrganizationId = "OrganizationId";
 

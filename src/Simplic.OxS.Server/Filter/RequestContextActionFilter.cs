@@ -33,13 +33,13 @@ namespace Simplic.OxS.Server.Filter
             if (authorization != null && authorization[0].ToLower() == "bearer")
             {
                 requestContext.UserId = GetUserId(executionContext.HttpContext);
-                requestContext.OrganizationId = GetTenantId(executionContext.HttpContext);
+                requestContext.OrganizationId = GetOrganizationId(executionContext.HttpContext);
             }
 
             if (authorization != null && authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey)
             {
                 requestContext.UserId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderUserIdKey);
-                requestContext.OrganizationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderTenantIdKey);
+                requestContext.OrganizationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderOrganizationIdKey);
             }
         }
 
@@ -87,10 +87,10 @@ namespace Simplic.OxS.Server.Filter
         }
 
         /// <summary>
-        /// Gets the actual tenant id from the given jwt token
+        /// Gets the actual organization id from the given jwt token
         /// </summary>
-        /// <returns>Tenant id as guid. Null if no tenant id was found.</returns>
-        protected Guid? GetTenantId(HttpContext httpContext)
+        /// <returns>Organization id as guid. Null if no organization id was found.</returns>
+        protected Guid? GetOrganizationId(HttpContext httpContext)
         {
             var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "OId");
 

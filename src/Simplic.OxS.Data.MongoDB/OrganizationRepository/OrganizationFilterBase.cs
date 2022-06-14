@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using Simplic.OxS.Data;
-
-namespace Simplic.OxS.Data.MongoDB
+﻿namespace Simplic.OxS.Data.MongoDB
 {
     /// <summary>
     /// Organization data filter

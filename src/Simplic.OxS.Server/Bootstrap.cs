@@ -11,6 +11,7 @@ using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Interface;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
+using System.Reflection;
 
 namespace Simplic.OxS.Server
 {
@@ -64,11 +65,29 @@ namespace Simplic.OxS.Server
             services.AddScoped<IRequestContext, RequestContext>();
             services.AddTransient<IInternalClient, InternalClient>();
             services.AddScoped<RequestContextActionFilter>();
-            
+
             // Register web-api controller. Must be executed before creating swagger configuration
             services.AddControllers(o =>
             {
                 o.Filters.Add(typeof(RequestContextActionFilter));
+            });
+
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc(ApiVersion, GetApiInformation());
+
+                // Set the comments path for the Swagger JSON and UI.
+                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+
+                if (File.Exists(xmlPath))
+                {
+                    c.IncludeXmlComments(xmlPath);
+                }
+                else
+                {
+                    Console.WriteLine($"No xml documentation file found under `{xmlPath}`. https://docs.microsoft.com/en-us/samples/aspnet/aspnetcore.docs/getstarted-swashbuckle-aspnetcore/?tabs=visual-studio");
+                }
             });
 
             // Add swagger stuff
@@ -127,6 +146,32 @@ namespace Simplic.OxS.Server
 
             var migrationService = app.ApplicationServices.GetService<IDatabaseMigrationService>();
             migrationService?.Migrate().Wait();
+        }
+
+        /// <summary>
+        /// Get api information for the current service
+        /// </summary>
+        /// <returns>Api info instance</returns>
+        protected virtual OpenApiInfo GetApiInformation()
+        {
+            return new OpenApiInfo
+            {
+                Version = ApiVersion,
+                Title = $"Api for `{ServiceName}` service",
+                Description = "Contains http/https endpoints for working with the Simplic.OxS/Ox apis.",
+                TermsOfService = new Uri("https://simplic.biz/datenschutzerklaerung/"),
+                Contact = new OpenApiContact 
+                {
+                    Name = "SIMPLIC GmbH",
+                    Email = "post@simplic.biz",
+                    Url = new Uri("https://simplic.biz/kontakt/")
+                },
+                License = new OpenApiLicense
+                { 
+                    Name = "Simplic.Ox OpenAPI-License",
+                    Url = new Uri("https://simplic.biz/ox-api-license")
+                }
+            };
         }
 
         /// <summary>

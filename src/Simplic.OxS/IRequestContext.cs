@@ -11,7 +11,7 @@
         public Guid? UserId { get; set; }
 
         /// <summary>
-        /// Gets or sets the current tenant id
+        /// Gets or sets the current organization id
         /// </summary>
         public Guid? OrganizationId { get; set; }
 

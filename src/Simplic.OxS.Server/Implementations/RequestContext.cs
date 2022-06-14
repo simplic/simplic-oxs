@@ -12,7 +12,7 @@
         public Guid? UserId { get; set; }
 
         /// <summary>
-        /// Gets or sets the actual tenant id, that belongs to the current request.
+        /// Gets or sets the actual organization id, that belongs to the current request.
         /// </summary>
         public Guid? OrganizationId { get; set; }
 

@@ -16,7 +16,7 @@
         public const string HttpHeaderUserIdKey = "UserId";
 
         /// <summary>
-        /// Gets or sets the name/key of the http-header for the tenant id
+        /// Gets or sets the name/key of the http-header for the organization id
         /// </summary>
         public const string HttpHeaderOrganizationIdKey = "OrganizationId";
 

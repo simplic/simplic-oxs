@@ -91,7 +91,7 @@ namespace Simplic.OxS.Server
             });
 
             // Add swagger stuff
-            services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName);
+            // services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName);
         }
 
         /// <summary>

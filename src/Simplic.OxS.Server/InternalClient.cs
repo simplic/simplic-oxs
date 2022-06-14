@@ -36,7 +36,7 @@ namespace Simplic.OxS.Server
                 client.DefaultRequestHeaders.Add(Constants.HttpHeaderUserIdKey, $"{requestContext.UserId}");
 
             if (requestContext.OrganizationId != null)
-                client.DefaultRequestHeaders.Add(Constants.HttpHeaderTenantIdKey, $"{requestContext.OrganizationId}");
+                client.DefaultRequestHeaders.Add(Constants.HttpHeaderOrganizationIdKey, $"{requestContext.OrganizationId}");
 
             if (requestContext.CorrelationId != null)
                 client.DefaultRequestHeaders.Add(Constants.HttpHeaderCorrelationIdKey, $"{requestContext.CorrelationId}");

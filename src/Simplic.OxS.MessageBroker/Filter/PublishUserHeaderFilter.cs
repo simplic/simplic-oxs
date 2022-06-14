@@ -22,7 +22,7 @@ namespace Simplic.OxS.MessageBroker.Filter
         /// <returns></returns>
         public Task Send(PublishContext<T> context, IPipe<PublishContext<T>> next)
         {
-            context.Headers.Set(MassTransitHeaders.TenantId, requestContext.TenantId);
+            context.Headers.Set(MassTransitHeaders.OrganizationId, requestContext.OrganizationId);
             context.Headers.Set(MassTransitHeaders.UserId, requestContext.UserId);
 
             context.CorrelationId = requestContext.CorrelationId;

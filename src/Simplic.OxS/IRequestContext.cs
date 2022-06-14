@@ -13,7 +13,7 @@
         /// <summary>
         /// Gets or sets the current tenant id
         /// </summary>
-        public Guid? TenantId { get; set; }
+        public Guid? OrganizationId { get; set; }
 
         /// <summary>
         /// Gets or sets the current correlation id

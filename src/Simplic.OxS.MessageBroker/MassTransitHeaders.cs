@@ -6,9 +6,9 @@
     public class MassTransitHeaders
     {
         /// <summary>
-        /// Name of the tenant header (TenantId)
+        /// Name of the tenant header (OrganizationId)
         /// </summary>
-        public const string TenantId = "TenantId";
+        public const string OrganizationId = "OrganizationId";
 
         /// <summary>
         /// Name of the user id (UserId)

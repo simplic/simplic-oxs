@@ -54,7 +54,7 @@ namespace Simplic.OxS.Data.MongoDB
                 ? filter.OrganizationId
                 : filter.QueryAllOrganizations
                     ? null
-                    : requestContext.TenantId;
+                    : requestContext.OrganizationId;
 
             return (await Collection.FindAsync(BuildFilterQuery(filter)))
                     .ToEnumerable();

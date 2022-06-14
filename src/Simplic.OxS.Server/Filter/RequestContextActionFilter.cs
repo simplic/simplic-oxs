@@ -33,13 +33,13 @@ namespace Simplic.OxS.Server.Filter
             if (authorization != null && authorization[0].ToLower() == "bearer")
             {
                 requestContext.UserId = GetUserId(executionContext.HttpContext);
-                requestContext.TenantId = GetTenantId(executionContext.HttpContext);
+                requestContext.OrganizationId = GetTenantId(executionContext.HttpContext);
             }
 
             if (authorization != null && authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey)
             {
                 requestContext.UserId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderUserIdKey);
-                requestContext.TenantId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderTenantIdKey);
+                requestContext.OrganizationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderTenantIdKey);
             }
         }
 
@@ -92,7 +92,7 @@ namespace Simplic.OxS.Server.Filter
         /// <returns>Tenant id as guid. Null if no tenant id was found.</returns>
         protected Guid? GetTenantId(HttpContext httpContext)
         {
-            var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "TId");
+            var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "OId");
 
             if (string.IsNullOrWhiteSpace(claim?.Value))
                 return null;

@@ -72,27 +72,10 @@ namespace Simplic.OxS.Server
                 o.Filters.Add(typeof(RequestContextActionFilter));
             });
 
-            services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc(ApiVersion, GetApiInformation());
+            services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 
-                // Set the comments path for the Swagger JSON and UI.
-                var xmlFile = $"{Assembly.GetEntryAssembly().GetName().Name}.xml";
-                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-
-                if (File.Exists(xmlPath))
-                {
-                    c.IncludeXmlComments(xmlPath);
-                    Console.WriteLine($"Use xml documentation file `{xmlPath}`.");
-                }
-                else
-                {
-                    Console.WriteLine($"No xml documentation file found under `{xmlPath}`. https://docs.microsoft.com/en-us/samples/aspnet/aspnetcore.docs/getstarted-swashbuckle-aspnetcore/?tabs=visual-studio");
-                }
-            });
-
-            // Add swagger stuff
-            // services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName);
+            // Add signalr
+            services.AddSignalR();
         }
 
         /// <summary>
@@ -143,11 +126,19 @@ namespace Simplic.OxS.Server
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+
+                MapHubs(endpoints);
             });
 
             var migrationService = app.ApplicationServices.GetService<IDatabaseMigrationService>();
             migrationService?.Migrate().Wait();
         }
+
+        /// <summary>
+        /// Method for SignalR hub registration
+        /// </summary>
+        /// <param name="builder">Builder instance</param>
+        protected virtual void MapHubs(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
 
         /// <summary>
         /// Get api information for the current service

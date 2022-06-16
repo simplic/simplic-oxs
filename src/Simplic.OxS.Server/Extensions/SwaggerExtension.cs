@@ -96,6 +96,16 @@ namespace Simplic.OxS.Server.Extensions
                 }
 
                 c.AddSecurityRequirement(securityRequirements);
+
+                c.AddSignalRSwaggerGen(so => 
+                {
+                    so.AutoDiscover = SignalRSwaggerGen.Enums.AutoDiscover.MethodsAndParams;
+
+                    if (File.Exists(xmlPath))
+                    {
+                        so.UseXmlComments(xmlPath);
+                    }
+                });
             });
 
             return services;

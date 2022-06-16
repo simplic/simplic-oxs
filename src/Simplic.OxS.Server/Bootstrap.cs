@@ -149,7 +149,7 @@ namespace Simplic.OxS.Server
             return new OpenApiInfo
             {
                 Version = ApiVersion,
-                Title = $"Api for `{ServiceName}` service",
+                Title = $"`{ServiceName}` service api",
                 Description = "Contains http/https endpoints for working with the Simplic.OxS/Ox apis.",
                 TermsOfService = new Uri("https://simplic.biz/datenschutzerklaerung/"),
                 Contact = new OpenApiContact 

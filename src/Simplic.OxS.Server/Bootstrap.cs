@@ -112,6 +112,7 @@ namespace Simplic.OxS.Server
             app.UseSwaggerUI(c =>
             {
                 c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
+                c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}-SignalR/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
             });
 
             app.UseHttpsRedirection();

@@ -23,13 +23,10 @@ namespace Simplic.OxS.Data
         {
             if (expression.Body is MemberExpression memberExpression)
             {
-                var property = (PropertyInfo) memberExpression.Member;
+                var property = memberExpression.Member as PropertyInfo;
 
-                if (property != null)
-                {
-                    property.SetValue(_this.Target, property.GetValue(_this.Original));
+                if (SetValueIfPropertyExists(property, _this.Original, _this.Target))
                     return _this;
-                }
             }
 
             throw new ArgumentException(nameof(expression));
@@ -51,12 +48,27 @@ namespace Simplic.OxS.Data
             foreach (var name in propertyNames)
             {
                 var property =_this.Original.GetType().GetProperty(name);
-
-                if (property != null)
-                    property.SetValue(_this.Target, property.GetValue(_this.Original));
+                SetValueIfPropertyExists(property, _this.Original, _this.Target);
             }
 
             return _this;
+        }
+
+        /// <summary>
+        /// Copies a property from the original to the target object.
+        /// </summary>
+        /// <typeparam name="T">The object type</typeparam>
+        /// <param name="property">The property to copy</param>
+        /// <param name="original">The original object</param>
+        /// <param name="target">The target object</param>
+        /// <returns>Whether the property exists or not</returns>
+        private static bool SetValueIfPropertyExists<T>(PropertyInfo property, T original, T target)
+        {
+            if (property == null)
+                return false;
+
+            property.SetValue(target, property.GetValue(original));
+            return true;
         }
     }
 }

@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Simplic.OxS.Data
+namespace Simplic.OxS.Data.Test
 {
-    public class SampleObject
+    public class SampleObject : ISampleDefaultDocument
     {
         public int Id { get; set; }
 

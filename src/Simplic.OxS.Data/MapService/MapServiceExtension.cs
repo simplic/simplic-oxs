@@ -36,26 +36,18 @@ namespace Simplic.OxS.Data
         /// Copies default property values from the original to the target object.
         /// </summary>
         /// <typeparam name="T">The object type</typeparam>
-        /// <param name="_this"></param>
+        /// <typeparam name="I">The type of the interface defining the object's default properties</typeparam>
         /// <returns></returns>
-        public static MergeableObject<T> TakeDefaults<T>(this MergeableObject<T> _this) where T : class
+        public static MergeableObject<T> TakeDefaults<T, I>(this MergeableObject<T> _this) where I : IDefaultDocument where T : class
         {
-            var propertyNames = new List<string>
-            {
-                "Id", "CreateUser", "CreateTime"
-            };
-
-            foreach (var name in propertyNames)
-            {
-                var property =_this.Original.GetType().GetProperty(name);
+            foreach (var property in typeof(I).GetProperties())
                 SetValueIfPropertyExists(property, _this.Original, _this.Target);
-            }
 
             return _this;
         }
 
         /// <summary>
-        /// Copies a property from the original to the target object.
+        /// Copies the value of a property from the original to the target object.
         /// </summary>
         /// <typeparam name="T">The object type</typeparam>
         /// <param name="property">The property to copy</param>

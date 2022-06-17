@@ -1,15 +1,16 @@
 ﻿using FluentAssertions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace Simplic.OxS.Data.Test
 {
+    /// <summary>
+    /// Contains MapService tests.
+    /// </summary>
     public class MapServiceTest
     {
+        /// <summary>
+        /// Test Create and TakeDefaults method.
+        /// </summary>
         [Fact]
         public void Create_TakeDefaults_SampleObject()
         {
@@ -25,6 +26,9 @@ namespace Simplic.OxS.Data.Test
             mapped.CreateUser.Should().Be(origin.CreateUser);
         }
 
+        /// <summary>
+        /// Test Create and Take method.
+        /// </summary>
         [Fact]
         public void Create_Take_SampleObject()
         {

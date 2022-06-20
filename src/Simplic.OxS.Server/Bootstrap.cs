@@ -9,9 +9,9 @@ using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Interface;
+using Simplic.OxS.Server.Internal;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
-using System.Reflection;
 
 namespace Simplic.OxS.Server
 {
@@ -85,8 +85,8 @@ namespace Simplic.OxS.Server
         /// <param name="env">Env context</param>
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            // Allow paths like /v1/<service-name>-api
-            var basePath = $"/{ApiVersion}/{ServiceName.ToLower()}-api";
+            // Allow paths like /<service-name>-api/v1
+            var basePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}";
             app.UsePathBase(basePath);
 
             if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
@@ -153,14 +153,14 @@ namespace Simplic.OxS.Server
                 Title = $"`{ServiceName}` service api",
                 Description = "Contains http/https endpoints for working with the Simplic.OxS/Ox apis.",
                 TermsOfService = new Uri("https://simplic.biz/datenschutzerklaerung/"),
-                Contact = new OpenApiContact 
+                Contact = new OpenApiContact
                 {
                     Name = "SIMPLIC GmbH",
                     Email = "post@simplic.biz",
                     Url = new Uri("https://simplic.biz/kontakt/")
                 },
                 License = new OpenApiLicense
-                { 
+                {
                     Name = "Simplic.Ox OpenAPI-License",
                     Url = new Uri("https://simplic.biz/ox-api-license")
                 }
@@ -174,7 +174,7 @@ namespace Simplic.OxS.Server
         protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration) { }
 
         /// <summary>
-        /// Method for custom endpoint registration (MassTransit/RabbitMq). Register commands in this method
+        /// Method for custom endpoint registration (MassTransit/RabbitMq). Register commands in this method.
         /// </summary>
         /// <param name="services">Service collection</param>
         /// <param name="settings">MessageBroker settings</param>
@@ -192,12 +192,12 @@ namespace Simplic.OxS.Server
         protected abstract string ServiceName { get; }
 
         /// <summary>
-        /// Gets the actual service version. Default is v1
+        /// Gets the actual service version. Default is v1.
         /// </summary>
         protected virtual string ApiVersion { get; } = "v1";
 
         /// <summary>
-        /// Gets the current configuration service
+        /// Gets the current configuration service.
         /// </summary>
         public IConfiguration Configuration { get; }
 

@@ -6,7 +6,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Web;
 
-namespace Simplic.OxS.Server
+namespace Simplic.OxS.Server.Internal
 {
     /// <summary>
     /// Client for sending network/cluster internal requests
@@ -69,7 +69,7 @@ namespace Simplic.OxS.Server
             }
 
             if (result.Content == null)
-                return default(T);
+                return default;
 
             return await result.Content.ReadFromJsonAsync<T>();
         }
@@ -103,7 +103,7 @@ namespace Simplic.OxS.Server
             }
 
             if (result.Content == null)
-                return default(T);
+                return default;
 
             return await result.Content.ReadFromJsonAsync<T>();
         }
@@ -136,7 +136,7 @@ namespace Simplic.OxS.Server
             }
 
             if (result.Content == null)
-                return default(T);
+                return default;
 
             return await result.Content.ReadFromJsonAsync<T>();
         }
@@ -168,7 +168,7 @@ namespace Simplic.OxS.Server
             }
 
             if (result.Content == null)
-                return default(T);
+                return default;
 
             return await result.Content.ReadFromJsonAsync<T>();
         }

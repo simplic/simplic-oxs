@@ -45,13 +45,6 @@ namespace Simplic.OxS.Data.MongoDB
             return data.SingleOrDefault();
         }
 
-        public virtual async Task<IEnumerable<TDocument>> GetAllAsync()
-        {
-            await Initialize();
-
-            return await GetByFilterAsync(new TFilter());
-        }
-
         public virtual async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter)
         {
             await Initialize();

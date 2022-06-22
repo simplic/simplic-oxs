@@ -161,7 +161,7 @@ namespace Simplic.OxS.Server
                 },
                 License = new OpenApiLicense
                 {
-                    Name = "Simplic.Ox OpenAPI-License",
+                    Name = "Simplic.OxS OpenAPI-License",
                     Url = new Uri("https://simplic.biz/ox-api-license")
                 }
             };

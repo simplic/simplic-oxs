@@ -17,7 +17,7 @@ namespace Simplic.OxS.Server.Internal
         private readonly HttpClient client;
         private readonly ILogger<InternalClient> logger;
         private readonly IRequestContext requestContext;
-        private static IDictionary<string, string> hosts;
+        private static IDictionary<string, string>? hosts;
 
         /// <summary>
         /// Initialize http client
@@ -31,7 +31,7 @@ namespace Simplic.OxS.Server.Internal
             this.requestContext = requestContext;
 
             if (hosts == null)
-                hosts = configuration.GetSection("InternalHosts").Get<IDictionary<string, string>>();
+                hosts = configuration.GetSection("InternalHosts")?.Get<IDictionary<string, string>>();
 
             client = new HttpClient();
 

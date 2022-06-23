@@ -31,7 +31,7 @@ namespace Simplic.OxS.Server.Internal
             this.requestContext = requestContext;
 
             if (hosts == null)
-                hosts = configuration.GetSection("InternalClients").Get<IDictionary<string, string>>();
+                hosts = configuration.GetSection("InternalHosts").Get<IDictionary<string, string>>();
 
             client = new HttpClient();
 

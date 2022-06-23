@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace Simplic.OxS.Server
+namespace Simplic.OxS
 {
     /// <summary>
     /// Client for sending network/cluster internal requests

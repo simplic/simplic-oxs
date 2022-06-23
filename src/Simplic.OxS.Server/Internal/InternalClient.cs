@@ -15,6 +15,7 @@ namespace Simplic.OxS.Server.Internal
     {
         private readonly HttpClient client;
         private readonly ILogger<InternalClient> logger;
+        private readonly IRequestContext requestContext;
 
         /// <summary>
         /// Initialize http client
@@ -25,11 +26,22 @@ namespace Simplic.OxS.Server.Internal
         public InternalClient(IOptions<AuthSettings> settings, IRequestContext requestContext, ILogger<InternalClient> logger)
         {
             this.logger = logger;
+            this.requestContext = requestContext;
 
             client = new HttpClient();
 
             // Set authorization header
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(Constants.HttpAuthorizationSchemeInternalKey, settings.Value.InternalApiKey);
+        }
+
+        /// <summary>
+        /// Set default header for userid, organization id and correlation id
+        /// </summary>
+        private void SetRequestHeader()
+        {
+            client.DefaultRequestHeaders.Remove(Constants.HttpHeaderUserIdKey);
+            client.DefaultRequestHeaders.Remove(Constants.HttpHeaderOrganizationIdKey);
+            client.DefaultRequestHeaders.Remove(Constants.HttpHeaderCorrelationIdKey);
 
             // Set context header
             if (requestContext.UserId != null)
@@ -56,6 +68,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Get<T>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, service, controller, action, parameter);
+            SetRequestHeader();
 
             var result = await client.GetAsync(endpoint);
 
@@ -90,6 +103,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Post<T, O>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, service, controller, action, parameter);
+            SetRequestHeader();
 
             var result = await client.PostAsJsonAsync(endpoint, body);
 
@@ -124,6 +138,8 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Put<T, O>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, service, controller, action, parameter);
+            SetRequestHeader();
+
             var result = await client.PutAsJsonAsync(endpoint, body);
 
             if (!result.IsSuccessStatusCode)
@@ -155,6 +171,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Delete<T>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
             var endpoint = BuildUrl(host, service, controller, action, parameter);
+            SetRequestHeader();
 
             var result = await client.DeleteAsync(endpoint);
 

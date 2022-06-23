@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Simplic.OxS.Server.Settings;
 using System.Diagnostics.CodeAnalysis;
@@ -16,6 +17,7 @@ namespace Simplic.OxS.Server.Internal
         private readonly HttpClient client;
         private readonly ILogger<InternalClient> logger;
         private readonly IRequestContext requestContext;
+        private static IDictionary<string, string> hosts;
 
         /// <summary>
         /// Initialize http client
@@ -23,10 +25,13 @@ namespace Simplic.OxS.Server.Internal
         /// <param name="settings">Authentication settings</param>
         /// <param name="requestContext">Current request context</param>
         /// <param name="logger">Logger instance</param>
-        public InternalClient(IOptions<AuthSettings> settings, IRequestContext requestContext, ILogger<InternalClient> logger)
+        public InternalClient(IOptions<AuthSettings> settings, IRequestContext requestContext, ILogger<InternalClient> logger, IConfiguration configuration)
         {
             this.logger = logger;
             this.requestContext = requestContext;
+
+            if (hosts == null)
+                hosts = configuration.GetSection("InternalClients").Get<IDictionary<string, string>>();
 
             client = new HttpClient();
 
@@ -65,8 +70,11 @@ namespace Simplic.OxS.Server.Internal
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Get<T>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Get<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
+            string host = "unset";
+            hosts.TryGetValue(service, out host);
+
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
@@ -100,8 +108,11 @@ namespace Simplic.OxS.Server.Internal
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Post<T, O>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Post<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
+            string host = "unset";
+            hosts.TryGetValue(service, out host);
+
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
@@ -135,8 +146,11 @@ namespace Simplic.OxS.Server.Internal
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Put<T, O>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Put<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
+            string host = "unset";
+            hosts.TryGetValue(service, out host);
+
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
@@ -168,8 +182,11 @@ namespace Simplic.OxS.Server.Internal
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Delete<T>([NotNull] string host, [NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Delete<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
+            string host = "unset";
+            hosts.TryGetValue(service, out host);
+
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 

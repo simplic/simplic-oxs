@@ -230,7 +230,7 @@ namespace Simplic.OxS.Server.Internal
         {
             var builder = new StringBuilder();
 
-            builder.Append($"{Scheme}://{host}/v1/{service}-api/internal");
+            builder.Append($"{Scheme}://{host}/{service}-api/v1/internal");
 
             if (!string.IsNullOrWhiteSpace(controller))
                 builder.Append($"/{controller}");

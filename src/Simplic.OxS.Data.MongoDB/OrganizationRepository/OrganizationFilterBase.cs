@@ -3,7 +3,7 @@
     /// <summary>
     /// Organization data filter
     /// </summary>
-    public class OrganizationFilterBase : IFilter<Guid>
+    public class OrganizationFilterBase : IOrganizationFilter<Guid>
     {
         /// <summary>
         /// Gets or sets the data id

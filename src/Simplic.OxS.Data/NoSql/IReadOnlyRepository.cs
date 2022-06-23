@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.Data
+﻿namespace Simplic.OxS.Data
 {
     /// <summary>
     /// Basic read only repository
@@ -20,13 +16,6 @@ namespace Simplic.OxS.Data
         /// <param name="id"></param>
         /// <returns>Entity</returns>
         Task<TDocument> GetAsync(TId id);
-
-        /// <summary>
-        /// Get all entities from data source
-        /// </summary>
-        /// <returns>Enumerable of entities</returns>
-        Task<IEnumerable<TDocument>> GetAllAsync();
-
 
         /// <summary>
         /// Get entities by filter

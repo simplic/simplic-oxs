@@ -1,8 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Simplic.OxS.Data;
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 
 namespace Simplic.OxS.Data.MongoDB
 {
@@ -34,7 +30,7 @@ namespace Simplic.OxS.Data.MongoDB
             await Task.CompletedTask; // TODO change Initialize signature and all call sites to sync versions
         }
 
-        protected virtual string GetCollectionName() => typeof(TDocument).Name;
+        protected abstract string GetCollectionName();
 
         public virtual async Task<TDocument> GetAsync(TId id)
         {
@@ -43,13 +39,6 @@ namespace Simplic.OxS.Data.MongoDB
             var data = await GetByFilterAsync(new TFilter { Id = id });
 
             return data.SingleOrDefault();
-        }
-
-        public virtual async Task<IEnumerable<TDocument>> GetAllAsync()
-        {
-            await Initialize();
-
-            return await GetByFilterAsync(new TFilter());
         }
 
         public virtual async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter)

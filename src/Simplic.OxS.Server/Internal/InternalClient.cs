@@ -73,7 +73,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Get<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
             string host = "unset";
-            if (hosts.TryGetValue(service, out var _host))
+            if (hosts?.TryGetValue(service, out var _host) == true)
                 host = _host;
 
             var endpoint = BuildUrl(host, service, controller, action, parameter);
@@ -112,7 +112,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Post<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
             string host = "unset";
-            if (hosts.TryGetValue(service, out var _host))
+            if (hosts?.TryGetValue(service, out var _host) == true)
                 host = _host;
 
             var endpoint = BuildUrl(host, service, controller, action, parameter);
@@ -151,7 +151,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Put<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
         {
             string host = "unset";
-            if (hosts.TryGetValue(service, out var _host))
+            if (hosts?.TryGetValue(service, out var _host) == true)
                 host = _host;
 
             var endpoint = BuildUrl(host, service, controller, action, parameter);
@@ -188,7 +188,7 @@ namespace Simplic.OxS.Server.Internal
         public virtual async Task<T?> Delete<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
         {
             string host = "unset";
-            if (hosts.TryGetValue(service, out var _host))
+            if (hosts?.TryGetValue(service, out var _host) == true)
                 host = _host;
 
             var endpoint = BuildUrl(host, service, controller, action, parameter);

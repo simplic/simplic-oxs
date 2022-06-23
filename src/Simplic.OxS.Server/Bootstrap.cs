@@ -115,6 +115,7 @@ namespace Simplic.OxS.Server
                 c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}-SignalR/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}-SignalR");
             });
 
+            // https redirection might not work for k8s and other cluster solutions
             // app.UseHttpsRedirection();
 
             app.UseRouting();

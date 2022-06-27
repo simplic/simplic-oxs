@@ -21,14 +21,14 @@ namespace Simplic.OxS.Server.Extensions
         internal static IServiceCollection AddRedisCaching(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<RedisSettings>(options => configuration.GetSection("Redis").Bind(options));
-            var authSettings = configuration.GetSection("Redis").Get<RedisSettings>();
+            var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();
 
-            if (authSettings != null)
+            if (redisSettings != null)
             {
                 Console.WriteLine(" > Add redis caching");
                 services.AddStackExchangeRedisCache(options => 
                 {
-                    options.Configuration = authSettings.RedisCacheUrl;
+                    options.Configuration = redisSettings.RedisCacheUrl;
                 });
 
                 services.AddTransient<ICacheRepository, CacheRepository>();

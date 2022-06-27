@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.Data
+﻿namespace Simplic.OxS.Data
 {
     /// <summary>
     /// Contains all fluent operations as extension method

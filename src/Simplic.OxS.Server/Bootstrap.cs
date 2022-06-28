@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
+using Simplic.OxS.Data;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
@@ -60,6 +61,8 @@ namespace Simplic.OxS.Server
 
             IMapper mapper = mapperConfig.CreateMapper();
             services.AddSingleton(mapper);
+
+            services.AddTransient<IMapService, MapService>();
 
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();

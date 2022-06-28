@@ -30,7 +30,10 @@ namespace Simplic.OxS.Server.Extensions
             var monitoringSettings = configuration.GetSection("Monitoring").Get<MonitoringSettings>();
 
             if (monitoringSettings == null)
-                throw new Exception("Could not find monitoring section in app-settings. Please ensure that a valid enviornment-name is passed (e.g. Local, Development, ...).");
+            {
+                Console.WriteLine("Could not find monitoring section in app-settings. Please ensure that a valid enviornment-name is passed (e.g. Local, Development, ...).");
+                return services;
+            }
 
             var resourceBuilder = ResourceBuilder.CreateDefault()
                                                  .AddService($"Simplic.OxS.{serviceName}")
@@ -60,10 +63,10 @@ namespace Simplic.OxS.Server.Extensions
                     Console.WriteLine("Add OpenTelemetry redis instruments");
                 }
 
-                if (UseConsoleExporter(monitoringSettings.TracingExporter))
+                if (UseConsoleExporter(monitoringSettings.TracingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                     builder.AddConsoleExporter();
 
-                if (UseOtlpExporter(monitoringSettings.TracingExporter))
+                if (UseOtlpExporter(monitoringSettings.TracingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                 {
                     builder.AddOtlpExporter(opt =>
                     {
@@ -87,10 +90,10 @@ namespace Simplic.OxS.Server.Extensions
                      options.ParseStateValues = true;
                      options.IncludeFormattedMessage = true;
 
-                     if (UseConsoleExporter(monitoringSettings.LoggingExporter))
+                     if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                          options.AddConsoleExporter();
 
-                     if (UseOtlpExporter(monitoringSettings.LoggingExporter))
+                     if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                      {
                          options.AddOtlpExporter(otlpOptions =>
                          {
@@ -114,10 +117,10 @@ namespace Simplic.OxS.Server.Extensions
                     .AddHttpClientInstrumentation()
                     .AddAspNetCoreInstrumentation();
 
-                if (UseConsoleExporter(monitoringSettings.LoggingExporter))
+                if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                     options.AddConsoleExporter();
 
-                if (UseOtlpExporter(monitoringSettings.LoggingExporter))
+                if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                 {
                     options.AddOtlpExporter(otlpOptions =>
                     {

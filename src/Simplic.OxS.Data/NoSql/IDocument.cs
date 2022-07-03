@@ -4,7 +4,7 @@
     /// Basic no sql document
     /// </summary>
     /// <typeparam name="TId"></typeparam>
-    public interface IDocument<TId>
+    public interface IDocument<TId> : IDefaultDocument
     {
         /// <summary>
         /// Gets or sets the document id

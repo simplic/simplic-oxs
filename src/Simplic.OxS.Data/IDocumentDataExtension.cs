@@ -1,6 +1,6 @@
 ﻿namespace Simplic.OxS.Data
 {
-    public interface IDocumentDataExtension
+    public interface IDocumentDataExtension : IDefaultDocument
     {
         DateTime CreateDateTime { get; set; }
         Guid? CreateUserId { get; set; }

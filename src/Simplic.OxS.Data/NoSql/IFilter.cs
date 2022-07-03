@@ -10,5 +10,7 @@
         /// Gets or sets the id of the data to filter
         /// </summary>
         TId Id { get; set; }
+
+        bool? IsDeleted { get; set; }
     }
 }

@@ -10,5 +10,9 @@
         /// Gets or sets the organization id
         /// </summary>
         Guid? OrganizationId { get; set; }
+
+        bool QueryAllOrganizations { get; set; }
+        IList<Guid> IncludeIds { get; set; }
+        Guid? ExcludeId { get; set; }
     }
 }

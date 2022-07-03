@@ -49,7 +49,8 @@ namespace Simplic.OxS.Data
         }
 
         /// <summary>
-        /// Copies default property values from the original to the target object.
+        /// Copies default property values from the original to the target object,
+        /// if the document is an IDocument, IOrganizationDocument or IDocumentDataExtension
         /// </summary>
         /// <typeparam name="T">The object type</typeparam>
         /// <returns></returns>

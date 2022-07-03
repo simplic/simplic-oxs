@@ -10,12 +10,12 @@ namespace Simplic.OxS.Data
     public class MapService : IMapService
     {
         /// <inheritdoc>
-        public MergeableObject<T> Create<T>(T original, T mapped) where T : class
+        public MergeableObject<T> Create<T>(T original, T target) where T : class
         {
             return new MergeableObject<T>
             {
                 Original = original,
-                Target = mapped
+                Target = target
             };
         }
     }

@@ -18,7 +18,7 @@ namespace Simplic.OxS.Data.Service
 
         public virtual async Task<TDocument> Create([NotNull] TDocument obj)
         {
-            AssertRequest(obj);
+            AssertRequest(obj, false);
 
             obj.Id = Guid.NewGuid();
             obj.OrganizationId = requestContext.OrganizationId.Value;
@@ -40,7 +40,7 @@ namespace Simplic.OxS.Data.Service
 
         public virtual async Task<TDocument> Update([NotNull] TDocument obj)
         {
-            AssertRequest(obj);
+            AssertRequest(obj, true);
 
             if (obj.Id == default)
                 throw new Exception("Id must be set for updating data.");
@@ -59,7 +59,7 @@ namespace Simplic.OxS.Data.Service
 
         public virtual async Task<TDocument> Delete([NotNull] TDocument obj)
         {
-            AssertRequest(obj);
+            AssertRequest(obj, true);
 
             obj.IsDeleted = true;
 
@@ -82,12 +82,12 @@ namespace Simplic.OxS.Data.Service
                 await Delete(obj);
         }
 
-        private void AssertRequest(TDocument obj)
+        private void AssertRequest(TDocument obj, bool compareOrganizationId)
         {
             if (requestContext.OrganizationId == null)
                 throw new Exception("OrganizationId is null for the actual request.");
 
-            if (obj.OrganizationId != requestContext.OrganizationId)
+            if (compareOrganizationId && obj.OrganizationId != requestContext.OrganizationId)
                 throw new Exception("Invalid organization id, access the object is not allowed.");
         }
     }

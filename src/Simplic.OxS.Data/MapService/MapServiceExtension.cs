@@ -38,7 +38,9 @@ namespace Simplic.OxS.Data
         /// <typeparam name="T">The object type</typeparam>
         /// <typeparam name="I">The type of the interface defining the object's default properties</typeparam>
         /// <returns></returns>
-        public static MergeableObject<T> TakeDefaults<T, I>(this MergeableObject<T> _this) where I : IDefaultDocument where T : class
+        public static MergeableObject<T> TakeDefaults<T, I>(this MergeableObject<T> _this) 
+                                                            where I : IDefaultDocument 
+                                                            where T : class
         {
             foreach (var property in typeof(I).GetProperties())
                 SetValueIfPropertyExists(property, _this.Original, _this.Target);

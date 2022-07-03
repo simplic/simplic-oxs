@@ -14,6 +14,6 @@
         /// <summary>
         /// Gets or sets whether the document is deleted
         /// </summary>
-        bool IsDeleted { get; set; }
+        bool IsDeleted { get; set; } 
     }
 }

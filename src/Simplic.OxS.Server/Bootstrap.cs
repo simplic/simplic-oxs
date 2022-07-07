@@ -107,7 +107,7 @@ namespace Simplic.OxS.Server
                     }
                     else
                     {
-                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"{httpReq.Scheme}://{httpReq.Host.Value}{basePath}" } };
+                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"https://{httpReq.Host.Value}{basePath}" } };
                     }
                 });
             });

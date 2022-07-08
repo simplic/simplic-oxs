@@ -76,7 +76,7 @@ namespace Simplic.OxS.Server
             });
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
-             
+            
             // Add signalr
             services.AddSignalR();
         }

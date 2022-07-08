@@ -249,7 +249,7 @@ namespace Simplic.OxS.Server.Internal
                 else
                     parameterBuilder.Append('&');
 
-                parameterBuilder.Append($"{param.Key}={HttpUtility.UrlEncode(param.Key)}");
+                parameterBuilder.Append($"{param.Key}={HttpUtility.UrlEncode(param.Value)}");
             }
 
             return parameterBuilder.ToString();

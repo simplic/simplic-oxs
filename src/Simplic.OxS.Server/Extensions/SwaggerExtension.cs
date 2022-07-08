@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 
 namespace Simplic.OxS.Server.Extensions
@@ -98,6 +99,7 @@ namespace Simplic.OxS.Server.Extensions
                 }
 
                 c.AddSecurityRequirement(securityRequirements);
+                // c.DocumentFilter<HideInternalAPIFilter> ();
 
                 c.AddSignalRSwaggerGen(so => 
                 {
@@ -111,6 +113,14 @@ namespace Simplic.OxS.Server.Extensions
             });
 
             return services;
+        }
+
+        public class HideInternalAPIFilter : IDocumentFilter
+        {
+            public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+            {
+                // TODO: Hide internal on public server
+            }
         }
     }
 }

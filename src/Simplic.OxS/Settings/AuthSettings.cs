@@ -1,4 +1,4 @@
-﻿namespace Simplic.OxS.Server.Settings
+﻿namespace Simplic.OxS.Settings
 {
     /// <summary>
     /// Authentication settings

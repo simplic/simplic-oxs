@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Simplic.OxS.Cache.Redis\Simplic.OxS.Cache.Redis.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Cache.Service\Simplic.OxS.Cache.Service.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Data.MongoDB\Simplic.OxS.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj" />
     <ProjectReference Include="..\Simplic.OxS.MessageBroker\Simplic.OxS.MessageBroker.csproj" />
     <ProjectReference Include="..\Simplic.OxS\Simplic.OxS.csproj" />
   </ItemGroup>

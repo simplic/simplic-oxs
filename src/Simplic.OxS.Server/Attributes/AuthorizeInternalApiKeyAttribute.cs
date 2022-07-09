@@ -40,7 +40,7 @@ namespace Simplic.OxS.Server
                 return;
             }
 
-            var appSettings = context.HttpContext.RequestServices.GetRequiredService<IOptions<Settings.AuthSettings>>();
+            var appSettings = context.HttpContext.RequestServices.GetRequiredService<IOptions<OxS.Settings.AuthSettings>>();
 
             // Check whether the actual api key is correct.
             if (appSettings.Value.InternalApiKey != authParts[1])

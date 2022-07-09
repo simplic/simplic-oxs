@@ -20,8 +20,8 @@ namespace Simplic.OxS.Server.Extensions
         /// <returns>Service collection instance</returns>
         internal static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<AuthSettings>(options => configuration.GetSection("Auth").Bind(options));
-            var authSettings = configuration.GetSection("Auth").Get<AuthSettings>();
+            services.Configure<OxS.Settings.AuthSettings>(options => configuration.GetSection("Auth").Bind(options));
+            var authSettings = configuration.GetSection("Auth").Get<OxS.Settings.AuthSettings>();
 
             if (authSettings != null)
             {

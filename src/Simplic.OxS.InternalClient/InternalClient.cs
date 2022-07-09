@@ -1,21 +1,21 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Simplic.OxS.Server.Settings;
+using Simplic.OxS.Settings;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using System.Text;
 using System.Web;
 
-namespace Simplic.OxS.Server.Internal
+namespace Simplic.OxS.InternalClient
 {
     /// <summary>
     /// Client for sending network/cluster internal requests
     /// </summary>
-    public class InternalClient : IInternalClient
+    public class InternalClientBase : IInternalClient
     {
         private readonly HttpClient client;
-        private readonly ILogger<InternalClient> logger;
+        private readonly ILogger<InternalClientBase> logger;
         private readonly IRequestContext requestContext;
         private static IDictionary<string, string>? hosts;
 
@@ -25,7 +25,7 @@ namespace Simplic.OxS.Server.Internal
         /// <param name="settings">Authentication settings</param>
         /// <param name="requestContext">Current request context</param>
         /// <param name="logger">Logger instance</param>
-        public InternalClient(IOptions<AuthSettings> settings, IRequestContext requestContext, ILogger<InternalClient> logger, IConfiguration configuration)
+        public InternalClientBase(IOptions<AuthSettings> settings, IRequestContext requestContext, ILogger<InternalClientBase> logger, IConfiguration configuration)
         {
             this.logger = logger;
             this.requestContext = requestContext;

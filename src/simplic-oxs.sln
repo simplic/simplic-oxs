@@ -33,9 +33,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Cache.Service",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Cache.Redis", "Simplic.OxS.Cache.Redis\Simplic.OxS.Cache.Redis.csproj", "{B15C5E42-B551-45CB-918D-CC5C769F1A12}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Data.Test", "Simplic.OxS.Data.Test\Simplic.OxS.Data.Test.csproj", "{863DF41B-1A10-4C58-B4E6-3DAF940391F8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Data.Test", "Simplic.OxS.Data.Test\Simplic.OxS.Data.Test.csproj", "{863DF41B-1A10-4C58-B4E6-3DAF940391F8}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{BA912BDA-660A-4C58-A236-F3E3C9465F02}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.InternalClient", "Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj", "{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -87,6 +89,10 @@ Global
 		{863DF41B-1A10-4C58-B4E6-3DAF940391F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{863DF41B-1A10-4C58-B4E6-3DAF940391F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{863DF41B-1A10-4C58-B4E6-3DAF940391F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

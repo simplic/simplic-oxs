@@ -6,11 +6,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using Simplic.OxS.Data;
+using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Interface;
-using Simplic.OxS.Server.Internal;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
 
@@ -66,7 +66,7 @@ namespace Simplic.OxS.Server
 
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();
-            services.AddTransient<IInternalClient, InternalClient>();
+            services.AddTransient<IInternalClient, InternalClientBase>();
             services.AddScoped<RequestContextActionFilter>();
 
             // Register web-api controller. Must be executed before creating swagger configuration

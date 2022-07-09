@@ -288,3 +288,4 @@ namespace Simplic.OxS.InternalClient
         public string Scheme { get; set; } = "http";
     }
 }
+

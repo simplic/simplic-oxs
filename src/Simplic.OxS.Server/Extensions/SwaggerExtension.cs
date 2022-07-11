@@ -13,29 +13,6 @@ namespace Simplic.OxS.Server.Extensions
     /// </summary>
     internal static class SwaggerExtension
     {
-        private static IDictionary<Type, IList<Type>> GetKnownTypes()
-        {
-            var dictionary = new Dictionary<Type, IList<Type>>();
-
-            foreach (var type in Assembly.GetEntryAssembly().GetTypes())
-            {
-                foreach (var knownType in type.GetCustomAttributes().OfType<KnownTypeAttribute>())
-                {
-                    if (dictionary.ContainsKey(type))
-                    {
-                        dictionary[type].Add(knownType.Type);
-                    }
-                    else
-                    {
-                        dictionary.Add(type, new List<Type> { knownType.Type });
-                    }
-                    
-                }
-            }
-
-            return dictionary;
-        }
-
         /// <summary>
         /// Add swagger to the actual service/endpoint
         /// </summary>
@@ -156,6 +133,33 @@ namespace Simplic.OxS.Server.Extensions
             {
                 // TODO: Hide internal on public server
             }
+        }
+
+        /// <summary>
+        /// Creates a dictionary of all base types that has the attribute <see cref="KnownTypeAttribute"/>
+        /// </summary>
+        /// <returns>Dictionary of type mappings for api abstraction/polymorphism</returns>
+        private static IDictionary<Type, IList<Type>> GetKnownTypes()
+        {
+            var dictionary = new Dictionary<Type, IList<Type>>();
+
+            foreach (var type in Assembly.GetEntryAssembly().GetTypes())
+            {
+                foreach (var knownType in type.GetCustomAttributes().OfType<KnownTypeAttribute>())
+                {
+                    if (dictionary.ContainsKey(type))
+                    {
+                        dictionary[type].Add(knownType.Type);
+                    }
+                    else
+                    {
+                        dictionary.Add(type, new List<Type> { knownType.Type });
+                    }
+
+                }
+            }
+
+            return dictionary;
         }
     }
 }

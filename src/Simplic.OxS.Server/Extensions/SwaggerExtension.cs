@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
+using System.Runtime.Serialization;
 
 namespace Simplic.OxS.Server.Extensions
 {
@@ -12,6 +13,29 @@ namespace Simplic.OxS.Server.Extensions
     /// </summary>
     internal static class SwaggerExtension
     {
+        private static IDictionary<Type, IList<Type>> GetKnownTypes()
+        {
+            var dictionary = new Dictionary<Type, IList<Type>>();
+
+            foreach (var type in Assembly.GetEntryAssembly().GetTypes())
+            {
+                foreach (var knownType in type.GetCustomAttributes().OfType<KnownTypeAttribute>())
+                {
+                    if (dictionary.ContainsKey(type))
+                    {
+                        dictionary[type].Add(knownType.Type);
+                    }
+                    else
+                    {
+                        dictionary.Add(type, new List<Type> { knownType.Type });
+                    }
+                    
+                }
+            }
+
+            return dictionary;
+        }
+
         /// <summary>
         /// Add swagger to the actual service/endpoint
         /// </summary>
@@ -35,6 +59,17 @@ namespace Simplic.OxS.Server.Extensions
                     In = ParameterLocation.Header,
                     Type = SecuritySchemeType.ApiKey,
                     Scheme = "Bearer"
+                });
+
+                var knownTypes = GetKnownTypes();
+                c.UseOneOfForPolymorphism();
+                c.SelectSubTypesUsing(baseType =>
+                {
+                    if (knownTypes.ContainsKey(baseType))
+                    {
+                        return knownTypes[baseType];
+                    }
+                    return Enumerable.Empty<Type>();
                 });
 
                 if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
@@ -101,7 +136,7 @@ namespace Simplic.OxS.Server.Extensions
                 c.AddSecurityRequirement(securityRequirements);
                 // c.DocumentFilter<HideInternalAPIFilter> ();
 
-                c.AddSignalRSwaggerGen(so => 
+                c.AddSignalRSwaggerGen(so =>
                 {
                     so.AutoDiscover = SignalRSwaggerGen.Enums.AutoDiscover.MethodsAndParams;
                     so.DisplayInDocuments($"{apiVersion}-SignalR");

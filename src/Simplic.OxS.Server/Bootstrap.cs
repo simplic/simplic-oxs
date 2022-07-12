@@ -133,12 +133,6 @@ namespace Simplic.OxS.Server
 
                 MapHubs(endpoints);
             });
-
-            // Create scope and execute migration services inside of the scope
-            // TODO: We need to change the place where the migration is executed
-            var scope = app.ApplicationServices.CreateScope();
-            var migrationService = scope.ServiceProvider.GetService<IDatabaseMigrationService>();
-            migrationService?.Migrate().Wait();
         }
 
         /// <summary>

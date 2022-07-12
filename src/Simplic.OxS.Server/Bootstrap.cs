@@ -133,9 +133,6 @@ namespace Simplic.OxS.Server
 
                 MapHubs(endpoints);
             });
-
-            var migrationService = app.ApplicationServices.GetService<IDatabaseMigrationService>();
-            migrationService?.Migrate().Wait();
         }
 
         /// <summary>

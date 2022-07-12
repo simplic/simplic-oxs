@@ -37,7 +37,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Data.Test", "Si
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{BA912BDA-660A-4C58-A236-F3E3C9465F02}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.InternalClient", "Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj", "{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.InternalClient", "Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj", "{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

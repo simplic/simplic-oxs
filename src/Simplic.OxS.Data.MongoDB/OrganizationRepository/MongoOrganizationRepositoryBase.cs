@@ -38,8 +38,6 @@ namespace Simplic.OxS.Data.MongoDB
 
         public async Task<IEnumerable<TDocument>> GetAllAsync(bool queryAllOrganizations)
         {
-            await Initialize();
-
             return await GetByFilterAsync(new TFilter
             {
                 QueryAllOrganizations = queryAllOrganizations

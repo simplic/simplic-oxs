@@ -149,10 +149,10 @@ namespace Simplic.OxS.Data.Service
         private void AssertRequest(TDocument obj, bool compareOrganizationId)
         {
             if (requestContext.OrganizationId == null)
-                throw new Exception("OrganizationId is null for the actual request.");
+                throw new Exception("OrganizationId is null for the current request.");
 
             if (compareOrganizationId && obj.OrganizationId != requestContext.OrganizationId)
-                throw new Exception("Invalid organization id, access the object is not allowed.");
+                throw new Exception("Invalid organization ID, accessing the object is not allowed.");
         }
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Simplic.OxS.Data.Service
 {
-    public interface IOrganizationTransactionServiceBase<TDocument, TFilter>
+    public interface IOrganizationTransactionServiceBase<TDocument, TFilter> : IOrganizationServiceBase<TDocument, TFilter>
         where TDocument : IOrganizationDocument<Guid>
         where TFilter : IOrganizationFilter<Guid>
     {

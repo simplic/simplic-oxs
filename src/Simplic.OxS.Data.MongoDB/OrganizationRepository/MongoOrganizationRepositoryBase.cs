@@ -4,7 +4,7 @@ namespace Simplic.OxS.Data.MongoDB
 {
     public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : MongoRepositoryBase<Guid, TDocument, TFilter>, IOrganizationRepository<Guid, TDocument, TFilter>
         where TDocument : IOrganizationDocument<Guid>
-        where TFilter : IOrganizationFilter<Guid>, new()
+        where TFilter : IOrganizationFilter<Guid>, new() 
     {
         private readonly IRequestContext requestContext;
 

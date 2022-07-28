@@ -4,7 +4,7 @@ namespace Simplic.OxS.Data.MongoDB
 {
     public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : MongoRepositoryBase<Guid, TDocument, TFilter>, IOrganizationRepository<Guid, TDocument, TFilter>
         where TDocument : IOrganizationDocument<Guid>
-        where TFilter : IOrganizationFilter<Guid>, new()
+        where TFilter : IOrganizationFilter<Guid>, new() 
     {
         private readonly IRequestContext requestContext;
 
@@ -29,6 +29,19 @@ namespace Simplic.OxS.Data.MongoDB
             });
 
             return data.SingleOrDefault();
+        }
+
+        public async Task<IEnumerable<TDocument>> GetAllAsync()
+        {
+            return await GetAllAsync(false);
+        }
+
+        public async Task<IEnumerable<TDocument>> GetAllAsync(bool queryAllOrganizations)
+        {
+            return await GetByFilterAsync(new TFilter
+            {
+                QueryAllOrganizations = queryAllOrganizations
+            });
         }
 
         public override async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter)

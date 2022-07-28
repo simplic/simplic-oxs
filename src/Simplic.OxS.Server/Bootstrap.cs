@@ -38,6 +38,8 @@ namespace Simplic.OxS.Server
         /// <param name="services">Service collection</param>
         public virtual void ConfigureServices(IServiceCollection services)
         {
+            Console.WriteLine($"Configure for env: {CurrentEnvironment.EnvironmentName}");
+
             // Add logging and tracing systems
             services.AddLoggingAndMetricTracing(Configuration, ServiceName);
 

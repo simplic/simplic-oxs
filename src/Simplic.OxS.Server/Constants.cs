@@ -9,7 +9,7 @@
         /// Internal api key scheme (i-api-key).
         /// </summary>
         public const string HttpAuthorizationSchemeInternalKey = "i-api-key";
-    
+
         /// <summary>
         /// Bearer scheme (bearer).
         /// </summary>
@@ -30,3 +30,4 @@
         /// </summary>
         public const string HttpHeaderCorrelationIdKey = "X-Correlation-ID";
     }
+}

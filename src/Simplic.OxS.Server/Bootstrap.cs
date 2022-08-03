@@ -44,7 +44,7 @@ namespace Simplic.OxS.Server
             services.AddLoggingAndMetricTracing(Configuration, ServiceName);
 
             // Add Redis caching
-            services.AddRedisCaching(Configuration);
+            services.AddRedisCaching(Configuration, out string connection);
 
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);
@@ -78,9 +78,12 @@ namespace Simplic.OxS.Server
             });
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
-            
+
             // Add signalr
-            services.AddSignalR();
+            if (string.IsNullOrWhiteSpace(connection))
+                services.AddSignalR();
+            else
+                services.AddSignalR().AddStackExchangeRedis(connection);
         }
 
         /// <summary>

@@ -17,8 +17,9 @@ namespace Simplic.OxS.Server.Extensions
         /// </summary>
         /// <param name="services">Service collection</param>
         /// <param name="configuration">Service configuration</param>
+        /// <param name="redisEnabled">Gets whether redis was initizaled</param>
         /// <returns>Service collection instance</returns>
-        internal static IServiceCollection AddRedisCaching(this IServiceCollection services, IConfiguration configuration)
+        internal static IServiceCollection AddRedisCaching(this IServiceCollection services, IConfiguration configuration, out string connection)
         {
             services.Configure<RedisSettings>(options => configuration.GetSection("Redis").Bind(options));
             var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();
@@ -33,10 +34,13 @@ namespace Simplic.OxS.Server.Extensions
 
                 services.AddTransient<ICacheRepository, CacheRepository>();
                 services.AddTransient<ICacheService, CacheService>();
+
+                connection = redisSettings.RedisCacheUrl;
             }
             else
             {
                 Console.WriteLine(" > No redis context found.");
+                connection = "";
             }
 
             return services;

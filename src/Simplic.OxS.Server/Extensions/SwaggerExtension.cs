@@ -111,7 +111,7 @@ namespace Simplic.OxS.Server.Extensions
                 }
 
                 c.AddSecurityRequirement(securityRequirements);
-                // c.DocumentFilter<HideInternalAPIFilter> ();
+                // c.DocumentFilter<HideInternalAPIFilter>();
 
                 c.AddSignalRSwaggerGen(so =>
                 {

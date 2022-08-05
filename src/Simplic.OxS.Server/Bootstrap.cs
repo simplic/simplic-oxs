@@ -137,6 +137,8 @@ namespace Simplic.OxS.Server
                 endpoints.MapControllers();
 
                 MapHubs(endpoints);
+
+                MapEndpoints(endpoints);
             });
         }
 
@@ -145,6 +147,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="builder">Builder instance</param>
         protected virtual void MapHubs(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+
+        /// <summary>
+        /// Method for mapping endpoint routings
+        /// </summary>
+        /// <param name="builder">Builder instance</param>
+        protected virtual void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
 
         /// <summary>
         /// Get api information for the current service

@@ -57,7 +57,11 @@ namespace Simplic.OxS.Scheduler
             {
                 DashboardTitle = $"Hangfire - {serviceName}",
                 AppPath = $"/{serviceName}-api/v1/swagger",
-                DisplayStorageConnectionString = false
+                DisplayStorageConnectionString = false,
+                Authorization = new[]
+                {
+                    new DashboardAuthorizationFilter()
+                }
             });
 
             return endpoints;

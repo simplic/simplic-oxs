@@ -83,11 +83,11 @@ namespace Simplic.OxS.InternalClient
 
             if (!result.IsSuccessStatusCode)
             {
-                var error = await GetErrorMessage("GET", endpoint, result);
+                var error = new InternalClientException("GET", endpoint, result);
 
-                logger.LogError(error);
+                logger.LogError(error.Message);
 
-                throw new Exception(error);
+                throw error;
             }
 
             if (result.Content == null)
@@ -122,11 +122,11 @@ namespace Simplic.OxS.InternalClient
 
             if (!result.IsSuccessStatusCode)
             {
-                var error = await GetErrorMessage("POST", endpoint, result);
+                var error = new InternalClientException("POST", endpoint, result);
 
-                logger.LogError(error);
+                logger.LogError(error.Message);
 
-                throw new Exception(error);
+                throw error;
             }
 
             if (result.Content == null)
@@ -161,11 +161,11 @@ namespace Simplic.OxS.InternalClient
 
             if (!result.IsSuccessStatusCode)
             {
-                var error = await GetErrorMessage("PUT", endpoint, result);
+                var error = new InternalClientException("PUT", endpoint, result);
 
-                logger.LogError(error);
+                logger.LogError(error.Message);
 
-                throw new Exception(error);
+                throw error;
             }
 
             if (result.Content == null)
@@ -198,11 +198,11 @@ namespace Simplic.OxS.InternalClient
 
             if (!result.IsSuccessStatusCode)
             {
-                var error = await GetErrorMessage("DELETE", endpoint, result);
+                var error = new InternalClientException("DELETE", endpoint, result);
 
-                logger.LogError(error);
+                logger.LogError(error.Message);
 
-                throw new Exception(error);
+                throw error;
             }
 
             if (result.Content == null)

@@ -220,17 +220,6 @@ namespace Simplic.OxS.InternalClient
         }
 
         /// <summary>
-        /// Gets a formatted error message
-        /// </summary>
-        /// <param name="method">Http method</param>
-        /// <param name="endpoint">Endpoint query (url)</param>
-        /// <param name="result">Result as string</param>
-        private async Task<string> GetErrorMessage(string method, string endpoint, HttpResponseMessage result)
-        {
-            return $"Internal client error. Endpoint: [{method}] {endpoint} / Status {result.StatusCode} / {await result.Content.ReadAsStringAsync()}";
-        }
-
-        /// <summary>
         /// Convert parameter to query-string
         /// </summary>
         /// <param name="parameter">Parameter as dictionary</param>

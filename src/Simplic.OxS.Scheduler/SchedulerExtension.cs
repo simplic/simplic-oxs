@@ -56,7 +56,7 @@ namespace Simplic.OxS.Scheduler
             endpoints.MapHangfireDashboard(new DashboardOptions
             {
                 DashboardTitle = $"Hangfire - {serviceName}",
-                AppPath = $"/{serviceName}-api/v1/swagger",
+                AppPath = $"/{serviceName}-api/v1/hangfire",
                 DisplayStorageConnectionString = false,
                 Authorization = new[]
                 {

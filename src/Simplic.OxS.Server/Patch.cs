@@ -34,8 +34,8 @@ namespace Simplic.OxS.Server
     {
         private readonly IMapper mapper;
 
-        [HttpPatch]
-        public async Task<IActionResult> Patch([Required] PatchSampleRequest model)
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> Patch([Required] Guid id, [Required][FromBody] PatchSampleRequest model)
         {
             if (!ModelState.IsValid)
                 return BadRequest();

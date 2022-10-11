@@ -70,7 +70,7 @@ namespace Simplic.OxS.Server
         public T Id { get; set; }
     }
 
-    public static class PatchHelper
+    public static class PatchHelperi
     {
         public static T CreatePatch<T, I>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation) where T : IDocument<I>
         {

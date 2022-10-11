@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Simplic.OxS.Server;
 
 namespace Simplic.OxS.Server.Test
 {
@@ -24,7 +25,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""LastName"" : ""Doe""}";
 
-            var patchedTestPerson = PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -52,7 +53,7 @@ namespace Simplic.OxS.Server.Test
                             ""LastName"": ""Doe""
                         }";
 
-            var patchedTestPerson = PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -78,7 +79,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""LastName"" : ""Doe""}";
 
-            var patchedTestPerson = PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });

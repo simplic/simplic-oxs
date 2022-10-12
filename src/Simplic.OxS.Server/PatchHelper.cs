@@ -53,25 +53,6 @@ namespace Simplic.OxS.Server
                 }
             }
 
-            // Filter for object id
-            // var filter = Builders<BsonDocument>.Filter.Eq("_id", model.Id);
-            // 
-            // UpdateDefinition<BsonDocument> update = null;
-            // foreach (var change in changesDocument)
-            // {
-            //     if (update == null)
-            //     {
-            //         var builder = Builders<BsonDocument>.Update;
-            //         update = builder.Set("", change.Value);
-            //     }
-            //     else
-            //     {
-            //         update = update.Set("", change.Value);
-            //     }
-            // }
-
-            // Find values that needs to be patched
-
             return originalDocument;
         }
 
@@ -123,13 +104,13 @@ namespace Simplic.OxS.Server
             {
                 var propertyName = splitPath[i];
                 var property = currentType.GetProperty(propertyName);
-                source = property.GetValue(source, null);
+                source = property.GetValue(source);
 
                 if (i == splitPath.Length - 1)
-                    property.SetValue(target, Convert.ChangeType(source, property.PropertyType), null);
+                    property.SetValue(target, Convert.ChangeType(source, property.PropertyType));
 
                 else
-                    target = property.GetValue(target, null);
+                    target = property.GetValue(target);
             }
         }
     }

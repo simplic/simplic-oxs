@@ -47,7 +47,7 @@ namespace Simplic.OxS.Server
                     case JsonValueKind.True:
                     case JsonValueKind.False:
                     case JsonValueKind.Null:
-                        SetValueAtPath(patch, originalDocument, parentPath); 
+                        SetValueAtPath(patch, originalDocument, parentPath);
                         break;
 
                 }
@@ -117,25 +117,20 @@ namespace Simplic.OxS.Server
         private static void SetValueAtPath(object source, object target, string path)
         {
             Type currentType = source.GetType();
-            PropertyInfo property = null;
+            var splitPath = path.Split(".");
 
-            var list = path.Split(".");
-
-            foreach (string propertyName in list.SkipLast(1))
+            for (int i = 0; i < splitPath.Length; i++)
             {
-                property = currentType.GetProperty(propertyName);
+                var propertyName = splitPath[i];
+                var property = currentType.GetProperty(propertyName);
                 source = property.GetValue(source, null);
-                target = property.GetValue(target, null);
-                currentType = property.PropertyType;
+
+                if (i == splitPath.Length - 1)
+                    property.SetValue(target, Convert.ChangeType(source, property.PropertyType), null);
+
+                else
+                    target = property.GetValue(target, null);
             }
-
-            var lastPropertyName = list.Last();
-
-            property = currentType.GetProperty(lastPropertyName);
-            source = property.GetValue(source, null);
-
-            property.SetValue(target, Convert.ChangeType(source, property.PropertyType), null);
-
         }
     }
 }

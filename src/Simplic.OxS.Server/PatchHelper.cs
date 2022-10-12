@@ -19,7 +19,7 @@ namespace Simplic.OxS.Server
 
         }
 
-        private static void HandleArray(JsonElement element, ICollection<Data.IItemId> originalCollection, ICollection<Data.IItemId> patchCollection)
+        private static void HandleArray(JsonElement element, ICollection<IItemId> originalCollection, ICollection<IItemId> patchCollection)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
@@ -187,7 +187,7 @@ namespace Simplic.OxS.Server
             }
         }
 
-        private static ICollection<Data.IItemId> GetCollection(object obj, string path)
+        private static ICollection<IItemId> GetCollection(object obj, string path)
         {
             Type currentType = obj.GetType();
 
@@ -198,10 +198,10 @@ namespace Simplic.OxS.Server
                 currentType = property.PropertyType;
             }
 
-            if (obj is not ICollection<Data.IItemId>)
+            if (obj is not ICollection<IItemId>)
                 throw new ArgumentException();
 
-            return obj as ICollection<Data.IItemId>;
+            return obj as ICollection<IItemId>;
         }
     }
 }

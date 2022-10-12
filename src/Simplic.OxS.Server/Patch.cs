@@ -65,11 +65,6 @@ namespace Simplic.OxS.Server
 
     }
 
-    public interface IItemId
-    {
-        public Guid Id { get; set; }
-    }
-
     public static class PatchHelperi
     {
         public static T CreatePatch<T, I>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation) where T : IDocument<I>

@@ -65,9 +65,9 @@ namespace Simplic.OxS.Server
 
     }
 
-    public interface IItemId<T>
+    public interface IItemId
     {
-        public T Id { get; set; }
+        public Guid Id { get; set; }
     }
 
     public static class PatchHelperi

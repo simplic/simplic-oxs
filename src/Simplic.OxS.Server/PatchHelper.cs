@@ -1,5 +1,6 @@
 ﻿using Simplic.OxS.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -19,21 +20,21 @@ namespace Simplic.OxS.Server
 
         }
 
-        private static void HandleArray(JsonElement element, ICollection<IItemId> originalCollection, ICollection<IItemId> patchCollection)
+        private static void HandleArray(JsonElement element, IEnumerable<IItemId> originalCollection, IEnumerable<IItemId> patchCollection)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
 
             foreach (var item in element.EnumerateArray())
             {
-                switch (element.ValueKind)
+                switch (item.ValueKind)
                 {
                     case (JsonValueKind.Array):
                         //HandleArray(element);
                         break;
 
                     case (JsonValueKind.Object):
-                        var elements = element.EnumerateObject().ToList();
+                        var elements = item.EnumerateObject().ToList();
                         if (!elements.Any(x => x.Name.ToLower() == "id"))
                             //new Item
                             break;
@@ -67,10 +68,9 @@ namespace Simplic.OxS.Server
 
                                 var patchItem = patchCollection.FirstOrDefault(x => x.Id == idGuid);
 
-                                HandleDocument(originalItem, patchItem, element);
+                                HandleDocument(originalItem, patchItem, item);
                                 break;
                         }
-
 
                         break;
 
@@ -187,7 +187,7 @@ namespace Simplic.OxS.Server
             }
         }
 
-        private static ICollection<IItemId> GetCollection(object obj, string path)
+        private static IEnumerable<IItemId> GetCollection(object obj, string path)
         {
             Type currentType = obj.GetType();
 
@@ -198,10 +198,12 @@ namespace Simplic.OxS.Server
                 currentType = property.PropertyType;
             }
 
-            if (obj is not ICollection<IItemId>)
-                throw new ArgumentException();
+            if (obj is IEnumerable collection)
+            {
+                return collection.OfType<IItemId>();
+            }
 
-            return obj as ICollection<IItemId>;
+            throw new ArgumentException();
         }
     }
 }

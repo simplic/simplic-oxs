@@ -16,5 +16,8 @@ namespace Simplic.OxS.Server.Test
         public string? FirstName { get; set; }
 
         public string? LastName { get; set; }
+
+        public IList<TestPhoneNumber> PhoneNumbers { get; set; }
+            = new List<TestPhoneNumber>();
     }
 }

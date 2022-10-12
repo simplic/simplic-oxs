@@ -87,5 +87,35 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.LastName.Should().Be("Doe");
             patchedTestPerson.FirstName.Should().Be("John");
         }
+
+        [Fact]
+        public async Task Patch_ListUpdateContent_UpdatesTheItem()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "1234"
+            });
+
+            var mappedTestPerson = new TestPerson();
+            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "5678"
+            });
+
+            var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
+
+
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.FirstOrDefault().PhoneNumber.Should().Be("5678");
+        }
     }
 }

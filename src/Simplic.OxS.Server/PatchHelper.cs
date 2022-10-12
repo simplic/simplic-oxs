@@ -17,8 +17,6 @@ namespace Simplic.OxS.Server
             using var document = JsonDocument.Parse(json);
             return HandleDocument<T>(originalDocument, patch, document.RootElement);
 
-
-            return originalDocument;
         }
 
         private static void HandleArray(JsonElement element, ICollection<Data.IItemId> originalCollection, ICollection<Data.IItemId> patchCollection)

@@ -10,7 +10,7 @@ namespace Simplic.OxS.Server.Test
     public class PatchHelperTest
     {
         [Fact]
-        public async Task Patch_SingleFieldJson_PatchesSingleField()
+        public void Patch_SingleFieldJson_PatchesSingleField()
         {
             var originalTestPerson = new TestPerson
             {
@@ -34,7 +34,7 @@ namespace Simplic.OxS.Server.Test
         }
 
         [Fact]
-        public async Task Patch_AllFieldJson_PatchesMultipleFields()
+        public void Patch_AllFieldJson_PatchesMultipleFields()
         {
             var originalTestPerson = new TestPerson
             {
@@ -63,7 +63,7 @@ namespace Simplic.OxS.Server.Test
         }
 
         [Fact]
-        public async Task Patch_SingleFieldJsonMultiFieldMap_JustPatchesJsonFields()
+        public void Patch_SingleFieldJsonMultiFieldMap_JustPatchesJsonFields()
         {
             var originalTestPerson = new TestPerson
             {
@@ -89,7 +89,7 @@ namespace Simplic.OxS.Server.Test
         }
 
         [Fact]
-        public async Task Patch_ListUpdateContent_UpdatesTheItem()
+        public void Patch_ListUpdateContent_UpdatesTheItem()
         {
             var guid = Guid.NewGuid();
 
@@ -109,13 +109,47 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
 
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
+        }
+
+        [Fact]
+        public void Patch_ListUpdateContent_UpdatesTheRightItem()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "1234"
+            });
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = Guid.NewGuid(),
+                PhoneNumber = "1234"
+            });
+
+            var mappedTestPerson = new TestPerson();
+            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "5678"
+            });
+
+            var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
 
             var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
 
-            patchedTestPerson.PhoneNumbers.FirstOrDefault().PhoneNumber.Should().Be("5678");
+            patchedTestPerson.PhoneNumbers.First(x => x.Id == guid).PhoneNumber.Should().Be("5678");
+            patchedTestPerson.PhoneNumbers.Count.Should().Be(2);
         }
     }
 }

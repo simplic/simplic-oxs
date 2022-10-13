@@ -20,65 +20,46 @@ namespace Simplic.OxS.Server
 
         }
 
-        private static void HandleArray(JsonElement element, IEnumerable<IItemId> originalCollection, IEnumerable<IItemId> patchCollection)
+        private static void HandleObjectArray(JsonElement element, IEnumerable<IItemId> originalCollection, IEnumerable<IItemId> patchCollection)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
 
             foreach (var item in element.EnumerateArray())
             {
-                switch (item.ValueKind)
+                if (item.ValueKind != JsonValueKind.Object)
+                    throw new ArgumentException("Element is not an array of objects");
+
+
+                var elements = item.EnumerateObject().ToList();
+                if (!elements.Any(x => x.Name.ToLower() == "id"))
+                    //new Item
+                    break;
+
+                var idProperty = elements.First(x => x.Name.ToLower() == "id");
+                var idElement = idProperty.Value;
+
+
+                var idString = idElement.GetString();
+                var isGuid = Guid.TryParse(idString, out var idGuid);
+
+                if (!isGuid)
+                    throw new ArgumentException();
+
+                if (idGuid == Guid.Empty)
                 {
-                    case (JsonValueKind.Array):
-                        //HandleArray(element);
-                        break;
-
-                    case (JsonValueKind.Object):
-                        var elements = item.EnumerateObject().ToList();
-                        if (!elements.Any(x => x.Name.ToLower() == "id"))
-                            //new Item
-                            break;
-
-                        var idProperty = elements.First(x => x.Name.ToLower() == "id");
-                        var idElement = idProperty.Value;
-
-                        switch (idElement.ValueKind)
-                        {
-                            case (JsonValueKind.Undefined):
-                            case (JsonValueKind.Null):
-                                //new Item
-                                break;
-
-                            case (JsonValueKind.String):
-                                var idString = idElement.GetString();
-                                var isGuid = Guid.TryParse(idString, out var idGuid);
-
-                                if (!isGuid)
-                                    throw new ArgumentException();
-
-                                if (idGuid == Guid.Empty)
-                                {
-                                    //newItem
-                                    break;
-                                }
-
-                                var originalItem = originalCollection.FirstOrDefault(x => x.Id == idGuid);
-                                if (originalItem == null)
-                                    throw new Exception();
-
-                                var patchItem = patchCollection.FirstOrDefault(x => x.Id == idGuid);
-
-                                HandleDocument(originalItem, patchItem, item);
-                                break;
-                        }
-
-                        break;
-
-
-
-                    default:
-                        throw new ArgumentOutOfRangeException();
+                    //newItem
+                    break;
                 }
+
+                var originalItem = originalCollection.FirstOrDefault(x => x.Id == idGuid);
+                if (originalItem == null)
+                    throw new Exception();
+
+                var patchItem = patchCollection.FirstOrDefault(x => x.Id == idGuid);
+
+                HandleDocument(originalItem, patchItem, item);
+
             }
         }
 
@@ -103,8 +84,8 @@ namespace Simplic.OxS.Server
                         break;
 
                     case JsonValueKind.Array:
-
-                        HandleArray(element, GetCollection(originalDocument, parentPath), GetCollection(patch, parentPath));
+                        if (element.EnumerateArray().ToList().Any(x => x.ValueKind == JsonValueKind.Object))
+                            HandleObjectArray(element, GetCollection(originalDocument, parentPath), GetCollection(patch, parentPath));
 
 
                         //    foreach (var (nextEl, i) in element.EnumerateArray().Select((jsonElement, i) => (jsonElement, i)))

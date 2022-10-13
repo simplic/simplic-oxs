@@ -20,6 +20,29 @@ namespace Simplic.OxS.Server
 
         }
 
+        private static void HandleArray(JsonElement element, IEnumerable originalCollection, IEnumerable patchCollection)
+        {
+            var elements = element.EnumerateArray().ToList();
+            if (!elements.Any())
+                return;
+
+            var firstElement = elements.First();
+
+            switch (firstElement.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    HandleObjectArray(element, originalCollection.OfType<IItemId>(), patchCollection.OfType<IItemId>());
+                    break;
+
+                case JsonValueKind.Array:
+                    HandleArrayArray(element, originalCollection.OfType<IEnumerable<IEnumerable>>(),
+                                     patchCollection.OfType<IEnumerable<IEnumerable>>());
+                    break;
+
+
+            }
+        }
+
         private static void HandleObjectArray(JsonElement element, IEnumerable<IItemId> originalCollection, IEnumerable<IItemId> patchCollection)
         {
             if (element.ValueKind != JsonValueKind.Array)
@@ -63,6 +86,23 @@ namespace Simplic.OxS.Server
             }
         }
 
+        private static void HandleArrayArray(JsonElement element, IEnumerable<IEnumerable> originalCollection, IEnumerable<IEnumerable> patchCollection)
+        {
+            if (element.ValueKind != JsonValueKind.Array)
+                throw new ArgumentException("Element is no array");
+
+            foreach (var array in element.EnumerateArray())
+            {
+                if (array.ValueKind != JsonValueKind.Array)
+                    throw new ArgumentException("Element is no array of arrays");
+
+                foreach (var (item, i) in array.EnumerateArray().Select((jsonElement, i) => (jsonElement, i)))
+                {
+                    HandleArray(item, originalCollection.ElementAt(i), patchCollection.ElementAt(i));
+                }
+            }
+        }
+
         private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc)
         {
             var queue = new Queue<(string ParentPath, JsonElement element)>();
@@ -84,14 +124,8 @@ namespace Simplic.OxS.Server
                         break;
 
                     case JsonValueKind.Array:
-                        if (element.EnumerateArray().ToList().Any(x => x.ValueKind == JsonValueKind.Object))
-                            HandleObjectArray(element, GetCollection(originalDocument, parentPath), GetCollection(patch, parentPath));
-
-
-                        //    foreach (var (nextEl, i) in element.EnumerateArray().Select((jsonElement, i) => (jsonElement, i)))
-                        //    {
-                        //        queue.Enqueue(($"{parentPath}[{i}]", nextEl));
-                        //    }
+                        HandleArray(element, GetCollection(originalDocument, parentPath),
+                                    GetCollection(patch, parentPath));
                         break;
 
                     case JsonValueKind.Undefined:
@@ -168,7 +202,7 @@ namespace Simplic.OxS.Server
             }
         }
 
-        private static IEnumerable<IItemId> GetCollection(object obj, string path)
+        private static IEnumerable GetCollection(object obj, string path)
         {
             Type currentType = obj.GetType();
 
@@ -180,9 +214,7 @@ namespace Simplic.OxS.Server
             }
 
             if (obj is IEnumerable collection)
-            {
-                return collection.OfType<IItemId>();
-            }
+                return collection;
 
             throw new ArgumentException();
         }

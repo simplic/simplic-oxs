@@ -1,5 +1,7 @@
 ﻿using Simplic.OxS.Data;
 using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Simplic.OxS.Server
@@ -24,23 +26,23 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    HandleObjectArray(element, originalCollection.OfType<IItemId>().ToList(), patchCollection.OfType<IItemId>().ToList());
+                    HandleObjectArray(element, originalCollection, patchCollection);
                     break;
 
                 case JsonValueKind.Array:
-                    SetValueAtPath(patchCollection, originalCollection, path);
+                    SetSourceValueAtPath(patchCollection, originalCollection, path);
                     break;
 
                 case JsonValueKind.String:
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
-                    SetValueAtPath(patchCollection, originalCollection, path);
+                    SetSourceValueAtPath(patchCollection, originalCollection, path);
                     break;
             }
         }
 
-        private static void HandleObjectArray(JsonElement element, IList<IItemId> originalCollection, IList<IItemId> patchCollection)
+        private static void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
@@ -55,8 +57,8 @@ namespace Simplic.OxS.Server
 
                 if (!elements.Any(x => x.Name.ToLower() == "id"))
                 {
-                    originalCollection.Append(patchCollection.ElementAt(i));
-                    break;
+                    originalCollection.Add(patchCollection[i]);
+                    continue;
                 }
 
                 var idProperty = elements.First(x => x.Name.ToLower() == "id");
@@ -71,23 +73,22 @@ namespace Simplic.OxS.Server
 
                 if (elements.Any(x => x.Name.ToLower() == "_remove" && x.Value.GetBoolean()))
                 {
-                    originalCollection.Remove(originalCollection.First(x => x.Id == idGuid));
+                    originalCollection.Remove(originalCollection.OfType<IItemId>().First(x => x.Id == idGuid));
                 }
 
                 if (idGuid == Guid.Empty)
                 {
-                    originalCollection.Append(patchCollection.ElementAt(i));
-                    break;
+                    originalCollection.Add(patchCollection[i]);
+                    continue;
                 }
 
-                var originalItem = originalCollection.FirstOrDefault(x => x.Id == idGuid);
+                var originalItem = originalCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
                 if (originalItem == null)
                     throw new Exception();
 
-                var patchItem = patchCollection.FirstOrDefault(x => x.Id == idGuid);
+                var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
                 HandleDocument(originalItem, patchItem, item);
-
             }
         }
 
@@ -122,20 +123,18 @@ namespace Simplic.OxS.Server
                     case JsonValueKind.True:
                     case JsonValueKind.False:
                     case JsonValueKind.Null:
-                        SetValueAtPath(patch, originalDocument, parentPath);
+                        SetSourceValueAtPath(patch, originalDocument, parentPath);
                         break;
-
                 }
             }
-
             return originalDocument;
         }
 
-        private static void SetValueAtPath(object source, object target, string path)
+        private static void SetSourceValueAtPath(object source, object target, string path)
         {
             Type currentType = source.GetType();
             var splitPath = path.Split(".");
-
+            
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];

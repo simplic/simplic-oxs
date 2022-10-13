@@ -151,5 +151,26 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.PhoneNumbers.First(x => x.Id == guid).PhoneNumber.Should().Be("5678");
             patchedTestPerson.PhoneNumbers.Count.Should().Be(2);
         }
+
+        [Fact]
+        public void Patch_ListAddContent_UpdatesTheItem()
+        {
+            var originalTestPerson = new TestPerson();
+
+            var mappedTestPerson = new TestPerson();
+            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                PhoneNumber = "5678"
+            });
+
+            var json = @"{""PhoneNumbers"" : [{ ""PhoneNumber"" : ""5678"" }]}";
+
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
+        }
     }
 }

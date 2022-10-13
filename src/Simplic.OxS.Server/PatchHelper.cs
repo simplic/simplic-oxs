@@ -74,6 +74,7 @@ namespace Simplic.OxS.Server
                 if (elements.Any(x => x.Name.ToLower() == "_remove" && x.Value.GetBoolean()))
                 {
                     originalCollection.Remove(originalCollection.OfType<IItemId>().First(x => x.Id == idGuid));
+                    continue;
                 }
 
                 if (idGuid == Guid.Empty)

@@ -31,6 +31,7 @@ namespace Simplic.OxS.Server.Test
             });
 
             patchedTestPerson.LastName.Should().Be("Doe");
+            patchedTestPerson.FirstName.Should().Be("John");
         }
 
         [Fact]
@@ -150,6 +151,34 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.PhoneNumbers.First(x => x.Id == guid).PhoneNumber.Should().Be("5678");
             patchedTestPerson.PhoneNumbers.Count.Should().Be(2);
+        }
+
+        [Fact]
+        public void Patch_ListRemoveContent_UpdatesTheItem()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "1234"
+            });
+
+            var mappedTestPerson = new TestPerson();
+            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+            });
+
+            var json = @"{""PhoneNumbers"" : [{ ""Id"" : """ + guid.ToString() + @""", ""_remove"" : true }]}";
+
+            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.Count().Should().Be(0);
         }
 
         [Fact]

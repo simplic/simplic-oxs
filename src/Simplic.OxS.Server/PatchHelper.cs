@@ -20,7 +20,7 @@ namespace Simplic.OxS.Server
 
         }
 
-        private static void HandleArray(JsonElement element, IEnumerable originalCollection, IEnumerable patchCollection)
+        private static void HandleArray(JsonElement element, IEnumerable originalCollection, IEnumerable patchCollection, string path)
         {
             var elements = element.EnumerateArray().ToList();
             if (!elements.Any())
@@ -35,11 +35,8 @@ namespace Simplic.OxS.Server
                     break;
 
                 case JsonValueKind.Array:
-                    HandleArrayArray(element, originalCollection.OfType<IEnumerable<IEnumerable>>(),
-                                     patchCollection.OfType<IEnumerable<IEnumerable>>());
+                    SetValueAtPath(patchCollection, originalCollection, path);
                     break;
-
-
             }
         }
 
@@ -86,23 +83,6 @@ namespace Simplic.OxS.Server
             }
         }
 
-        private static void HandleArrayArray(JsonElement element, IEnumerable<IEnumerable> originalCollection, IEnumerable<IEnumerable> patchCollection)
-        {
-            if (element.ValueKind != JsonValueKind.Array)
-                throw new ArgumentException("Element is no array");
-
-            foreach (var array in element.EnumerateArray())
-            {
-                if (array.ValueKind != JsonValueKind.Array)
-                    throw new ArgumentException("Element is no array of arrays");
-
-                foreach (var (item, i) in array.EnumerateArray().Select((jsonElement, i) => (jsonElement, i)))
-                {
-                    HandleArray(item, originalCollection.ElementAt(i), patchCollection.ElementAt(i));
-                }
-            }
-        }
-
         private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc)
         {
             var queue = new Queue<(string ParentPath, JsonElement element)>();
@@ -125,7 +105,7 @@ namespace Simplic.OxS.Server
 
                     case JsonValueKind.Array:
                         HandleArray(element, GetCollection(originalDocument, parentPath),
-                                    GetCollection(patch, parentPath));
+                                    GetCollection(patch, parentPath), parentPath);
                         break;
 
                     case JsonValueKind.Undefined:
@@ -141,45 +121,6 @@ namespace Simplic.OxS.Server
             }
 
             return originalDocument;
-        }
-
-        public static IEnumerable<string> EnumeratePaths(JsonElement doc)
-        {
-            var queu = new Queue<(string ParentPath, JsonElement element)>();
-            queu.Enqueue(("", doc));
-            while (queu.Any())
-            {
-                var (parentPath, element) = queu.Dequeue();
-                switch (element.ValueKind)
-                {
-                    case JsonValueKind.Object:
-                        parentPath = parentPath == ""
-                            ? parentPath
-                            : parentPath + ".";
-                        foreach (var nextEl in element.EnumerateObject())
-                        {
-                            queu.Enqueue(($"{parentPath}{nextEl.Name}", nextEl.Value));
-                        }
-                        break;
-                    case JsonValueKind.Array:
-                        foreach (var (nextEl, i) in element.EnumerateArray().Select((jsonElement, i) => (jsonElement, i)))
-                        {
-                            queu.Enqueue(($"{parentPath}[{i}]", nextEl));
-                        }
-                        break;
-                    case JsonValueKind.Undefined:
-                    case JsonValueKind.String:
-                    case JsonValueKind.Number:
-                    case JsonValueKind.True:
-                    case JsonValueKind.False:
-                    case JsonValueKind.Null:
-                        yield return parentPath;
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-            }
-
         }
 
         private static void SetValueAtPath(object source, object target, string path)

@@ -1,13 +1,6 @@
 ﻿using Simplic.OxS.Data;
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server
 {
@@ -20,7 +13,7 @@ namespace Simplic.OxS.Server
 
         }
 
-        private static void HandleArray(JsonElement element, IEnumerable originalCollection, IEnumerable patchCollection, string path)
+        private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection, string path)
         {
             var elements = element.EnumerateArray().ToList();
             if (!elements.Any())
@@ -31,30 +24,40 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    HandleObjectArray(element, originalCollection.OfType<IItemId>(), patchCollection.OfType<IItemId>());
+                    HandleObjectArray(element, originalCollection.OfType<IItemId>().ToList(), patchCollection.OfType<IItemId>().ToList());
                     break;
 
                 case JsonValueKind.Array:
                     SetValueAtPath(patchCollection, originalCollection, path);
                     break;
+
+                case JsonValueKind.String:
+                case JsonValueKind.Number:
+                case JsonValueKind.True:
+                case JsonValueKind.False:
+                    SetValueAtPath(patchCollection, originalCollection, path);
+                    break;
             }
         }
 
-        private static void HandleObjectArray(JsonElement element, IEnumerable<IItemId> originalCollection, IEnumerable<IItemId> patchCollection)
+        private static void HandleObjectArray(JsonElement element, IList<IItemId> originalCollection, IList<IItemId> patchCollection)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
 
-            foreach (var item in element.EnumerateArray())
+            foreach (var (item, i) in element.EnumerateArray().Select((item, i) => (item, i)))
             {
                 if (item.ValueKind != JsonValueKind.Object)
                     throw new ArgumentException("Element is not an array of objects");
 
 
                 var elements = item.EnumerateObject().ToList();
+
                 if (!elements.Any(x => x.Name.ToLower() == "id"))
-                    //new Item
+                {
+                    originalCollection.Append(patchCollection.ElementAt(i));
                     break;
+                }
 
                 var idProperty = elements.First(x => x.Name.ToLower() == "id");
                 var idElement = idProperty.Value;
@@ -66,9 +69,14 @@ namespace Simplic.OxS.Server
                 if (!isGuid)
                     throw new ArgumentException();
 
+                if (elements.Any(x => x.Name.ToLower() == "_remove" && x.Value.GetBoolean()))
+                {
+                    originalCollection.Remove(originalCollection.First(x => x.Id == idGuid));
+                }
+
                 if (idGuid == Guid.Empty)
                 {
-                    //newItem
+                    originalCollection.Append(patchCollection.ElementAt(i));
                     break;
                 }
 
@@ -143,7 +151,7 @@ namespace Simplic.OxS.Server
             }
         }
 
-        private static IEnumerable GetCollection(object obj, string path)
+        private static IList GetCollection(object obj, string path)
         {
             Type currentType = obj.GetType();
 
@@ -154,7 +162,7 @@ namespace Simplic.OxS.Server
                 currentType = property.PropertyType;
             }
 
-            if (obj is IEnumerable collection)
+            if (obj is IList collection)
                 return collection;
 
             throw new ArgumentException();

@@ -1,14 +1,15 @@
 ﻿using Simplic.OxS.Data;
 using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Text.Json;
 
 namespace Simplic.OxS.Server
 {
+    /// <summary>
+    /// Helper to create patches from http patch requests.
+    /// </summary>
     public static class PatchHelper
     {
-        public static T CreatePatch<T, I>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation) where T : IDocument<I>
+        public static T Patch<T, I>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation) where T : IDocument<I>
         {
             using var document = JsonDocument.Parse(json);
             return HandleDocument<T>(originalDocument, patch, document.RootElement);
@@ -135,7 +136,7 @@ namespace Simplic.OxS.Server
         {
             Type currentType = source.GetType();
             var splitPath = path.Split(".");
-            
+
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];

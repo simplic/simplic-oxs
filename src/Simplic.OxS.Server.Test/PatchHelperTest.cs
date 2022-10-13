@@ -25,7 +25,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""LastName"" : ""Doe""}";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -54,7 +54,7 @@ namespace Simplic.OxS.Server.Test
                             ""LastName"": ""Doe""
                         }";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -80,7 +80,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""LastName"" : ""Doe""}";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -110,7 +110,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -144,12 +144,13 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
 
             patchedTestPerson.PhoneNumbers.First(x => x.Id == guid).PhoneNumber.Should().Be("5678");
+            patchedTestPerson.PhoneNumbers.First(x => x.Id != guid).PhoneNumber.Should().Be("1234");
             patchedTestPerson.PhoneNumbers.Count.Should().Be(2);
         }
 
@@ -173,7 +174,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""PhoneNumbers"" : [{ ""Id"" : """ + guid.ToString() + @""", ""_remove"" : true }]}";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -194,7 +195,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""PhoneNumbers"" : [{ ""PhoneNumber"" : ""5678"" }]}";
 
-            var patchedTestPerson = PatchHelper.CreatePatch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch<TestPerson, Guid>(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });

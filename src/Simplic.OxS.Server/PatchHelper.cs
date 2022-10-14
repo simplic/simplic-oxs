@@ -9,11 +9,22 @@ namespace Simplic.OxS.Server
     /// </summary>
     public static class PatchHelper
     {
-        public static T Patch<T, I>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation) where T : IDocument<I>
+        public static T Patch<T>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation)
         {
-            using var document = JsonDocument.Parse(json);
-            return HandleDocument<T>(originalDocument, patch, document.RootElement);
+            if (originalDocument == null)
+                throw new ArgumentNullException(nameof(originalDocument));
 
+            if (patch == null)
+                throw new ArgumentNullException(nameof(patch));
+
+            if (json == null)
+                throw new ArgumentNullException(nameof(json));
+
+            if (string.IsNullOrWhiteSpace(json))
+                throw new ArgumentOutOfRangeException(nameof(json), "Could not patch with empty request json.");
+
+            using var document = JsonDocument.Parse(json);
+            return HandleDocument(originalDocument, patch, document.RootElement);
         }
 
         private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection, string path)
@@ -35,7 +46,7 @@ namespace Simplic.OxS.Server
                     break;
 
                 case JsonValueKind.String:
-                case JsonValueKind.Number: 
+                case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
                     SetSourceValueAtPath(patchCollection, originalCollection, path);
@@ -53,7 +64,6 @@ namespace Simplic.OxS.Server
                 if (item.ValueKind != JsonValueKind.Object)
                     throw new ArgumentException("Element is not an array of objects");
 
-
                 var elements = item.EnumerateObject().ToList();
 
                 if (!elements.Any(x => x.Name.ToLower() == "id"))
@@ -65,12 +75,11 @@ namespace Simplic.OxS.Server
                 var idProperty = elements.First(x => x.Name.ToLower() == "id");
                 var idElement = idProperty.Value;
 
-
                 var idString = idElement.GetString();
                 var isGuid = Guid.TryParse(idString, out var idGuid);
 
                 if (!isGuid)
-                    throw new ArgumentException();
+                    throw new BadRequestException($"Id of item {idString} cannot be parsed to 'Guid'");
 
                 if (elements.Any(x => x.Name.ToLower() == "_remove" && x.Value.GetBoolean()))
                 {
@@ -86,7 +95,7 @@ namespace Simplic.OxS.Server
 
                 var originalItem = originalCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
                 if (originalItem == null)
-                    throw new Exception();
+                    throw new BadRequestException($"Could not find item with id {idGuid}");
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
@@ -96,6 +105,12 @@ namespace Simplic.OxS.Server
 
         private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc)
         {
+            if (originalDocument == null)
+                throw new ArgumentNullException(nameof(originalDocument));
+
+            if (patch == null)
+                throw new ArgumentNullException(nameof(patch));
+
             var queue = new Queue<(string ParentPath, JsonElement element)>();
             queue.Enqueue(("", doc));
 
@@ -166,7 +181,7 @@ namespace Simplic.OxS.Server
             if (obj is IList collection)
                 return collection;
 
-            throw new ArgumentException();
+            throw new ArgumentException($"Collection at {path} does not derive from IList");
         }
     }
 }

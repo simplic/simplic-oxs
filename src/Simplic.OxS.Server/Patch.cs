@@ -26,8 +26,8 @@ namespace Simplic.OxS.Server
             // ++ Wenn Liste im Json = null --> Keine Veränderung 
             // ++ Wenn ein Eintrag Id == default in einer Liste ist --> Neuer EIntrag und Id setzen
             // ++ Wenn Eintrag in Liste und Id ist vorhanden --> Patch
-            // Wenn Eintrag in Liste und Id ist nicht vorhanden --> bad request
-            // Wenn ein Eintrag "Hart" gelöscht werden soll, muss _remove: true übergeben werden
+            // ++ Wenn Eintrag in Liste und Id ist nicht vorhanden --> bad request
+            // ++ Wenn ein Eintrag "Hart" gelöscht werden soll, muss _remove: true übergeben werden
 
             // ---
             // Alle Werte die im Json übergeben werden, sollen Teil des Patch sein

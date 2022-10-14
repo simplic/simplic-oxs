@@ -120,6 +120,7 @@ namespace Simplic.OxS.Server
                 switch (element.ValueKind)
                 {
                     case JsonValueKind.Object:
+                        //TODO: Also add dictioanary handling.
                         parentPath = parentPath == ""
                             ? parentPath
                             : parentPath + ".";
@@ -156,14 +157,28 @@ namespace Simplic.OxS.Server
             {
                 var propertyName = splitPath[i];
                 var property = currentType.GetProperty(propertyName);
+
+                if (property == null)
+                    throw new ArgumentException($"{currentType.Name} does not contain property: {propertyName}");
+
                 currentType = property.PropertyType;
-                source = property.GetValue(source);
+                var res = property.GetValue(source, null);
+                if (res == null)
+                    throw new NullReferenceException($"{currentType.Name}.{propertyName} not initialized.");
+
+                source = res;
 
                 if (i == splitPath.Length - 1)
                     property.SetValue(target, Convert.ChangeType(source, property.PropertyType));
 
                 else
-                    target = property.GetValue(target);
+                {
+                    var targetRes = property.GetValue(target, null);
+                    if (targetRes == null)
+                        throw new NullReferenceException($"{currentType.Name}.{propertyName} not initialized.");
+
+                    target = targetRes;
+                }
             }
         }
 
@@ -174,7 +189,15 @@ namespace Simplic.OxS.Server
             foreach (var propertyName in path.Split("."))
             {
                 var property = currentType.GetProperty(propertyName);
-                obj = property.GetValue(obj);
+
+                if (property == null)
+                    throw new ArgumentException($"{currentType.Name} does not contain property: {propertyName}");
+
+                var res = property.GetValue(obj, null);
+                if (res == null)
+                    throw new NullReferenceException($"{currentType.Name}.{propertyName} not initialized.");
+
+                obj = res;
                 currentType = property.PropertyType;
             }
 

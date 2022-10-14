@@ -9,6 +9,21 @@ namespace Simplic.OxS.Server
     /// </summary>
     public static class PatchHelper
     {
+        /// <summary>
+        /// Method to patch the properties of the original document to the values of the patch based on the json when 
+        /// the validation request returns true.
+        /// </summary>
+        /// <typeparam name="T">The type of the documents.</typeparam>
+        /// <param name="originalDocument">The original document, loaded from a data source.</param>
+        /// <param name="patch">The patch values, mapped from the request object.</param>
+        /// <param name="json">The json string which describes the properties that should be patched. 
+        /// Should directly taken from the request.</param>
+        /// <param name="validation">A func to validate the values before they are set.</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        /// <exception cref="BadRequestException"></exception>
         public static T Patch<T>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation)
         {
             if (originalDocument == null)

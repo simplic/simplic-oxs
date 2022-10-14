@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Simplic.OxS.Server;
-
-namespace Simplic.OxS.Server.Test
+﻿namespace Simplic.OxS.Server.Test
 {
+    /// <summary>
+    /// Class to test the patch helper in.
+    /// </summary>
     public class PatchHelperTest
     {
+        /// <summary>
+        /// Tests whether the patch method will patch a single and the right property 
+        /// when called with the right parameters.
+        /// </summary>
         [Fact]
         public void Patch_SingleFieldJson_PatchesSingleField()
         {
@@ -25,7 +25,7 @@ namespace Simplic.OxS.Server.Test
 
             var json = @"{""LastName"" : ""Doe""}";
 
-            var patchedTestPerson = PatchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
                 return true;
             });
@@ -34,6 +34,10 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.FirstName.Should().Be("John");
         }
 
+        /// <summary>
+        /// Tests whether the patch method will patch multiple properties of a json to the right values 
+        /// in the original object.
+        /// </summary>
         [Fact]
         public void Patch_AllFieldJson_PatchesMultipleFields()
         {
@@ -63,6 +67,10 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.LastName.Should().Be("Doe");
         }
 
+        /// <summary>
+        /// Tests whether the patch method will patch only the properties that are contained in the json even 
+        /// when more properties are set in the mapped object.
+        /// </summary>
         [Fact]
         public void Patch_SingleFieldJsonMultiFieldMap_JustPatchesJsonFields()
         {
@@ -89,6 +97,9 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.FirstName.Should().Be("John");
         }
 
+        /// <summary>
+        /// Tests whether the patch method will update properties of a list when the id of the items are equal.
+        /// </summary>
         [Fact]
         public void Patch_ListUpdateContent_UpdatesTheItem()
         {
@@ -118,6 +129,10 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
         }
 
+        /// <summary>
+        /// Tests whether the patch method will update the properties of the right item in a list instead of just 
+        /// taking the first item.
+        /// </summary>
         [Fact]
         public void Patch_ListUpdateContent_UpdatesTheRightItem()
         {
@@ -154,6 +169,9 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.PhoneNumbers.Count.Should().Be(2);
         }
 
+        /// <summary>
+        /// Tests whether the patch method will hard delete items when they are send with a '_remove = true' flag.
+        /// </summary>
         [Fact]
         public void Patch_ListRemoveContent_UpdatesTheItem()
         {
@@ -182,6 +200,9 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.PhoneNumbers.Count().Should().Be(0);
         }
 
+        /// <summary>
+        /// Tests whether the patch method will add a new item to the original object.
+        /// </summary>
         [Fact]
         public void Patch_ListAddContent_UpdatesTheItem()
         {
@@ -203,6 +224,9 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
         }
 
+        /// <summary>
+        /// Tests whether the patch method will throw an exception when the validation request returns false.
+        /// </summary>
         [Fact]
         public void Patch_FalseReturningValidationRequest_ThrowsExcpetion()
         {
@@ -225,6 +249,9 @@ namespace Simplic.OxS.Server.Test
             })).Should().Throw<BadRequestException>();
         }
 
+        /// <summary>
+        /// Tests whether the patch method will set the property name in validation requests. 
+        /// </summary>
         [Fact]
         public void Patch_ValidationForProperty_ThrowsExcpetion()
         {
@@ -243,13 +270,16 @@ namespace Simplic.OxS.Server.Test
 
             this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
             {
-                if(validation.Property == "LastName")
+                if (validation.Property == "LastName")
                     return false;
 
                 return true;
             })).Should().Throw<BadRequestException>();
         }
 
+        /// <summary>
+        /// Tests whether the patch method will set the value in validation requests. 
+        /// </summary>
         [Fact]
         public void Patch_ValidationForValue_ThrowsExcpetion()
         {
@@ -275,6 +305,9 @@ namespace Simplic.OxS.Server.Test
             })).Should().Throw<BadRequestException>();
         }
 
+        /// <summary>
+        /// Tests whether the patch method will set the path in validation requests. 
+        /// </summary>
         [Fact]
         public void Patch_ValidationForPath_ThrowsExcpetion()
         {
@@ -300,6 +333,10 @@ namespace Simplic.OxS.Server.Test
             })).Should().Throw<BadRequestException>();
         }
 
+        /// <summary>
+        /// Tests whether the patch method will throw a bad request exception when a property is contained 
+        /// in the json but is not part of the object.
+        /// </summary>
         [Fact]
         public void Patch_JsonWithPropertyNotInObjects_ThrowsExcpetion()
         {

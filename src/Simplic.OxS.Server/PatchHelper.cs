@@ -35,7 +35,7 @@ namespace Simplic.OxS.Server
                     break;
 
                 case JsonValueKind.String:
-                case JsonValueKind.Number:
+                case JsonValueKind.Number: 
                 case JsonValueKind.True:
                 case JsonValueKind.False:
                     SetSourceValueAtPath(patchCollection, originalCollection, path);

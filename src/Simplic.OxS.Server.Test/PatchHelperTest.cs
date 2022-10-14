@@ -299,5 +299,29 @@ namespace Simplic.OxS.Server.Test
                 return true;
             })).Should().Throw<BadRequestException>();
         }
+
+        [Fact]
+        public void Patch_JsonWithPropertyNotInObjects_ThrowsExcpetion()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+            };
+
+            var json = @"{""Street"" : ""Does Not Exist Street""}";
+
+            this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                if (validation.Path == "LastName")
+                    return false;
+
+                return true;
+            })).Should().Throw<BadRequestException>();
+        }
     }
 }

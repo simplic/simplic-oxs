@@ -23,8 +23,15 @@ namespace Simplic.OxS.Server
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentOutOfRangeException(nameof(json), "Could not patch with empty request json.");
 
-            using var document = JsonDocument.Parse(json);
-            return HandleDocument(originalDocument, patch, document.RootElement, validation);
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                return HandleDocument(originalDocument, patch, document.RootElement, validation);
+            }
+            catch (JsonException)
+            {
+                throw new ArgumentException("Json string is no valid Json", nameof(json));
+            }
         }
 
         private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
@@ -163,7 +170,7 @@ namespace Simplic.OxS.Server
                 var property = currentType.GetProperty(propertyName);
 
                 if (property == null)
-                    throw new ArgumentException($"{currentType.Name} does not contain property: {propertyName}");
+                    throw new BadRequestException($"{currentType.Name} does not contain property: {propertyName}");
 
                 currentType = property.PropertyType;
                 var res = property.GetValue(source, null);

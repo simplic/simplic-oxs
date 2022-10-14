@@ -49,6 +49,52 @@ namespace Simplic.OxS.Server
             }
         }
 
+        private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
+            Func<ValidationRequest, bool> validationRequest)
+        {
+            if (originalDocument == null)
+                throw new ArgumentNullException(nameof(originalDocument));
+
+            if (patch == null)
+                throw new ArgumentNullException(nameof(patch));
+
+            var queue = new Queue<(string ParentPath, JsonElement element)>();
+            queue.Enqueue(("", doc));
+
+            while (queue.Any())
+            {
+                var (parentPath, element) = queue.Dequeue();
+                switch (element.ValueKind)
+                {
+                    case JsonValueKind.Object:
+                        //TODO: Also add dictioanary handling.
+                        parentPath = parentPath == ""
+                            ? parentPath
+                            : parentPath + ".";
+                        foreach (var nextEl in element.EnumerateObject())
+                        {
+                            queue.Enqueue(($"{parentPath}{nextEl.Name}", nextEl.Value));
+                        }
+                        break;
+
+                    case JsonValueKind.Array:
+                        HandleArray(element, GetCollection(originalDocument, parentPath),
+                                    GetCollection(patch, parentPath), parentPath, validationRequest);
+                        break;
+
+                    case JsonValueKind.Undefined:
+                    case JsonValueKind.String:
+                    case JsonValueKind.Number:
+                    case JsonValueKind.True:
+                    case JsonValueKind.False:
+                    case JsonValueKind.Null:
+                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest);
+                        break;
+                }
+            }
+            return originalDocument;
+        }
+
         private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
             string path, Func<ValidationRequest, bool> validationRequest)
         {
@@ -125,52 +171,6 @@ namespace Simplic.OxS.Server
 
                 HandleDocument(originalItem, patchItem, item, validationRequest);
             }
-        }
-
-        private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
-            Func<ValidationRequest, bool> validationRequest)
-        {
-            if (originalDocument == null)
-                throw new ArgumentNullException(nameof(originalDocument));
-
-            if (patch == null)
-                throw new ArgumentNullException(nameof(patch));
-
-            var queue = new Queue<(string ParentPath, JsonElement element)>();
-            queue.Enqueue(("", doc));
-
-            while (queue.Any())
-            {
-                var (parentPath, element) = queue.Dequeue();
-                switch (element.ValueKind)
-                {
-                    case JsonValueKind.Object:
-                        //TODO: Also add dictioanary handling.
-                        parentPath = parentPath == ""
-                            ? parentPath
-                            : parentPath + ".";
-                        foreach (var nextEl in element.EnumerateObject())
-                        {
-                            queue.Enqueue(($"{parentPath}{nextEl.Name}", nextEl.Value));
-                        }
-                        break;
-
-                    case JsonValueKind.Array:
-                        HandleArray(element, GetCollection(originalDocument, parentPath),
-                                    GetCollection(patch, parentPath), parentPath, validationRequest);
-                        break;
-
-                    case JsonValueKind.Undefined:
-                    case JsonValueKind.String:
-                    case JsonValueKind.Number:
-                    case JsonValueKind.True:
-                    case JsonValueKind.False:
-                    case JsonValueKind.Null:
-                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest);
-                        break;
-                }
-            }
-            return originalDocument;
         }
 
         private static void SetSourceValueAtPath(object source, object target, string path,

@@ -18,8 +18,12 @@ namespace Simplic.OxS.Server
         /// <param name="patch">The patch values, mapped from the request object.</param>
         /// <param name="json">The json string which describes the properties that should be patched. 
         /// Should directly taken from the request.</param>
-        /// <param name="validation">A func to validate the values before they are set.</param>
-        /// <returns></returns>
+        /// <param name="validation">A func to validate the values before they are set. 
+        /// <para>
+        /// The path in the validation request will only contain the path from the last array. There might be a change 
+        /// later on.
+        /// </para></param>
+        /// <returns>The original document with the patch applied.</returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <exception cref="ArgumentException"></exception>
@@ -49,6 +53,15 @@ namespace Simplic.OxS.Server
             }
         }
 
+        /// <summary>
+        /// Method to handle the document. Moved out of the patch method to be able to call it for objects in an array.
+        /// </summary>
+        /// <typeparam name="T">Type of the documents and the return type.</typeparam>
+        /// <param name="originalDocument">The original document.</param>
+        /// <param name="patch">The document containing the patch values.</param>
+        /// <param name="doc">The json document as json element. Should be the root element of the current context.</param>
+        /// <param name="validationRequest">The validation reques func from the patch method.</param>
+        /// <returns>The original document with the patch applied.</returns>
         private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
             Func<ValidationRequest, bool> validationRequest)
         {
@@ -92,11 +105,20 @@ namespace Simplic.OxS.Server
                         break;
                 }
             }
+
             return originalDocument;
         }
 
+        /// <summary>
+        /// Handles a json array to patch the original collection.
+        /// </summary>
+        /// <param name="element">The array as json element.</param>
+        /// <param name="originalCollection">The collection of the original document.</param>
+        /// <param name="patchCollection">The collection of the patch document.</param>
+        /// <param name="path">The path to the array.</param>
+        /// <param name="validationRequest">The validation request from the patch.</param>
         private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
-            string path, Func<ValidationRequest, bool> validationRequest)
+             string path, Func<ValidationRequest, bool> validationRequest)
         {
             var elements = element.EnumerateArray().ToList();
             if (!elements.Any())
@@ -123,6 +145,13 @@ namespace Simplic.OxS.Server
             }
         }
 
+        /// <summary>
+        /// Handles a array of objects. Each object will call the HandleDocument method again.
+        /// </summary>
+        /// <param name="element">The array of objects.</param>
+        /// <param name="originalCollection">The collection from the original document.</param>
+        /// <param name="patchCollection">The collection from the patch document.</param>
+        /// <param name="validationRequest">The validation request from the patch method.</param>
         private static void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
             Func<ValidationRequest, bool> validationRequest)
         {

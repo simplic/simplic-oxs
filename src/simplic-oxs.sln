@@ -39,11 +39,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{BA912BDA
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.InternalClient", "Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj", "{7BE6857A-F92F-4F88-81A9-A8832DAEFB67}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Scheduler", "Simplic.OxS.Scheduler\Simplic.OxS.Scheduler.csproj", "{0CA28AB6-2896-4A95-9848-F9429581467E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.Scheduler", "Simplic.OxS.Scheduler\Simplic.OxS.Scheduler.csproj", "{0CA28AB6-2896-4A95-9848-F9429581467E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{B05B66F0-326C-4DC0-B662-2BB0BEB63C67}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.HangfireSample", "Simplic.OxS.HangfireSample\Simplic.OxS.HangfireSample.csproj", "{1AD91493-E8AE-44FD-8108-0F99772AA05D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Simplic.OxS.HangfireSample", "Simplic.OxS.HangfireSample\Simplic.OxS.HangfireSample.csproj", "{1AD91493-E8AE-44FD-8108-0F99772AA05D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

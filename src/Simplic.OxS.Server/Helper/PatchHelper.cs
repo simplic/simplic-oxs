@@ -24,10 +24,11 @@ namespace Simplic.OxS.Server
                 throw new ArgumentOutOfRangeException(nameof(json), "Could not patch with empty request json.");
 
             using var document = JsonDocument.Parse(json);
-            return HandleDocument(originalDocument, patch, document.RootElement);
+            return HandleDocument(originalDocument, patch, document.RootElement, validation);
         }
 
-        private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection, string path)
+        private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
+            string path, Func<ValidationRequest, bool> validationRequest)
         {
             var elements = element.EnumerateArray().ToList();
             if (!elements.Any())
@@ -38,23 +39,24 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    HandleObjectArray(element, originalCollection, patchCollection);
+                    HandleObjectArray(element, originalCollection, patchCollection, validationRequest);
                     break;
 
                 case JsonValueKind.Array:
-                    SetSourceValueAtPath(patchCollection, originalCollection, path);
+                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest);
                     break;
 
                 case JsonValueKind.String:
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
-                    SetSourceValueAtPath(patchCollection, originalCollection, path);
+                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest);
                     break;
             }
         }
 
-        private static void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection)
+        private static void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
+            Func<ValidationRequest, bool> validationRequest)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
@@ -99,11 +101,12 @@ namespace Simplic.OxS.Server
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
-                HandleDocument(originalItem, patchItem, item);
+                HandleDocument(originalItem, patchItem, item, validationRequest);
             }
         }
 
-        private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc)
+        private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
+            Func<ValidationRequest, bool> validationRequest)
         {
             if (originalDocument == null)
                 throw new ArgumentNullException(nameof(originalDocument));
@@ -132,7 +135,7 @@ namespace Simplic.OxS.Server
 
                     case JsonValueKind.Array:
                         HandleArray(element, GetCollection(originalDocument, parentPath),
-                                    GetCollection(patch, parentPath), parentPath);
+                                    GetCollection(patch, parentPath), parentPath, validationRequest);
                         break;
 
                     case JsonValueKind.Undefined:
@@ -141,14 +144,15 @@ namespace Simplic.OxS.Server
                     case JsonValueKind.True:
                     case JsonValueKind.False:
                     case JsonValueKind.Null:
-                        SetSourceValueAtPath(patch, originalDocument, parentPath);
+                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest);
                         break;
                 }
             }
             return originalDocument;
         }
 
-        private static void SetSourceValueAtPath(object source, object target, string path)
+        private static void SetSourceValueAtPath(object source, object target, string path,
+            Func<ValidationRequest, bool> validationRequest)
         {
             Type currentType = source.GetType();
             var splitPath = path.Split(".");
@@ -169,8 +173,19 @@ namespace Simplic.OxS.Server
                 source = res;
 
                 if (i == splitPath.Length - 1)
-                    property.SetValue(target, Convert.ChangeType(source, property.PropertyType));
+                {
+                    var valid = validationRequest.Invoke(new ValidationRequest
+                    {
+                        Path = path,
+                        Property = propertyName,
+                        Value = source
+                    });
 
+                    if (!valid)
+                        throw new BadRequestException($"Validation on {path} failed with value {source}");
+
+                    property.SetValue(target, Convert.ChangeType(source, property.PropertyType));
+                }
                 else
                 {
                     var targetRes = property.GetValue(target, null);

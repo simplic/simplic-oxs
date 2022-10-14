@@ -202,5 +202,102 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
         }
+
+        [Fact]
+        public void Patch_FalseReturningValidationRequest_ThrowsExcpetion()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                LastName = "Doe"
+            };
+
+            var json = @"{""LastName"" : ""Doe""}";
+
+            this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                return false;
+            })).Should().Throw<BadRequestException>();
+        }
+
+        [Fact]
+        public void Patch_ValidationForProperty_ThrowsExcpetion()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                LastName = "Doe"
+            };
+
+            var json = @"{""LastName"" : ""Doe""}";
+
+            this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                if(validation.Property == "LastName")
+                    return false;
+
+                return true;
+            })).Should().Throw<BadRequestException>();
+        }
+
+        [Fact]
+        public void Patch_ValidationForValue_ThrowsExcpetion()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                LastName = "Doe"
+            };
+
+            var json = @"{""LastName"" : ""Doe""}";
+
+            this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                if (validation.Value == "Doe")
+                    return false;
+
+                return true;
+            })).Should().Throw<BadRequestException>();
+        }
+
+        [Fact]
+        public void Patch_ValidationForPath_ThrowsExcpetion()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                LastName = "Doe"
+            };
+
+            var json = @"{""LastName"" : ""Doe""}";
+
+            this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                if (validation.Path == "LastName")
+                    return false;
+
+                return true;
+            })).Should().Throw<BadRequestException>();
+        }
     }
 }

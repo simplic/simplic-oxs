@@ -72,6 +72,9 @@ namespace Simplic.OxS.Data.MongoDB
                 filterQueries.Add(builder.Eq(d => d.Id, filter.Id));
             }
 
+            if (filter.IsDeleted != null)
+                filterQueries.Add(builder.Eq(d => d.IsDeleted, filter.IsDeleted));
+
             return filterQueries.Any()
                 ? builder.And(filterQueries)
                 : builder.Empty;

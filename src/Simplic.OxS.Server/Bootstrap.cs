@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -44,7 +45,7 @@ namespace Simplic.OxS.Server
             services.AddLoggingAndMetricTracing(Configuration, ServiceName);
 
             // Add Redis caching
-            services.AddRedisCaching(Configuration);
+            services.AddRedisCaching(Configuration, out string connection);
 
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);
@@ -78,9 +79,18 @@ namespace Simplic.OxS.Server
             });
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
-            
+
             // Add signalr
-            services.AddSignalR();
+            if (string.IsNullOrWhiteSpace(connection))
+                services.AddSignalR(hubOptions => 
+                {
+                    hubOptions.AddFilter<RequestContextHubFilter>();
+                });
+            else
+                services.AddSignalR(hubOptions =>
+                {
+                    hubOptions.AddFilter<RequestContextHubFilter>();
+                }).AddStackExchangeRedis(connection);
         }
 
         /// <summary>
@@ -134,6 +144,8 @@ namespace Simplic.OxS.Server
                 endpoints.MapControllers();
 
                 MapHubs(endpoints);
+
+                MapEndpoints(endpoints);
             });
         }
 
@@ -142,6 +154,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="builder">Builder instance</param>
         protected virtual void MapHubs(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+
+        /// <summary>
+        /// Method for mapping endpoint routings
+        /// </summary>
+        /// <param name="builder">Builder instance</param>
+        protected virtual void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
 
         /// <summary>
         /// Get api information for the current service

@@ -21,4 +21,9 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.Data\Simplic.OxS.Data.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
+  </ItemGroup>
+
 </Project>

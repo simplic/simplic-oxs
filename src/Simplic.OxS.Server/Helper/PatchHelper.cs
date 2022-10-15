@@ -42,14 +42,18 @@ namespace Simplic.OxS.Server
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentOutOfRangeException(nameof(json), "Could not patch with empty request json.");
 
+            // Validate all if no validation is required.
+            if (validation == null)
+                validation = (v) => true;
+
             try
             {
                 using var document = JsonDocument.Parse(json);
                 return HandleDocument(originalDocument, patch, document.RootElement, validation);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                throw new ArgumentException("Json string is no valid Json", nameof(json));
+                throw new ArgumentException("Json string is no valid Json", nameof(json), ex);
             }
         }
 

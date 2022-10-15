@@ -89,7 +89,7 @@ namespace Simplic.OxS.Data.MongoDB
         /// <param name="sortField">Sort field</param>
         /// <param name="isAscending">Ascending or Descending sort</param>
         /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        public virtual async Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true)
+        public virtual async Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null)
         {
             await Initialize();
 
@@ -98,8 +98,28 @@ namespace Simplic.OxS.Data.MongoDB
                 sort = isAscending
                     ? Builders<TDocument>.Sort.Ascending(sortField)
                     : Builders<TDocument>.Sort.Descending(sortField);
+            var findOptions = new FindOptions();
+            if (collation != null)
+                findOptions.Collation = collation;
+            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
+        }
 
-            return Collection.Find(BuildFilterQuery(predicate)).Sort(sort).Skip(skip).Limit(limit).ToList();
+        /// <summary>
+        /// Returns count of expected documents
+        /// </summary>
+        /// <param name="predicate">The filter predicate</param>
+        /// <param name="collation">Collation options</param>
+        /// <returns>Number of expected elements</returns>
+        public virtual async Task<long> CountAsync(TFilter predicate, Collation collation = null)
+        {
+            await Initialize();
+
+            var countOption = new CountOptions();
+
+            if (collation != null)
+                countOption.Collation = collation;
+
+            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption);
         }
     }
 }

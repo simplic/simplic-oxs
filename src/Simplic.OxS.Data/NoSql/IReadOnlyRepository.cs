@@ -1,4 +1,6 @@
-﻿namespace Simplic.OxS.Data
+﻿using MongoDB.Driver;
+
+namespace Simplic.OxS.Data
 {
     /// <summary>
     /// Basic read only repository
@@ -33,6 +35,14 @@
         /// <param name="sortField">Sort field</param>
         /// <param name="isAscending">Ascending or Descending sort</param>
         /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true);
+        Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null);
+
+        /// <summary>
+        /// Returns count of expected documents
+        /// </summary>
+        /// <param name="predicate">The filter predicate</param>
+        /// <param name="collation">Collation options</param>
+        /// <returns>Number of expected elements</returns>
+        Task<long> CountAsync(TFilter predicate, Collation collation = null);
     }
 }

@@ -12,7 +12,7 @@ namespace Simplic.OxS.Server.Controller
         /// Get raw json from http context (context.Items key ~rawJson)
         /// </summary>
         /// <returns>Raw json (nullable)</returns>
-        public string? GetRawJson() =>
+        protected string? GetRawJson() =>
             HttpContext.Items.FirstOrDefault(x => x.Key?.ToString() == "rawJson").Value?.ToString();
     }
 }

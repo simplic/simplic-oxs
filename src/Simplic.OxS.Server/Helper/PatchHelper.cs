@@ -216,7 +216,7 @@ namespace Simplic.OxS.Server
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
-                var property = currentType.GetProperty(propertyName);
+                var property = currentType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
                 if (property == null)
                     throw new BadRequestException($"{currentType.Name} does not contain property: {propertyName}");

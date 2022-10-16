@@ -37,6 +37,36 @@ namespace Simplic.OxS.Server.Test
         }
 
         /// <summary>
+        /// Tests whether the patch method will patch a single and the right property 
+        /// when called with the right parameters (ignore property case).
+        /// </summary>
+        [Fact]
+        public void Patch_SingleFieldJson_PatchesSingleField_IgnoreCase()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                LastName = "Doe"
+            };
+
+            // Use lower-case property
+            var json = @"{""lastName"" : ""Doe""}";
+
+            var patchedTestPerson = PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.LastName.Should().Be("Doe");
+            patchedTestPerson.FirstName.Should().Be("John");
+        }
+
+        /// <summary>
         /// Tests whether the patch method will patch multiple properties of a json to the right values 
         /// in the original object.
         /// </summary>

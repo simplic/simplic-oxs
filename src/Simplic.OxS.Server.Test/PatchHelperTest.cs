@@ -1,4 +1,6 @@
-﻿namespace Simplic.OxS.Server.Test
+﻿using FluentAssertions;
+
+namespace Simplic.OxS.Server.Test
 {
     /// <summary>
     /// Class to test the patch helper in.
@@ -359,6 +361,63 @@
 
                 return true;
             })).Should().Throw<BadRequestException>();
+        }
+
+        /// <summary>
+        /// Test whether validation returns always truem if no validation (null) is passed
+        /// </summary>
+        [Fact]
+        public void Patch_AllFieldJson_ValidateAll()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "Max",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Doe"
+            };
+
+            var json = @"{
+                            ""FirstName"": ""John"",
+                            ""LastName"": ""Doe""
+                        }";
+
+            var patchedTestPerson = PatchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+
+            patchedTestPerson.FirstName.Should().Be("John");
+            patchedTestPerson.LastName.Should().Be("Doe");
+        }
+
+        /// <summary>
+        /// Check whether an inner exception is passed for invalid json
+        /// </summary>
+        [Fact]
+        public void Patch_CatchInvalidJsonException()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "Max",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Doe"
+            };
+
+            var json = @"{
+                            ""FirstName"": ""John"",
+                            ""LastName"": ""Doe""
+                        this is invalid ....";
+
+            this.Invoking(x => PatchHelper.Patch(originalTestPerson, mappedTestPerson, json, null))
+                .Should().Throw<ArgumentException>()
+                .WithInnerException<System.Text.Json.JsonException>();
         }
     }
 }

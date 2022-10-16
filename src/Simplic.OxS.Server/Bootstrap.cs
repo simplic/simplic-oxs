@@ -11,7 +11,6 @@ using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
-using Simplic.OxS.Server.Interface;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
 
@@ -82,7 +81,7 @@ namespace Simplic.OxS.Server
 
             // Add signalr
             if (string.IsNullOrWhiteSpace(connection))
-                services.AddSignalR(hubOptions => 
+                services.AddSignalR(hubOptions =>
                 {
                     hubOptions.AddFilter<RequestContextHubFilter>();
                 });

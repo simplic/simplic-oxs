@@ -137,6 +137,7 @@ namespace Simplic.OxS.Server
             app.UseAuthorization();
 
             app.UseMiddleware<CorrelationIdMiddleware>();
+            app.UseMiddleware<PutJsonContextMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

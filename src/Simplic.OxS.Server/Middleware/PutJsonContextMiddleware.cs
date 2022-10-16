@@ -32,7 +32,7 @@ namespace Simplic.OxS.Server.Middleware
                 // enable buffering in order to see raw object
                 httpContext.Request.EnableBuffering();
 
-                using MemoryStream memoryStream = new MemoryStream();
+                using MemoryStream memoryStream = new();
 
                 // save body to memory
                 await httpContext.Request.Body.CopyToAsync(memoryStream);
@@ -42,8 +42,6 @@ namespace Simplic.OxS.Server.Middleware
 
                 // save raw json on current context. 
                 httpContext.Items.Add("rawJson", rawJson);
-
-                // later that json could be from current context
 
                 // reset the position
                 httpContext.Request.Body.Position = 0;

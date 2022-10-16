@@ -1,5 +1,6 @@
 ﻿using Simplic.OxS.Data;
 using System.Collections;
+using System.Reflection;
 using System.Text.Json;
 
 namespace Simplic.OxS.Server
@@ -258,7 +259,7 @@ namespace Simplic.OxS.Server
 
             foreach (var propertyName in path.Split("."))
             {
-                var property = currentType.GetProperty(propertyName);
+                var property = currentType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
                 if (property == null)
                     throw new ArgumentException($"{currentType.Name} does not contain property: {propertyName}");

@@ -479,5 +479,42 @@ namespace Simplic.OxS.Server.Test
                 .Should().Throw<ArgumentException>()
                 .WithInnerException<System.Text.Json.JsonException>();
         }
+
+
+        /// <summary>
+        /// Test whether patch will apply changes properly
+        /// </summary>
+        [Fact]
+        public void Patch_AllFieldJson_Configuration()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                FirstName = "Max",
+                LastName = "Mustermann"
+            };
+
+            var mappedTestPerson = new TestPerson
+            {
+                FirstName = "John",
+                LastName = "Doe"
+            };
+
+            var json = @"{
+                            ""FirstName"": ""John"",
+                            ""LastName"": ""Doe""
+                        }";
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForPath("FirstName").Change<TestPerson, TestPerson>((original, patch) => { original.FirstName = "Peter"; return true; });
+                return cfg;
+            });
+
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+
+            patchedTestPerson.FirstName.Should().Be("Peter");
+            patchedTestPerson.LastName.Should().Be("Doe");
+        }
+
     }
 }

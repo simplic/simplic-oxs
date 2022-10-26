@@ -506,7 +506,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper(cfg =>
             {
-                cfg.ForPath("FirstName").Change<TestPerson, TestPerson>((original, patch) => { original.FirstName = "Peter"; return true; });
+                cfg.ForPath("FirstName").ChangeAction<TestPerson, TestPerson>((original, patch) => { original.FirstName = "Peter"; });
                 return cfg;
             });
 

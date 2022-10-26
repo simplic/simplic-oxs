@@ -1,28 +1,36 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.Server
+﻿namespace Simplic.OxS.Server
 {
+    /// <summary>
+    /// The item for a patch configuration, will contain the path and delegate for the change.
+    /// </summary>
     public class PatchConfigurationItem
     {
+        private Delegate action { get; set; }
 
-        public void Change<TOriginal, TPatch>(Func<TOriginal, TPatch, bool> behaviourChange)
+        /// <summary>
+        /// Adds an action that should happen
+        /// </summary>
+        /// <typeparam name="TOriginal"></typeparam>
+        /// <typeparam name="TPatch"></typeparam>
+        /// <param name="behaviourChange"></param>
+        public void ChangeAction<TOriginal, TPatch>(Action<TOriginal, TPatch> behaviourChange)
         {
-
-            Delegate = behaviourChange;
+            action = behaviourChange;
         }
 
-
+        /// <summary>
+        /// Calls the delegate.
+        /// </summary>
+        /// <param name="original"></param>
+        /// <param name="patch"></param>
         internal void ApplyChange(object original, object patch)
         {
-            var x = Delegate.DynamicInvoke(original, patch);
+            action.DynamicInvoke(original, patch);
         }
 
+        /// <summary>
+        /// The path of the item.
+        /// </summary>
         public string Path { get; set; }
-
-        internal Delegate Delegate { get; set; }
     }
 }

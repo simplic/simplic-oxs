@@ -8,8 +8,23 @@ namespace Simplic.OxS.Server
     /// <summary>
     /// Helper to create patches from http patch requests.
     /// </summary>
-    public static class PatchHelper
+    public class PatchHelper
     {
+        public PatchHelper()
+        {
+            Configuration = new PatchConfiguration();
+        }
+
+        public PatchHelper(PatchConfiguration configuration)
+        {
+            Configuration = configuration;
+        }
+
+        public PatchHelper(Func<PatchConfiguration, PatchConfiguration> func)
+        {
+            Configuration = func(new PatchConfiguration());
+        }
+
         /// <summary>
         /// Method to patch the properties of the original document to the values of the patch based on the json when 
         /// the validation request returns true.
@@ -29,7 +44,7 @@ namespace Simplic.OxS.Server
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="BadRequestException"></exception>
-        public static T Patch<T>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation)
+        public T Patch<T>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation)
         {
             if (originalDocument == null)
                 throw new ArgumentNullException(nameof(originalDocument));
@@ -67,7 +82,7 @@ namespace Simplic.OxS.Server
         /// <param name="doc">The json document as json element. Should be the root element of the current context.</param>
         /// <param name="validationRequest">The validation reques func from the patch method.</param>
         /// <returns>The original document with the patch applied.</returns>
-        private static T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
+        private T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
             Func<ValidationRequest, bool> validationRequest)
         {
             if (originalDocument == null)
@@ -122,7 +137,7 @@ namespace Simplic.OxS.Server
         /// <param name="patchCollection">The collection of the patch document.</param>
         /// <param name="path">The path to the array.</param>
         /// <param name="validationRequest">The validation request from the patch.</param>
-        private static void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
+        private void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
              string path, Func<ValidationRequest, bool> validationRequest)
         {
             var elements = element.EnumerateArray().ToList();
@@ -157,7 +172,7 @@ namespace Simplic.OxS.Server
         /// <param name="originalCollection">The collection from the original document.</param>
         /// <param name="patchCollection">The collection from the patch document.</param>
         /// <param name="validationRequest">The validation request from the patch method.</param>
-        private static void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
+        private void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
             Func<ValidationRequest, bool> validationRequest)
         {
             if (element.ValueKind != JsonValueKind.Array)
@@ -207,9 +222,18 @@ namespace Simplic.OxS.Server
             }
         }
 
-        private static void SetSourceValueAtPath(object source, object target, string path,
+        private void SetSourceValueAtPath(object source, object target, string path,
             Func<ValidationRequest, bool> validationRequest)
         {
+            var configItem = Configuration.Items.FirstOrDefault(x => x.Path == path);
+
+            if (configItem != null)
+            {
+                configItem.ApplyChange(target, source);
+                return;
+            }
+
+
             Type currentType = source.GetType();
             var splitPath = path.Split(".");
 
@@ -277,6 +301,9 @@ namespace Simplic.OxS.Server
 
             throw new ArgumentException($"Collection at {path} does not derive from IList");
         }
+
+
+        public PatchConfiguration Configuration { get; set; }
     }
 }
 

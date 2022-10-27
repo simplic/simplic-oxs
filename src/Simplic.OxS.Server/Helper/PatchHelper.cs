@@ -44,7 +44,7 @@ namespace Simplic.OxS.Server
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="BadRequestException"></exception>
-        public T Patch<T>(T originalDocument, T patch, string json, Func<ValidationRequest, bool> validation)
+        public T Patch<T>(T originalDocument, object patch, string json, Func<ValidationRequest, bool> validation)
         {
             if (originalDocument == null)
                 throw new ArgumentNullException(nameof(originalDocument));
@@ -82,7 +82,7 @@ namespace Simplic.OxS.Server
         /// <param name="doc">The json document as json element. Should be the root element of the current context.</param>
         /// <param name="validationRequest">The validation reques func from the patch method.</param>
         /// <returns>The original document with the patch applied.</returns>
-        private T HandleDocument<T>(T originalDocument, T patch, JsonElement doc,
+        private T HandleDocument<T>(T originalDocument, object patch, JsonElement doc,
             Func<ValidationRequest, bool> validationRequest)
         {
             if (originalDocument == null)

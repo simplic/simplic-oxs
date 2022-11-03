@@ -10,16 +10,27 @@ namespace Simplic.OxS.Server
     /// </summary>
     public class PatchHelper
     {
+        /// <summary>
+        /// Initializes a new instance of the patch helper without any configurations.
+        /// </summary>
         public PatchHelper()
         {
             Configuration = new PatchConfiguration();
         }
 
+        /// <summary>
+        /// Initializes a new instance of the patch helper with the given configuration.
+        /// </summary>
+        /// <param name="configuration"></param>
         public PatchHelper(PatchConfiguration configuration)
         {
             Configuration = configuration;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the patch helper and allows to directly add configurations in the constructor.
+        /// </summary>
+        /// <param name="func"></param>
         public PatchHelper(Func<PatchConfiguration, PatchConfiguration> func)
         {
             Configuration = func(new PatchConfiguration());
@@ -34,11 +45,7 @@ namespace Simplic.OxS.Server
         /// <param name="patch">The patch values, mapped from the request object.</param>
         /// <param name="json">The json string which describes the properties that should be patched. 
         /// Should directly taken from the request.</param>
-        /// <param name="validation">A func to validate the values before they are set. 
-        /// <para>
-        /// The path in the validation request will only contain the path from the last array. There might be a change 
-        /// later on.
-        /// </para></param>
+        /// <param name="validation">A func to validate the values before they are set. </param>
         /// <returns>The original document with the patch applied.</returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
@@ -65,7 +72,7 @@ namespace Simplic.OxS.Server
             try
             {
                 using var document = JsonDocument.Parse(json);
-                return HandleDocument(originalDocument, patch, document.RootElement, validation);
+                return HandleDocument(originalDocument, patch, document.RootElement, validation, "");
             }
             catch (JsonException ex)
             {
@@ -83,7 +90,7 @@ namespace Simplic.OxS.Server
         /// <param name="validationRequest">The validation reques func from the patch method.</param>
         /// <returns>The original document with the patch applied.</returns>
         private T HandleDocument<T>(T originalDocument, object patch, JsonElement doc,
-            Func<ValidationRequest, bool> validationRequest)
+            Func<ValidationRequest, bool> validationRequest, string startingPath)
         {
             if (originalDocument == null)
                 throw new ArgumentNullException(nameof(originalDocument));
@@ -112,7 +119,7 @@ namespace Simplic.OxS.Server
 
                     case JsonValueKind.Array:
                         HandleArray(element, GetCollection(originalDocument, parentPath),
-                                    GetCollection(patch, parentPath), parentPath, validationRequest);
+                                    GetCollection(patch, parentPath), parentPath, validationRequest, startingPath + parentPath);
                         break;
 
                     case JsonValueKind.Undefined:
@@ -121,7 +128,7 @@ namespace Simplic.OxS.Server
                     case JsonValueKind.True:
                     case JsonValueKind.False:
                     case JsonValueKind.Null:
-                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest);
+                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest, startingPath + parentPath);
                         break;
                 }
             }
@@ -138,7 +145,7 @@ namespace Simplic.OxS.Server
         /// <param name="path">The path to the array.</param>
         /// <param name="validationRequest">The validation request from the patch.</param>
         private void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
-             string path, Func<ValidationRequest, bool> validationRequest)
+             string path, Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
             var elements = element.EnumerateArray().ToList();
             if (!elements.Any())
@@ -149,18 +156,18 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    HandleObjectArray(element, originalCollection, patchCollection, validationRequest);
+                    HandleObjectArray(element, originalCollection, patchCollection, validationRequest, fullPath);
                     break;
 
                 case JsonValueKind.Array:
-                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest);
+                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
 
                 case JsonValueKind.String:
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
-                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest);
+                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
             }
         }
@@ -173,7 +180,7 @@ namespace Simplic.OxS.Server
         /// <param name="patchCollection">The collection from the patch document.</param>
         /// <param name="validationRequest">The validation request from the patch method.</param>
         private void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
-            Func<ValidationRequest, bool> validationRequest)
+            Func<ValidationRequest, bool> validationRequest, string path)
         {
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException("Element is no array");
@@ -218,14 +225,14 @@ namespace Simplic.OxS.Server
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
-                HandleDocument(originalItem, patchItem, item, validationRequest);
+                HandleDocument(originalItem, patchItem, item, validationRequest, path);
             }
         }
 
         private void SetSourceValueAtPath(object source, object target, string path,
-            Func<ValidationRequest, bool> validationRequest)
+            Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
-            var configItem = Configuration.Items.FirstOrDefault(x => x.Path == path);
+            var configItem = Configuration.Items.FirstOrDefault(x => x.Path == fullPath);
 
             if (configItem != null)
             {
@@ -256,7 +263,7 @@ namespace Simplic.OxS.Server
                 {
                     var valid = validationRequest.Invoke(new ValidationRequest
                     {
-                        Path = path,
+                        Path = fullPath,
                         Property = propertyName,
                         Value = source
                     });

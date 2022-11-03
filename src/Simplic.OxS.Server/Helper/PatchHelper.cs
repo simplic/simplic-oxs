@@ -119,7 +119,7 @@ namespace Simplic.OxS.Server
 
                     case JsonValueKind.Array:
                         HandleArray(element, GetCollection(originalDocument, parentPath),
-                                    GetCollection(patch, parentPath), parentPath, validationRequest, startingPath + "." + parentPath);
+                                    GetCollection(patch, parentPath), parentPath, validationRequest, parentPath);
                         break;
 
                     case JsonValueKind.Undefined:
@@ -128,7 +128,11 @@ namespace Simplic.OxS.Server
                     case JsonValueKind.True:
                     case JsonValueKind.False:
                     case JsonValueKind.Null:
-                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest, startingPath + "." + parentPath);
+                        var fullPatch = parentPath;
+                        if (startingPath != string.Empty)
+                            fullPatch = startingPath + "." + parentPath;
+
+                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest, fullPatch);
                         break;
                 }
             }

@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using System.Text;
 
 namespace Simplic.OxS.Server.Test
 {
@@ -516,5 +517,52 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.LastName.Should().Be("Doe");
         }
 
+        /// <summary>
+        /// Test whether patch will apply changes properly
+        /// </summary>
+        [Fact]
+        public void Patch_AllTypes_AllDataIsWritten()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                TestBool = false,
+                TestDateTime = default,
+                TestDouble = default,
+                TestGuid = Guid.Empty,
+                TestInt = default
+            };
+
+            var mappedTestPerson = new TestPersonRequest
+            {
+                TestBool = true,
+                TestDateTime = DateTime.Now,
+                TestDouble = 123.11,
+                TestGuid = Guid.NewGuid(),
+                TestInt = 132
+            };
+
+            var bobTheBuilder = new StringBuilder();
+            bobTheBuilder.AppendLine("{");
+            bobTheBuilder.AppendLine($@"""TestBool"" : {(mappedTestPerson.TestBool.Value ? 1 : 0 )},");
+            bobTheBuilder.AppendLine($@"""TestDateTime"" : ""{mappedTestPerson.TestDateTime}"",");
+            bobTheBuilder.AppendLine($@"""TestDouble"" : ""{mappedTestPerson.TestDouble}"",");
+            bobTheBuilder.AppendLine($@"""TestGuid"" : ""{mappedTestPerson.TestGuid}"",");
+            bobTheBuilder.AppendLine($@"""TestInt"" : {mappedTestPerson.TestInt}");
+            bobTheBuilder.AppendLine("}");
+
+
+
+            var json = bobTheBuilder.ToString();
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+
+            patchedTestPerson.TestBool.Should().Be(mappedTestPerson.TestBool.Value);
+            patchedTestPerson.TestDateTime.Should().Be(mappedTestPerson.TestDateTime);
+            patchedTestPerson.TestDouble.Should().Be(mappedTestPerson.TestDouble);
+            patchedTestPerson.TestGuid.Should().Be(mappedTestPerson.TestGuid.Value);
+            patchedTestPerson.TestInt.Should().Be(mappedTestPerson.TestInt);
+        }
     }
 }

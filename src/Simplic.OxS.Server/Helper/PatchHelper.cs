@@ -256,11 +256,11 @@ namespace Simplic.OxS.Server
             }
 
             // Check if a configuration item exists for the element corresponding to this path as element of a collection property.
-            configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.Split('.')[0]);
+            var memberConfigItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.Split('.')[0]);
             
-            if (configItem != null)
+            if (memberConfigItem != null)
             {
-                configItem.ApplyChange(target, source);
+                memberConfigItem.ApplyChange(target, source);
                 return;
             }
 

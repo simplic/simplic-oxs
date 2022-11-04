@@ -219,7 +219,17 @@ namespace Simplic.OxS.Server
 
                 if (idGuid == Guid.Empty)
                 {
-                    originalCollection.Add(patchCollection[i]);
+                    // in this block a new item of the type of the generic argument is created and added to the 
+                    // original collection and all properties should be copied to it then based on the json.
+                    var ppt = originalCollection.GetType().GetProperty(path).PropertyType;
+                    if(ppt.IsGenericType)
+                    {
+                        var itemType = ppt.GetGenericArguments()[0];
+                        var obj = Activator.CreateInstance(itemType);
+                        originalCollection.Add(obj);
+
+                        HandleDocument(obj, patchCollection[i], item, validationRequest, path);
+                    }
                     continue;
                 }
 

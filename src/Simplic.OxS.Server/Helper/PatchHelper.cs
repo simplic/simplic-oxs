@@ -219,7 +219,15 @@ namespace Simplic.OxS.Server
 
                 if (idGuid == Guid.Empty)
                 {
-                    originalCollection.Add(patchCollection[i]);
+                    var ppt = originalCollection.GetType().GetProperty(path).PropertyType;
+                    if(ppt.IsGenericType)
+                    {
+                        var itemType = ppt.GetGenericArguments()[0];
+                        var obj = Activator.CreateInstance(itemType);
+                        originalCollection.Add(obj);
+
+                        HandleDocument(obj, patchCollection[i], item, validationRequest, path);
+                    }
                     continue;
                 }
 

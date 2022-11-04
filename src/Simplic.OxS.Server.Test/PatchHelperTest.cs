@@ -551,8 +551,6 @@ namespace Simplic.OxS.Server.Test
             bobTheBuilder.AppendLine($@"""TestInt"" : {mappedTestPerson.TestInt}");
             bobTheBuilder.AppendLine("}");
 
-
-
             var json = bobTheBuilder.ToString();
 
             var patchHelper = new PatchHelper();

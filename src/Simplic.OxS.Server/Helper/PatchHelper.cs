@@ -219,6 +219,8 @@ namespace Simplic.OxS.Server
 
                 if (idGuid == Guid.Empty)
                 {
+                    // in this block a new item of the type of the generic argument is created and added to the 
+                    // original collection and all properties should be copied to it then based on the json.
                     var ppt = originalCollection.GetType().GetProperty(path).PropertyType;
                     if(ppt.IsGenericType)
                     {

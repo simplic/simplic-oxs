@@ -245,21 +245,26 @@ namespace Simplic.OxS.Server
             }
 
 
-            Type currentType = source.GetType();
+            Type currentSourceType = source.GetType();
+            Type currentTargetType = target.GetType();
             var splitPath = path.Split(".");
 
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
-                var property = currentType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                var property = currentSourceType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                var targetProperty = currentTargetType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
                 if (property == null)
-                    throw new BadRequestException($"{currentType.Name} does not contain property: {propertyName}");
+                    throw new BadRequestException($"{currentSourceType.Name} does not contain property: {propertyName}");
 
-                currentType = property.PropertyType;
+                if (targetProperty == null)
+                    throw new BadRequestException($"{currentTargetType.Name} does not contain property: {propertyName}");
+
+                currentSourceType = property.PropertyType;
                 var res = property.GetValue(source, null);
                 if (res == null)
-                    throw new NullReferenceException($"{currentType.Name}.{propertyName} not initialized.");
+                    throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
 
                 source = res;
 
@@ -275,13 +280,13 @@ namespace Simplic.OxS.Server
                     if (!valid)
                         throw new BadRequestException($"Validation on {path} failed with value {source}");
 
-                    property.SetValue(target, Convert.ChangeType(source, property.PropertyType));
+                    targetProperty.SetValue(target, Convert.ChangeType(source, targetProperty.PropertyType));
                 }
                 else
                 {
                     var targetRes = property.GetValue(target, null);
                     if (targetRes == null)
-                        throw new NullReferenceException($"{currentType.Name}.{propertyName} not initialized.");
+                        throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
 
                     target = targetRes;
                 }

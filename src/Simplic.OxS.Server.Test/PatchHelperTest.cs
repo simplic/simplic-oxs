@@ -563,5 +563,62 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.TestGuid.Should().Be(mappedTestPerson.TestGuid.Value);
             patchedTestPerson.TestInt.Should().Be(mappedTestPerson.TestInt);
         }
+
+        /// <summary>
+        /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
+        /// </summary>
+        [Fact]
+        public void Patch_LowerCaseJson_AllDataIsWritten()
+        {
+            var originalTestPerson = new TestPerson
+            {
+                TestBool = false,
+                TestDateTime = default,
+                TestDouble = default,
+                TestGuid = Guid.Empty,
+                TestInt = default,
+                LastName = "Max"
+            };
+
+            var mappedTestPerson = new TestPersonRequest
+            {
+                TestBool = true,
+                TestDateTime = DateTime.Now,
+                TestDouble = 123.11,
+                TestGuid = Guid.NewGuid(),
+                TestInt = 132,
+                LastName = "Mustemann"
+            };
+
+            var bobTheBuilder = new StringBuilder();
+            bobTheBuilder.AppendLine("{");
+            bobTheBuilder.AppendLine($@"""testBool"" : {(mappedTestPerson.TestBool.Value ? 1 : 0)},");
+            bobTheBuilder.AppendLine($@"""testDateTime"" : ""{mappedTestPerson.TestDateTime}"",");
+            bobTheBuilder.AppendLine($@"""testDouble"" : ""{mappedTestPerson.TestDouble}"",");
+            bobTheBuilder.AppendLine($@"""testGuid"" : ""{mappedTestPerson.TestGuid}"",");
+            bobTheBuilder.AppendLine($@"""testInt"" : {mappedTestPerson.TestInt},");
+            bobTheBuilder.AppendLine($@"""lastName"" : ""{mappedTestPerson.LastName}""");
+            bobTheBuilder.AppendLine("}");
+
+            var json = bobTheBuilder.ToString();
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForPath("LastName").ChangeAction<TestPerson, TestPersonRequest>((original, patch) =>
+                {
+                    original.LastName = "Doe";
+                });
+                return cfg;
+            });
+
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+
+            patchedTestPerson.TestBool.Should().Be(mappedTestPerson.TestBool.Value);
+            patchedTestPerson.TestDateTime.Should().Be(mappedTestPerson.TestDateTime);
+            patchedTestPerson.TestDouble.Should().Be(mappedTestPerson.TestDouble);
+            patchedTestPerson.TestGuid.Should().Be(mappedTestPerson.TestGuid.Value);
+            patchedTestPerson.TestInt.Should().Be(mappedTestPerson.TestInt);
+            patchedTestPerson.LastName.Should().Be("Doe");
+        }
     }
 }

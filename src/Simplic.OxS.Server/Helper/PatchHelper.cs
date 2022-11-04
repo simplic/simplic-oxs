@@ -236,7 +236,7 @@ namespace Simplic.OxS.Server
         private void SetSourceValueAtPath(object source, object target, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
-            var configItem = Configuration.Items.FirstOrDefault(x => x.Path == fullPath);
+            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower());
 
             if (configItem != null)
             {

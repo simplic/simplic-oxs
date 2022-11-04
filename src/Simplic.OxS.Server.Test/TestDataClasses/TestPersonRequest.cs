@@ -27,5 +27,8 @@ namespace Simplic.OxS.Server.Test
 
         public double? TestDouble { get; set; }
 
+        public IList<TestPhoneNumberRequest> PhoneNumbers { get; set; }
+            = new List<TestPhoneNumberRequest>();
+
     }
 }

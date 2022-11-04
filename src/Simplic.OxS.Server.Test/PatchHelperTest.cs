@@ -21,7 +21,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 LastName = "Doe"
             };
@@ -30,7 +30,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -52,7 +52,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 LastName = "Doe"
             };
@@ -62,7 +62,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -84,7 +84,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchReqeust = new TestPersonRequest
             {
                 FirstName = "John",
                 LastName = "Doe"
@@ -97,7 +97,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
             {
                 return true;
             });
@@ -119,7 +119,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 FirstName = "Max",
                 LastName = "Doe"
@@ -129,7 +129,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -153,8 +153,8 @@ namespace Simplic.OxS.Server.Test
                 PhoneNumber = "1234"
             });
 
-            var mappedTestPerson = new TestPerson();
-            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            var patchRequest = new TestPersonRequest();
+            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
             {
                 Id = guid,
                 PhoneNumber = "5678"
@@ -164,7 +164,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -193,8 +193,8 @@ namespace Simplic.OxS.Server.Test
                 PhoneNumber = "1234"
             });
 
-            var mappedTestPerson = new TestPerson();
-            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            var patchReqeust = new TestPersonRequest();
+            patchReqeust.PhoneNumbers.Add(new TestPhoneNumberRequest
             {
                 Id = guid,
                 PhoneNumber = "5678"
@@ -204,7 +204,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
             {
                 return true;
             });
@@ -218,7 +218,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will hard delete items when they are send with a '_remove = true' flag.
         /// </summary>
         [Fact]
-        public void Patch_ListRemoveContent_UpdatesTheItem()
+        public void Patch_ListRemoveContent_RemovesTheItem()
         {
             var guid = Guid.NewGuid();
 
@@ -229,8 +229,8 @@ namespace Simplic.OxS.Server.Test
                 PhoneNumber = "1234"
             });
 
-            var mappedTestPerson = new TestPerson();
-            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            var patchRequest = new TestPersonRequest();
+            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
             {
                 Id = guid,
             });
@@ -239,7 +239,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -251,12 +251,12 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will add a new item to the original object.
         /// </summary>
         [Fact]
-        public void Patch_ListAddContent_UpdatesTheItem()
+        public void Patch_ListAddContent_AddsTheItem()
         {
             var originalTestPerson = new TestPerson();
 
-            var mappedTestPerson = new TestPerson();
-            mappedTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            var patchRequest = new TestPersonRequest();
+            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
             {
                 PhoneNumber = "5678"
             });
@@ -265,7 +265,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, (validation) =>
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -285,7 +285,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 LastName = "Doe"
             };
@@ -294,7 +294,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return false;
             })).Should().Throw<BadRequestException>();
@@ -312,7 +312,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 LastName = "Doe"
             };
@@ -321,7 +321,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Property == "LastName")
                     return false;
@@ -342,7 +342,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 LastName = "Doe"
             };
@@ -351,7 +351,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Value == "Doe")
                     return false;
@@ -372,7 +372,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 LastName = "Doe"
             };
@@ -381,7 +381,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Path == "LastName")
                     return false;
@@ -403,7 +403,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
             };
 
@@ -411,7 +411,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, mappedTestPerson, json, (validation) =>
+            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Path == "LastName")
                     return false;
@@ -432,7 +432,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 FirstName = "John",
                 LastName = "Doe"
@@ -445,7 +445,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, null);
 
             patchedTestPerson.FirstName.Should().Be("John");
             patchedTestPerson.LastName.Should().Be("Doe");
@@ -463,7 +463,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 FirstName = "John",
                 LastName = "Doe"
@@ -476,7 +476,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, mappedTestPerson, json, null))
+            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, null))
                 .Should().Throw<ArgumentException>()
                 .WithInnerException<System.Text.Json.JsonException>();
         }
@@ -494,7 +494,7 @@ namespace Simplic.OxS.Server.Test
                 LastName = "Mustermann"
             };
 
-            var mappedTestPerson = new TestPerson
+            var patchRequest = new TestPersonRequest
             {
                 FirstName = "John",
                 LastName = "Doe"
@@ -507,11 +507,11 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper(cfg =>
             {
-                cfg.ForPath("FirstName").ChangeAction<TestPerson, TestPerson>((original, patch) => { original.FirstName = "Peter"; });
+                cfg.ForPath("FirstName").ChangeAction<TestPerson, TestPersonRequest>((original, patch) => { original.FirstName = "Peter"; });
                 return cfg;
             });
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, null);
 
             patchedTestPerson.FirstName.Should().Be("Peter");
             patchedTestPerson.LastName.Should().Be("Doe");

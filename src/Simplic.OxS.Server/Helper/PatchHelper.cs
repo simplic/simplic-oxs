@@ -246,8 +246,18 @@ namespace Simplic.OxS.Server
         private void SetSourceValueAtPath(object source, object target, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
-            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower());
+            // Check if a configuration item exists for the element corresponding to this path.
+            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() && !x.IsMemberConfiguration);
 
+            if (configItem != null)
+            {
+                configItem.ApplyChange(target, source);
+                return;
+            }
+
+            // Check if a configuration item exists for the element corresponding to this path as element of a collection property.
+            configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.Split('.')[0]);
+            
             if (configItem != null)
             {
                 configItem.ApplyChange(target, source);

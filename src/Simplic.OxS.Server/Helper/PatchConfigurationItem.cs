@@ -18,6 +18,12 @@
             action = behaviourChange;
         }
 
+        public void ChangeActionForElements<TOriginal, TPatch>(Action<TOriginal, TPatch> behaviourChange)
+        {
+            action = behaviourChange;
+            IsMemberConfiguration = true;
+        }
+
         /// <summary>
         /// Calls the delegate.
         /// </summary>
@@ -32,5 +38,10 @@
         /// The path of the item.
         /// </summary>
         public string Path { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the configuration applies to the element corresponding to the item path or to its collection members.
+        /// </summary>
+        public bool IsMemberConfiguration { get; private set; }
     }
 }

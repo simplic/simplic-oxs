@@ -294,8 +294,20 @@ namespace Simplic.OxS.Server
 
                     if (!valid)
                         throw new BadRequestException($"Validation on {path} failed with value {source}");
+                    try
+                    {
 
-                    targetProperty.SetValue(target, Convert.ChangeType(source, targetProperty.PropertyType));
+                        targetProperty.SetValue(target, Convert.ChangeType(source, targetProperty.PropertyType));
+                    }
+                    catch (InvalidCastException)
+                    {
+                        if (targetProperty.PropertyType.IsGenericType && targetProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>))) 
+                            if(source == null)
+                                targetProperty.SetValue(target, null);
+
+
+                        targetProperty.SetValue(target, Convert.ChangeType(source, Nullable.GetUnderlyingType(targetProperty.PropertyType)));
+                    }
                 }
                 else
                 {

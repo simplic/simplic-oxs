@@ -19,7 +19,7 @@ namespace Simplic.OxS.Server.Test
 
         public Guid TestGuid { get; set; }
 
-        public DateTime TestDateTime { get; set; }
+        public DateTime? TestDateTime { get; set; }
 
         public int TestInt { get; set; }
 

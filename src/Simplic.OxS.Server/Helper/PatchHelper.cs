@@ -278,7 +278,7 @@ namespace Simplic.OxS.Server
 
                 currentSourceType = property.PropertyType;
                 var res = property.GetValue(source, null);
-                if (res == null)
+                if (res == null && i != splitPath.Length - 1)
                     throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
 
                 source = res;
@@ -294,17 +294,19 @@ namespace Simplic.OxS.Server
 
                     if (!valid)
                         throw new BadRequestException($"Validation on {path} failed with value {source}");
+
                     try
                     {
-
                         targetProperty.SetValue(target, Convert.ChangeType(source, targetProperty.PropertyType));
                     }
                     catch (InvalidCastException)
                     {
-                        if (targetProperty.PropertyType.IsGenericType && targetProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>))) 
-                            if(source == null)
+                        if (targetProperty.PropertyType.IsGenericType && targetProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
+                            if (source == null)
+                            {
                                 targetProperty.SetValue(target, null);
-
+                                return;
+                            }
 
                         targetProperty.SetValue(target, Convert.ChangeType(source, Nullable.GetUnderlyingType(targetProperty.PropertyType)));
                     }

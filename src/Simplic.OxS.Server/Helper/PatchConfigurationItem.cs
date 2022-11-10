@@ -5,7 +5,7 @@
     /// </summary>
     public class PatchConfigurationItem
     {
-        private Delegate action { get; set; }
+        private Func<object, object, Task> action;
 
         /// <summary>
         /// Adds an action that should happen
@@ -13,9 +13,9 @@
         /// <typeparam name="TOriginal"></typeparam>
         /// <typeparam name="TPatch"></typeparam>
         /// <param name="behaviourChange"></param>
-        public void ChangeAction<TOriginal, TPatch>(Action<TOriginal, TPatch> behaviourChange)
+        public void ChangeAction<TOriginal, TPatch>(Func<TOriginal, TPatch, Task> behaviourChange)
         {
-            action = behaviourChange;
+            action = (o, p) => behaviourChange((TOriginal)o, (TPatch)p);
         }
 
         /// <summary>
@@ -23,9 +23,9 @@
         /// </summary>
         /// <param name="original"></param>
         /// <param name="patch"></param>
-        internal void ApplyChange(object original, object patch)
+        internal async Task ApplyChange(object original, object patch)
         {
-            action.DynamicInvoke(original, patch);
+            await action.Invoke(original, patch);
         }
 
         /// <summary>

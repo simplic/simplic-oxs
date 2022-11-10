@@ -51,7 +51,7 @@ namespace Simplic.OxS.Server
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="BadRequestException"></exception>
-        public T Patch<T>(T originalDocument, object patch, string json, Func<ValidationRequest, bool> validation)
+        public async Task<T> Patch<T>(T originalDocument, object patch, string json, Func<ValidationRequest, bool> validation)
         {
             if (originalDocument == null)
                 throw new ArgumentNullException(nameof(originalDocument));
@@ -72,7 +72,7 @@ namespace Simplic.OxS.Server
             try
             {
                 using var document = JsonDocument.Parse(json);
-                return HandleDocument(originalDocument, patch, document.RootElement, validation, "");
+                return await HandleDocument(originalDocument, patch, document.RootElement, validation, "");
             }
             catch (JsonException ex)
             {
@@ -89,7 +89,7 @@ namespace Simplic.OxS.Server
         /// <param name="doc">The json document as json element. Should be the root element of the current context.</param>
         /// <param name="validationRequest">The validation reques func from the patch method.</param>
         /// <returns>The original document with the patch applied.</returns>
-        private T HandleDocument<T>(T originalDocument, object patch, JsonElement doc,
+        private async Task<T> HandleDocument<T>(T originalDocument, object patch, JsonElement doc,
             Func<ValidationRequest, bool> validationRequest, string startingPath)
         {
             if (originalDocument == null)
@@ -118,7 +118,7 @@ namespace Simplic.OxS.Server
                         break;
 
                     case JsonValueKind.Array:
-                        HandleArray(element, GetCollection(originalDocument, parentPath),
+                        await HandleArray(element, GetCollection(originalDocument, parentPath),
                                     GetCollection(patch, parentPath), parentPath, validationRequest, parentPath);
                         break;
 
@@ -132,7 +132,7 @@ namespace Simplic.OxS.Server
                         if (startingPath != string.Empty)
                             fullPatch = startingPath + "." + parentPath;
 
-                        SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest, fullPatch);
+                        await SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest, fullPatch);
                         break;
                 }
             }
@@ -148,7 +148,7 @@ namespace Simplic.OxS.Server
         /// <param name="patchCollection">The collection of the patch document.</param>
         /// <param name="path">The path to the array.</param>
         /// <param name="validationRequest">The validation request from the patch.</param>
-        private void HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
+        private async Task HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
              string path, Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
             var elements = element.EnumerateArray().ToList();
@@ -160,18 +160,18 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    HandleObjectArray(element, originalCollection, patchCollection, validationRequest, fullPath);
+                    await HandleObjectArray(element, originalCollection, patchCollection, validationRequest, fullPath);
                     break;
 
                 case JsonValueKind.Array:
-                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
+                    await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
 
                 case JsonValueKind.String:
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
-                    SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
+                    await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
             }
         }
@@ -183,7 +183,7 @@ namespace Simplic.OxS.Server
         /// <param name="originalCollection">The collection from the original document.</param>
         /// <param name="patchCollection">The collection from the patch document.</param>
         /// <param name="validationRequest">The validation request from the patch method.</param>
-        private void HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
+        private async Task HandleObjectArray(JsonElement element, IList originalCollection, IList patchCollection,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
             if (element.ValueKind != JsonValueKind.Array)
@@ -206,7 +206,7 @@ namespace Simplic.OxS.Server
                     var obj = Activator.CreateInstance(itemType);
                     originalCollection.Add(obj);
 
-                    HandleDocument(obj, patchCollection[i], item, validationRequest, path);
+                    await HandleDocument(obj, patchCollection[i], item, validationRequest, path);
 
                     continue;
                 }
@@ -234,7 +234,7 @@ namespace Simplic.OxS.Server
                     var obj = Activator.CreateInstance(itemType);
                     originalCollection.Add(obj);
 
-                    HandleDocument(obj, patchCollection[i], item, validationRequest, path);
+                    await HandleDocument(obj, patchCollection[i], item, validationRequest, path);
                     continue;
                 }
 
@@ -244,18 +244,18 @@ namespace Simplic.OxS.Server
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
-                HandleDocument(originalItem, patchItem, item, validationRequest, path);
+                await HandleDocument(originalItem, patchItem, item, validationRequest, path);
             }
         }
 
-        private void SetSourceValueAtPath(object source, object target, string path,
+        private async Task SetSourceValueAtPath(object source, object target, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower());
 
             if (configItem != null)
             {
-                configItem.ApplyChange(target, source);
+                await configItem.ApplyChange(target, source);
                 return;
             }
 

@@ -13,7 +13,7 @@ namespace Simplic.OxS.Server.Test
         /// when called with the right parameters.
         /// </summary>
         [Fact]
-        public void Patch_SingleFieldJson_PatchesSingleField()
+        public async Task Patch_SingleFieldJson_PatchesSingleField()
         {
             var originalTestPerson = new TestPerson
             {
@@ -30,7 +30,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -44,7 +44,7 @@ namespace Simplic.OxS.Server.Test
         /// when called with the right parameters (ignore property case).
         /// </summary>
         [Fact]
-        public void Patch_SingleFieldJson_PatchesSingleField_IgnoreCase()
+        public async Task Patch_SingleFieldJson_PatchesSingleField_IgnoreCase()
         {
             var originalTestPerson = new TestPerson
             {
@@ -62,7 +62,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -76,7 +76,7 @@ namespace Simplic.OxS.Server.Test
         /// in the original object.
         /// </summary>
         [Fact]
-        public void Patch_AllFieldJson_PatchesMultipleFields()
+        public async Task Patch_AllFieldJson_PatchesMultipleFields()
         {
             var originalTestPerson = new TestPerson
             {
@@ -97,7 +97,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
+            var patchedTestPerson =await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
             {
                 return true;
             });
@@ -111,7 +111,7 @@ namespace Simplic.OxS.Server.Test
         /// when more properties are set in the mapped object.
         /// </summary>
         [Fact]
-        public void Patch_SingleFieldJsonMultiFieldMap_JustPatchesJsonFields()
+        public async Task Patch_SingleFieldJsonMultiFieldMap_JustPatchesJsonFields()
         {
             var originalTestPerson = new TestPerson
             {
@@ -129,7 +129,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson =await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -142,7 +142,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will update properties of a list when the id of the items are equal.
         /// </summary>
         [Fact]
-        public void Patch_ListUpdateContent_UpdatesTheItem()
+        public async Task Patch_ListUpdateContent_UpdatesTheItem()
         {
             var guid = Guid.NewGuid();
 
@@ -164,7 +164,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson =await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -177,7 +177,7 @@ namespace Simplic.OxS.Server.Test
         /// taking the first item.
         /// </summary>
         [Fact]
-        public void Patch_ListUpdateContent_UpdatesTheRightItem()
+        public async Task Patch_ListUpdateContent_UpdatesTheRightItem()
         {
             var guid = Guid.NewGuid();
 
@@ -204,7 +204,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
             {
                 return true;
             });
@@ -218,7 +218,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will hard delete items when they are send with a '_remove = true' flag.
         /// </summary>
         [Fact]
-        public void Patch_ListRemoveContent_RemovesTheItem()
+        public async Task Patch_ListRemoveContent_RemovesTheItem()
         {
             var guid = Guid.NewGuid();
 
@@ -239,7 +239,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -251,7 +251,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will add a new item to the original object.
         /// </summary>
         [Fact]
-        public void Patch_ListAddContent_AddsTheItem()
+        public async Task Patch_ListAddContent_AddsTheItem()
         {
             var originalTestPerson = new TestPerson();
 
@@ -265,7 +265,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -277,7 +277,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will throw an exception when the validation request returns false.
         /// </summary>
         [Fact]
-        public void Patch_FalseReturningValidationRequest_ThrowsExcpetion()
+        public async Task Patch_FalseReturningValidationRequest_ThrowsExcpetion()
         {
             var originalTestPerson = new TestPerson
             {
@@ -294,17 +294,17 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking( x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return false;
-            })).Should().Throw<BadRequestException>();
+            })).Should().ThrowAsync<BadRequestException>();
         }
 
         /// <summary>
         /// Tests whether the patch method will set the property name in validation requests. 
         /// </summary>
         [Fact]
-        public void Patch_ValidationForProperty_ThrowsExcpetion()
+        public async Task Patch_ValidationForProperty_ThrowsExcpetion()
         {
             var originalTestPerson = new TestPerson
             {
@@ -321,20 +321,20 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Property == "LastName")
                     return false;
 
                 return true;
-            })).Should().Throw<BadRequestException>();
+            })).Should().ThrowAsync<BadRequestException>();
         }
 
         /// <summary>
         /// Tests whether the patch method will set the value in validation requests. 
         /// </summary>
         [Fact]
-        public void Patch_ValidationForValue_ThrowsExcpetion()
+        public async Task Patch_ValidationForValue_ThrowsExcpetion()
         {
             var originalTestPerson = new TestPerson
             {
@@ -351,20 +351,20 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Value == "Doe")
                     return false;
 
                 return true;
-            })).Should().Throw<BadRequestException>();
+            })).Should().ThrowAsync<BadRequestException>();
         }
 
         /// <summary>
         /// Tests whether the patch method will set the path in validation requests. 
         /// </summary>
         [Fact]
-        public void Patch_ValidationForPath_ThrowsExcpetion()
+        public async Task Patch_ValidationForPath_ThrowsExcpetion()
         {
             var originalTestPerson = new TestPerson
             {
@@ -381,13 +381,13 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Path == "LastName")
                     return false;
 
                 return true;
-            })).Should().Throw<BadRequestException>();
+            })).Should().ThrowAsync<BadRequestException>();
         }
 
         /// <summary>
@@ -395,7 +395,7 @@ namespace Simplic.OxS.Server.Test
         /// in the json but is not part of the object.
         /// </summary>
         [Fact]
-        public void Patch_JsonWithPropertyNotInObjects_ThrowsExcpetion()
+        public async Task Patch_JsonWithPropertyNotInObjects_ThrowsExcpetion()
         {
             var originalTestPerson = new TestPerson
             {
@@ -411,20 +411,20 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 if (validation.Path == "LastName")
                     return false;
 
                 return true;
-            })).Should().Throw<BadRequestException>();
+            })).Should().ThrowAsync<BadRequestException>();
         }
 
         /// <summary>
         /// Test whether validation returns always truem if no validation (null) is passed
         /// </summary>
         [Fact]
-        public void Patch_AllFieldJson_ValidateAll()
+        public async Task Patch_AllFieldJson_ValidateAll()
         {
             var originalTestPerson = new TestPerson
             {
@@ -445,7 +445,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, null);
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, null);
 
             patchedTestPerson.FirstName.Should().Be("John");
             patchedTestPerson.LastName.Should().Be("Doe");
@@ -455,7 +455,7 @@ namespace Simplic.OxS.Server.Test
         /// Check whether an inner exception is passed for invalid json
         /// </summary>
         [Fact]
-        public void Patch_CatchInvalidJsonException()
+        public async Task Patch_CatchInvalidJsonException()
         {
             var originalTestPerson = new TestPerson
             {
@@ -476,8 +476,8 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, null))
-                .Should().Throw<ArgumentException>()
+            (await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, null))
+                .Should().ThrowAsync<ArgumentException>())
                 .WithInnerException<System.Text.Json.JsonException>();
         }
 
@@ -486,7 +486,7 @@ namespace Simplic.OxS.Server.Test
         /// Test whether patch will apply changes properly
         /// </summary>
         [Fact]
-        public void Patch_AllFieldJson_Configuration()
+        public async Task Patch_AllFieldJson_Configuration()
         {
             var originalTestPerson = new TestPerson
             {
@@ -507,11 +507,11 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper(cfg =>
             {
-                cfg.ForPath("FirstName").ChangeAction<TestPerson, TestPersonRequest>((original, patch) => { original.FirstName = "Peter"; });
+                cfg.ForPath("FirstName").ChangeAction<TestPerson, TestPersonRequest>((original, patch) => { original.FirstName = "Peter"; return Task.CompletedTask; });
                 return cfg;
             });
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, null);
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, null);
 
             patchedTestPerson.FirstName.Should().Be("Peter");
             patchedTestPerson.LastName.Should().Be("Doe");
@@ -522,7 +522,7 @@ namespace Simplic.OxS.Server.Test
         /// but the proeprties in the original object are not.
         /// </summary>
         [Fact]
-        public void Patch_AllTypes_AllDataIsWritten()
+        public async Task Patch_AllTypes_AllDataIsWritten()
         {
             var originalTestPerson = new TestPerson
             {
@@ -555,7 +555,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
 
             patchedTestPerson.TestBool.Should().Be(mappedTestPerson.TestBool.Value);
             patchedTestPerson.TestDateTime.Should().Be(mappedTestPerson.TestDateTime);
@@ -568,7 +568,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
         /// </summary>
         [Fact]
-        public void Patch_LowerCaseJson_AllDataIsWritten()
+        public async Task Patch_LowerCaseJson_AllDataIsWritten()
         {
             var originalTestPerson = new TestPerson
             {
@@ -607,11 +607,12 @@ namespace Simplic.OxS.Server.Test
                 cfg.ForPath("LastName").ChangeAction<TestPerson, TestPersonRequest>((original, patch) =>
                 {
                     original.LastName = "Doe";
+                    return Task.CompletedTask;
                 });
                 return cfg;
             });
 
-            var patchedTestPerson = patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, mappedTestPerson, json, null);
 
             patchedTestPerson.TestBool.Should().Be(mappedTestPerson.TestBool.Value);
             patchedTestPerson.TestDateTime.Should().Be(mappedTestPerson.TestDateTime);

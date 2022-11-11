@@ -23,9 +23,9 @@
         /// </summary>
         /// <param name="original"></param>
         /// <param name="patch"></param>
-        internal async Task ApplyChange( object patch)
+        internal async Task<object> GetNewItem( object patch)
         {
-            await action.Invoke(patch);
+            return await action.Invoke(patch);
         }
 
         /// <summary>

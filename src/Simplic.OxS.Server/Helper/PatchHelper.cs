@@ -256,7 +256,7 @@ namespace Simplic.OxS.Server
 
             // Will call the GetNewItem method if the config item is not null, and create a new instance with the 
             // Activator otherwise.
-            var obj = configItem != null ? await configItem.GetNewItem(patchItem) : func();
+            var obj = configItem != null ? configItem.GetNewItem(patchItem) : func();
 
             originalCollection.Add(obj);
 

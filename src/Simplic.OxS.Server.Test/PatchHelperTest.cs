@@ -642,7 +642,7 @@ namespace Simplic.OxS.Server.Test
             {
                 cfg.ForCollcectionPath("PhoneNumbers").ChangeAddItem<TestPhoneNumberRequest, TestPhoneNumber>(x =>
                 {
-                    return Task.FromResult(new TestPhoneNumber());
+                    return new TestPhoneNumber();
                 });
 
                 return cfg;

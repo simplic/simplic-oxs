@@ -246,7 +246,7 @@ namespace Simplic.OxS.Server
         private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
-            var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path == path);
+            var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path.ToLower() == path.ToLower());
 
             var func = new Func<object>(() =>
             {

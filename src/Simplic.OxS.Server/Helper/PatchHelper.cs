@@ -213,6 +213,16 @@ namespace Simplic.OxS.Server
 
                 if (elements.Any(x => x.Name.ToLower() == "_remove" && x.Value.GetBoolean()))
                 {
+                    if (!validationRequest(new ValidationRequest
+                    {
+                        Path = path,
+                        Property = path.Split(".").Last(),
+                        Type = ValidationRequestType.RemoveItem
+                    }))
+                    {
+                        throw new BadRequestException($"Removing of item to {path} is forbidden in the current state.");
+                    }
+
                     originalCollection.Remove(originalCollection.OfType<IItemId>().First(x => x.Id == idGuid));
                     continue;
                 }
@@ -246,6 +256,16 @@ namespace Simplic.OxS.Server
         private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
+            if (!validationRequest(new ValidationRequest
+            {
+                Path = path,
+                Property = path.Split(".").Last(),
+                Type = ValidationRequestType.AddItem
+            }))
+            {
+                throw new BadRequestException($"Adding of item to {path} is forbidden in the current state.");
+            }
+
             var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path.ToLower() == path.ToLower());
 
             var func = new Func<object>(() =>
@@ -270,6 +290,14 @@ namespace Simplic.OxS.Server
 
             if (configItem != null)
             {
+                if (!validationRequest.Invoke(new ValidationRequest
+                {
+                    Path = fullPath,
+                    Property = fullPath.Split(".").Last(),
+                    Type = ValidationRequestType.UpdateProperty
+                }))
+                    throw new BadRequestException($"Validation on {path} failed with value {source}");
+
                 await configItem.ApplyChange(target, source);
                 return;
             }
@@ -300,14 +328,13 @@ namespace Simplic.OxS.Server
 
                 if (i == splitPath.Length - 1)
                 {
-                    var valid = validationRequest.Invoke(new ValidationRequest
+                    if (!validationRequest.Invoke(new ValidationRequest
                     {
                         Path = fullPath,
                         Property = propertyName,
-                        Value = source
-                    });
-
-                    if (!valid)
+                        Value = source,
+                        Type = ValidationRequestType.UpdateProperty
+                    }))
                         throw new BadRequestException($"Validation on {path} failed with value {source}");
 
                     try

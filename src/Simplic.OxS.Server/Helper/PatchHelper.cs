@@ -248,13 +248,15 @@ namespace Simplic.OxS.Server
         {
             var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path == path);
 
-            // Will call the GetNewItem method if the config item is not null, and create a new instance with the 
-            // Activator otherwise.
-            var obj = configItem != null ? await configItem.GetNewItem(patchItem) : () =>
+            var func = new Func<object>(() =>
             {
                 var itemType = originalCollection.GetType().GetGenericArguments()[0];
                 return Activator.CreateInstance(itemType);
-            };
+            });
+
+            // Will call the GetNewItem method if the config item is not null, and create a new instance with the 
+            // Activator otherwise.
+            var obj = configItem != null ? await configItem.GetNewItem(patchItem) : func();
 
             originalCollection.Add(obj);
 

@@ -198,16 +198,7 @@ namespace Simplic.OxS.Server
 
                 if (!elements.Any(x => x.Name.ToLower() == "id"))
                 {
-                    // in this block a new item of the type of the generic argument is created and added to the 
-                    // original collection and all properties should be copied to it then based on the json.
-
-
-                    var itemType = originalCollection.GetType().GetGenericArguments()[0];
-                    var obj = Activator.CreateInstance(itemType);
-                    originalCollection.Add(obj);
-
-                    await HandleDocument(obj, patchCollection[i], item, validationRequest, path);
-
+                    await AddNewItemToCollection(originalCollection, patchCollection[i], item, validationRequest, path);
                     continue;
                 }
 
@@ -228,24 +219,48 @@ namespace Simplic.OxS.Server
 
                 if (idGuid == Guid.Empty)
                 {
-                    // in this block a new item of the type of the generic argument is created and added to the 
-                    // original collection and all properties should be copied to it then based on the json.
-                    var itemType = originalCollection.GetType().GetGenericArguments()[0];
-                    var obj = Activator.CreateInstance(itemType);
-                    originalCollection.Add(obj);
-
-                    await HandleDocument(obj, patchCollection[i], item, validationRequest, path);
+                    await AddNewItemToCollection(originalCollection, patchCollection[i], item, validationRequest, path);
                     continue;
                 }
 
                 var originalItem = originalCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
                 if (originalItem == null)
-                    throw new BadRequestException($"Could not find item with id {idGuid}");
+                    throw new BadRequestException($"Could not find item with id {idGuid}." +
+                        "A reason might be that items of the collection does not derive from IITemId");
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
                 await HandleDocument(originalItem, patchItem, item, validationRequest, path);
             }
+        }
+
+        /// <summary>
+        /// Adds a new item to the original collection.
+        /// </summary>
+        /// <param name="originalCollection"></param>
+        /// <param name="patchItem"></param>
+        /// <param name="jsonElement"></param>
+        /// <param name="validationRequest"></param>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
+            Func<ValidationRequest, bool> validationRequest, string path)
+        {
+            var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path == path);
+
+            var func = new Func<object>(() =>
+            {
+                var itemType = originalCollection.GetType().GetGenericArguments()[0];
+                return Activator.CreateInstance(itemType);
+            });
+
+            // Will call the GetNewItem method if the config item is not null, and create a new instance with the 
+            // Activator otherwise.
+            var obj = configItem != null ? configItem.GetNewItem(patchItem) : func();
+
+            originalCollection.Add(obj);
+
+            await HandleDocument(obj, patchItem, jsonElement, validationRequest, path);
         }
 
         private async Task SetSourceValueAtPath(object source, object target, string path,

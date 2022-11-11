@@ -201,7 +201,6 @@ namespace Simplic.OxS.Server
                     // in this block a new item of the type of the generic argument is created and added to the 
                     // original collection and all properties should be copied to it then based on the json.
 
-
                     var itemType = originalCollection.GetType().GetGenericArguments()[0];
                     var obj = Activator.CreateInstance(itemType);
                     originalCollection.Add(obj);
@@ -240,7 +239,8 @@ namespace Simplic.OxS.Server
 
                 var originalItem = originalCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
                 if (originalItem == null)
-                    throw new BadRequestException($"Could not find item with id {idGuid}");
+                    throw new BadRequestException($"Could not find item with id {idGuid}." +  
+                        "A reason might be that items of the collection does not derive from IITemId");
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 

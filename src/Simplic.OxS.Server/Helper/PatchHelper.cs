@@ -300,7 +300,8 @@ namespace Simplic.OxS.Server
         private async Task SetSourceValueAtPath(object patch, object original, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
-            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower());
+            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
+                (fullPath.ToLower().StartsWith(x.Path) && fullPath.ToLower().EndsWith(x.EndPath)));
 
             if (configItem != null)
             {

@@ -217,7 +217,9 @@ namespace Simplic.OxS.Server
                     {
                         Path = path,
                         Property = path.Split(".").Last(),
-                        Type = ValidationRequestType.RemoveItem
+                        Type = ValidationRequestType.RemoveItem,
+                        OriginalItem = originalCollection.OfType<IItemId>().First(x => x.Id == idGuid),
+                        PatchItem = originalCollection.OfType<IItemId>().First(x => x.Id == idGuid)
                     }))
                     {
                         throw new BadRequestException($"Removing of item to {path} is forbidden in the current state.");
@@ -256,15 +258,7 @@ namespace Simplic.OxS.Server
         private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
-            if (!validationRequest(new ValidationRequest
-            {
-                Path = path,
-                Property = path.Split(".").Last(),
-                Type = ValidationRequestType.AddItem
-            }))
-            {
-                throw new BadRequestException($"Adding of item to {path} is forbidden in the current state.");
-            }
+
 
             var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path.ToLower() == path.ToLower());
 
@@ -278,12 +272,26 @@ namespace Simplic.OxS.Server
             // Activator otherwise.
             var obj = configItem != null ? configItem.GetNewItem(patchItem) : func();
 
+            await HandleDocument(obj, patchItem, jsonElement, validationRequest, path);
+
+            //here boh the patch and the original item are set to the obj, since both make sense in a way.
+            if (!validationRequest(new ValidationRequest
+            {
+                Path = path,
+                Property = path.Split(".").Last(),
+                Type = ValidationRequestType.AddItem,
+                PatchItem = obj,
+                OriginalItem = obj
+            }))
+            {
+                throw new BadRequestException($"Adding of item to {path} is forbidden in the current state.");
+            }
+
             originalCollection.Add(obj);
 
-            await HandleDocument(obj, patchItem, jsonElement, validationRequest, path);
         }
 
-        private async Task SetSourceValueAtPath(object source, object target, string path,
+        private async Task SetSourceValueAtPath(object patch, object original, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower());
@@ -294,37 +302,37 @@ namespace Simplic.OxS.Server
                 {
                     Path = fullPath,
                     Property = fullPath.Split(".").Last(),
-                    Type = ValidationRequestType.UpdateProperty
+                    Type = ValidationRequestType.UpdateProperty,
+                    OriginalItem = original,
+                    PatchItem = patch
                 }))
-                    throw new BadRequestException($"Validation on {path} failed with value {source}");
+                    throw new BadRequestException($"Validation on {path} failed with value {patch}");
 
-                await configItem.ApplyChange(target, source);
+                await configItem.ApplyChange(original, patch);
                 return;
             }
 
-
-            Type currentSourceType = source.GetType();
-            Type currentTargetType = target.GetType();
+            Type currentPatchType = patch.GetType();
+            Type currentOriginalType = original.GetType();
             var splitPath = path.Split(".");
 
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
-                var property = currentSourceType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-                var targetProperty = currentTargetType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                var patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                var originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
-                if (property == null)
-                    throw new BadRequestException($"{currentSourceType.Name} does not contain property: {propertyName}");
+                if (patchProperty == null)
+                    throw new BadRequestException($"{currentPatchType.Name} does not contain property: {propertyName}");
 
-                if (targetProperty == null)
-                    throw new BadRequestException($"{currentTargetType.Name} does not contain property: {propertyName}");
+                if (originalProperty == null)
+                    throw new BadRequestException($"{currentOriginalType.Name} does not contain property: {propertyName}");
 
-                currentSourceType = property.PropertyType;
-                var res = property.GetValue(source, null);
+                currentPatchType = patchProperty.PropertyType;
+                var res = patchProperty.GetValue(patch, null);
                 if (res == null && i != splitPath.Length - 1)
-                    throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
+                    throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
-                source = res;
 
                 if (i == splitPath.Length - 1)
                 {
@@ -332,34 +340,39 @@ namespace Simplic.OxS.Server
                     {
                         Path = fullPath,
                         Property = propertyName,
-                        Value = source,
-                        Type = ValidationRequestType.UpdateProperty
+                        Value = res,
+                        Type = ValidationRequestType.UpdateProperty,
+                        PatchItem = patch,
+                        OriginalItem = original
                     }))
-                        throw new BadRequestException($"Validation on {path} failed with value {source}");
+                        throw new BadRequestException($"Validation on {path} failed with value {patch}");
+
+                    patch = res;
 
                     try
                     {
-                        targetProperty.SetValue(target, Convert.ChangeType(source, targetProperty.PropertyType));
+                        originalProperty.SetValue(original, Convert.ChangeType(patch, originalProperty.PropertyType));
                     }
                     catch (InvalidCastException)
                     {
-                        if (targetProperty.PropertyType.IsGenericType && targetProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
-                            if (source == null)
+                        if (originalProperty.PropertyType.IsGenericType && originalProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
+                            if (patch == null)
                             {
-                                targetProperty.SetValue(target, null);
+                                originalProperty.SetValue(original, null);
                                 return;
                             }
 
-                        targetProperty.SetValue(target, Convert.ChangeType(source, Nullable.GetUnderlyingType(targetProperty.PropertyType)));
+                        originalProperty.SetValue(original, Convert.ChangeType(patch, Nullable.GetUnderlyingType(originalProperty.PropertyType)));
                     }
                 }
                 else
                 {
-                    var targetRes = property.GetValue(target, null);
-                    if (targetRes == null)
-                        throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
+                    var originalValue = patchProperty.GetValue(original, null);
+                    if (originalValue == null)
+                        throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
-                    target = targetRes;
+                    patch = res;
+                    original = originalValue;
                 }
             }
         }

@@ -24,5 +24,15 @@
         /// Gets or sets the type of the validation request.
         /// </summary>
         public ValidationRequestType Type { get; set; }
+
+        /// <summary>
+        /// Gets or sets the patch item.
+        /// </summary>
+        public object PatchItem { get; set; }
+
+        /// <summary>
+        /// Gets or sets the original item.
+        /// </summary>
+        public object OriginalItem { get; set; }
     }
 }

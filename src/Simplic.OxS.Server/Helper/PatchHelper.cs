@@ -86,10 +86,13 @@ namespace Simplic.OxS.Server
         /// <typeparam name="T">Type of the documents and the return type.</typeparam>
         /// <param name="originalDocument">The original document.</param>
         /// <param name="patch">The document containing the patch values.</param>
-        /// <param name="doc">The json document as json element. Should be the root element of the current context.</param>
+        /// <param name="jsonDocument">The json document as json element. Should be the root element of the current context.</param>
         /// <param name="validationRequest">The validation reques func from the patch method.</param>
+        /// <param name="startingPath">The path the handle document is started with, used since collections sometimes
+        /// just use their relative path in the collection and need to append the starting path to get a full path to
+        /// the patched property.</param>
         /// <returns>The original document with the patch applied.</returns>
-        private async Task<T> HandleDocument<T>(T originalDocument, object patch, JsonElement doc,
+        private async Task<T> HandleDocument<T>(T originalDocument, object patch, JsonElement jsonDocument,
             Func<ValidationRequest, bool> validationRequest, string startingPath)
         {
             if (originalDocument == null)
@@ -98,8 +101,8 @@ namespace Simplic.OxS.Server
             if (patch == null)
                 throw new ArgumentNullException(nameof(patch));
 
-            var queue = new Queue<(string ParentPath, JsonElement element)>();
-            queue.Enqueue(("", doc));
+            var queue = new Queue<(string parentPath, JsonElement element)>();
+            queue.Enqueue(("", jsonDocument));
 
             while (queue.Any())
             {
@@ -113,6 +116,7 @@ namespace Simplic.OxS.Server
                             : parentPath + ".";
                         foreach (var nextEl in element.EnumerateObject())
                         {
+                            // Enqueue inner proeprties with their full path.
                             queue.Enqueue(($"{parentPath}{nextEl.Name}", nextEl.Value));
                         }
                         break;
@@ -122,6 +126,7 @@ namespace Simplic.OxS.Server
                                     GetCollection(patch, parentPath), parentPath, validationRequest, parentPath);
                         break;
 
+                    // Sets the value for all types that are not array or object.
                     case JsonValueKind.Undefined:
                     case JsonValueKind.String:
                     case JsonValueKind.Number:
@@ -148,6 +153,7 @@ namespace Simplic.OxS.Server
         /// <param name="patchCollection">The collection of the patch document.</param>
         /// <param name="path">The path to the array.</param>
         /// <param name="validationRequest">The validation request from the patch.</param>
+        /// <param name="fullPath">The full path to the array.</param>
         private async Task HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
              string path, Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
@@ -164,6 +170,7 @@ namespace Simplic.OxS.Server
                     break;
 
                 case JsonValueKind.Array:
+                    //TODO: This might be a bad idea, since the array might contain objects .
                     await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
 
@@ -171,6 +178,7 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
+                    // TODO: This should be tested, but from my current understanding it won't work at the current state. 
                     await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
             }
@@ -258,10 +266,9 @@ namespace Simplic.OxS.Server
         private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
-
-
             var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path.ToLower() == path.ToLower());
 
+            //Func to create an instance of the generic type of the collection. 
             var func = new Func<object>(() =>
             {
                 var itemType = originalCollection.GetType().GetGenericArguments()[0];
@@ -288,7 +295,6 @@ namespace Simplic.OxS.Server
             }
 
             originalCollection.Add(obj);
-
         }
 
         private async Task SetSourceValueAtPath(object patch, object original, string path,
@@ -401,7 +407,6 @@ namespace Simplic.OxS.Server
 
             throw new ArgumentException($"Collection at {path} does not derive from IList");
         }
-
 
         public PatchConfiguration Configuration { get; set; }
     }

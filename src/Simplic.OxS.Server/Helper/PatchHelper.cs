@@ -287,7 +287,7 @@ namespace Simplic.OxS.Server
                 Path = path,
                 Property = path.Split(".").Last(),
                 Type = ValidationRequestType.AddItem,
-                PatchItem = obj,
+                PatchItem = patchItem,
                 OriginalItem = obj
             }))
             {

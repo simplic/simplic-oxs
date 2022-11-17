@@ -326,6 +326,10 @@ namespace Simplic.OxS.Server
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
+                
+                if (propertyName.ToLower() == "id")
+                    return;
+
                 var patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
                 var originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 

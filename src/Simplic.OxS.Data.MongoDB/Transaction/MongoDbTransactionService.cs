@@ -46,10 +46,14 @@ namespace Simplic.OxS.Data.MongoDB
         /// <inheritdoc/>
         public async Task<ITransaction> CreateAsync()
         {
-            return new MongoTransaction
+            var transaction = new MongoTransaction
             {
                 Session = await context.MongoClient.StartSessionAsync()
             };
+
+            transaction.Session.StartTransaction();
+
+            return transaction;
         }
     }
 }

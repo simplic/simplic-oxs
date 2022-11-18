@@ -106,6 +106,8 @@ namespace Simplic.OxS.Data.MongoDB
         /// <returns></returns>
         public virtual async Task CreateAsync(TDocument document, ITransaction transaction)
         {
+            await Initialize();
+
             if (transaction == null)
                 throw new System.ArgumentNullException(nameof(transaction));
 

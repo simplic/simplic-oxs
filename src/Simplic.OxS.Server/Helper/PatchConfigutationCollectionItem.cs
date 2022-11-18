@@ -5,7 +5,7 @@
     /// </summary>
     public class PatchConfigutationCollectionItem
     {
-        private Func<object, Task<object>> action;
+        private Func<object, object> action;
 
         /// <summary>
         /// Adds an action that should happen
@@ -13,9 +13,9 @@
         /// <typeparam name="TPatchItem">The type of the collection item in the patch.</typeparam>
         /// <typeparam name="TNewItem">The type of the new item.</typeparam>
         /// <param name="addItemFunc"></param>
-        public void ChangeAddItem<TPatchItem, TNewItem>(Func<TPatchItem, Task<TNewItem>> addItemFunc)
+        public void ChangeAddItem<TPatchItem, TNewItem>(Func<TPatchItem, TNewItem> addItemFunc)
         {
-            action = (o) => { return Task.FromResult<object>(addItemFunc((TPatchItem)o)); };
+            action = (o) => { return addItemFunc((TPatchItem)o); };
         }
 
         /// <summary>
@@ -23,9 +23,9 @@
         /// </summary>
         /// <param name="original"></param>
         /// <param name="patch"></param>
-        internal async Task ApplyChange( object patch)
+        internal object GetNewItem( object patch)
         {
-            await action.Invoke(patch);
+            return action.Invoke(patch);
         }
 
         /// <summary>

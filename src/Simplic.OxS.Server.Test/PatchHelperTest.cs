@@ -621,5 +621,39 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.TestInt.Should().Be(mappedTestPerson.TestInt);
             patchedTestPerson.LastName.Should().Be("Doe");
         }
+
+        /// <summary>
+        /// Tests whether the patch method will add a new item to the original object.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ListAddContentWithConfigration_AddsTheItem()
+        {
+            var originalTestPerson = new TestPerson();
+
+            var patchRequest = new TestPersonRequest();
+            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
+            {
+                PhoneNumber = "5678"
+            });
+
+            var json = @"{""PhoneNumbers"" : [{ ""PhoneNumber"" : ""5678"" }]}";
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForCollcectionPath("PhoneNumbers").ChangeAddItem<TestPhoneNumberRequest, TestPhoneNumber>(x =>
+                {
+                    return new TestPhoneNumber();
+                });
+
+                return cfg;
+            });
+
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
+        }
     }
 }

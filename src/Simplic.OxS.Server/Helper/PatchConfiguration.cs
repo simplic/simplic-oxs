@@ -22,6 +22,24 @@
         }
 
         /// <summary>
+        /// Adds a new patch configuration item for a path that starts and ends with the given parameters.
+        /// </summary>
+        /// <param name="start">The sta</param>
+        /// <returns></returns>
+        public PatchConfigurationItem ForPath(string start, string end)
+        {
+            var item = new PatchConfigurationItem()
+            {
+                Path = start,
+                EndPath = end
+            };
+
+            Items.Add(item);
+            return item;
+        }
+
+
+        /// <summary>
         /// Adds a new patch configuration item for the given collection path.
         /// </summary>
         /// <param name="path"></param>

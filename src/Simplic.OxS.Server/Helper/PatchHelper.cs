@@ -86,10 +86,13 @@ namespace Simplic.OxS.Server
         /// <typeparam name="T">Type of the documents and the return type.</typeparam>
         /// <param name="originalDocument">The original document.</param>
         /// <param name="patch">The document containing the patch values.</param>
-        /// <param name="doc">The json document as json element. Should be the root element of the current context.</param>
+        /// <param name="jsonDocument">The json document as json element. Should be the root element of the current context.</param>
         /// <param name="validationRequest">The validation reques func from the patch method.</param>
+        /// <param name="startingPath">The path the handle document is started with, used since collections sometimes
+        /// just use their relative path in the collection and need to append the starting path to get a full path to
+        /// the patched property.</param>
         /// <returns>The original document with the patch applied.</returns>
-        private async Task<T> HandleDocument<T>(T originalDocument, object patch, JsonElement doc,
+        private async Task<T> HandleDocument<T>(T originalDocument, object patch, JsonElement jsonDocument,
             Func<ValidationRequest, bool> validationRequest, string startingPath)
         {
             if (originalDocument == null)
@@ -98,8 +101,8 @@ namespace Simplic.OxS.Server
             if (patch == null)
                 throw new ArgumentNullException(nameof(patch));
 
-            var queue = new Queue<(string ParentPath, JsonElement element)>();
-            queue.Enqueue(("", doc));
+            var queue = new Queue<(string parentPath, JsonElement element)>();
+            queue.Enqueue(("", jsonDocument));
 
             while (queue.Any())
             {
@@ -113,6 +116,7 @@ namespace Simplic.OxS.Server
                             : parentPath + ".";
                         foreach (var nextEl in element.EnumerateObject())
                         {
+                            // Enqueue inner proeprties with their full path.
                             queue.Enqueue(($"{parentPath}{nextEl.Name}", nextEl.Value));
                         }
                         break;
@@ -122,6 +126,7 @@ namespace Simplic.OxS.Server
                                     GetCollection(patch, parentPath), parentPath, validationRequest, parentPath);
                         break;
 
+                    // Sets the value for all types that are not array or object.
                     case JsonValueKind.Undefined:
                     case JsonValueKind.String:
                     case JsonValueKind.Number:
@@ -148,6 +153,7 @@ namespace Simplic.OxS.Server
         /// <param name="patchCollection">The collection of the patch document.</param>
         /// <param name="path">The path to the array.</param>
         /// <param name="validationRequest">The validation request from the patch.</param>
+        /// <param name="fullPath">The full path to the array.</param>
         private async Task HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
              string path, Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
@@ -164,6 +170,7 @@ namespace Simplic.OxS.Server
                     break;
 
                 case JsonValueKind.Array:
+                    //TODO: This might be a bad idea, since the array might contain objects .
                     await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
 
@@ -171,6 +178,7 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
+                    // TODO: This should be tested, but from my current understanding it won't work at the current state. 
                     await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;
             }
@@ -213,6 +221,18 @@ namespace Simplic.OxS.Server
 
                 if (elements.Any(x => x.Name.ToLower() == "_remove" && x.Value.GetBoolean()))
                 {
+                    if (!validationRequest(new ValidationRequest
+                    {
+                        Path = path,
+                        Property = path.Split(".").Last(),
+                        Type = ValidationRequestType.RemoveItem,
+                        OriginalItem = originalCollection.OfType<IItemId>().First(x => x.Id == idGuid),
+                        PatchItem = originalCollection.OfType<IItemId>().First(x => x.Id == idGuid)
+                    }))
+                    {
+                        throw new BadRequestException($"Removing of item to {path} is forbidden in the current state.");
+                    }
+
                     originalCollection.Remove(originalCollection.OfType<IItemId>().First(x => x.Id == idGuid));
                     continue;
                 }
@@ -248,6 +268,7 @@ namespace Simplic.OxS.Server
         {
             var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path.ToLower() == path.ToLower());
 
+            //Func to create an instance of the generic type of the collection. 
             var func = new Func<object>(() =>
             {
                 var itemType = originalCollection.GetType().GetGenericArguments()[0];
@@ -258,81 +279,111 @@ namespace Simplic.OxS.Server
             // Activator otherwise.
             var obj = configItem != null ? configItem.GetNewItem(patchItem) : func();
 
-            originalCollection.Add(obj);
-
             await HandleDocument(obj, patchItem, jsonElement, validationRequest, path);
+
+            //here boh the patch and the original item are set to the obj, since both make sense in a way.
+            if (!validationRequest(new ValidationRequest
+            {
+                Path = path,
+                Property = path.Split(".").Last(),
+                Type = ValidationRequestType.AddItem,
+                PatchItem = patchItem,
+                OriginalItem = obj
+            }))
+            {
+                throw new BadRequestException($"Adding of item to {path} is forbidden in the current state.");
+            }
+
+            originalCollection.Add(obj);
         }
 
-        private async Task SetSourceValueAtPath(object source, object target, string path,
+        private async Task SetSourceValueAtPath(object patch, object original, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
-            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower());
+            var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
+                (fullPath.ToLower().StartsWith(x.Path) && fullPath.ToLower().EndsWith(x.EndPath)));
 
             if (configItem != null)
             {
-                await configItem.ApplyChange(target, source);
+                if (!validationRequest.Invoke(new ValidationRequest
+                {
+                    Path = fullPath,
+                    Property = fullPath.Split(".").Last(),
+                    Type = ValidationRequestType.UpdateProperty,
+                    OriginalItem = original,
+                    PatchItem = patch
+                }))
+                    throw new BadRequestException($"Validation on {path} failed with value {patch}");
+
+                await configItem.ApplyChange(original, patch);
                 return;
             }
 
-
-            Type currentSourceType = source.GetType();
-            Type currentTargetType = target.GetType();
+            Type currentPatchType = patch.GetType();
+            Type currentOriginalType = original.GetType();
             var splitPath = path.Split(".");
 
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
-                var property = currentSourceType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-                var targetProperty = currentTargetType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                
+                if (propertyName.ToLower() == "id")
+                    return;
 
-                if (property == null)
-                    throw new BadRequestException($"{currentSourceType.Name} does not contain property: {propertyName}");
+                var patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                var originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
-                if (targetProperty == null)
-                    throw new BadRequestException($"{currentTargetType.Name} does not contain property: {propertyName}");
+                if (patchProperty == null)
+                    throw new BadRequestException($"{currentPatchType.Name} does not contain property: {propertyName}");
 
-                currentSourceType = property.PropertyType;
-                var res = property.GetValue(source, null);
+                if (originalProperty == null)
+                    throw new BadRequestException($"{currentOriginalType.Name} does not contain property: {propertyName}");
+
+                currentPatchType = patchProperty.PropertyType;
+                var res = patchProperty.GetValue(patch, null);
                 if (res == null && i != splitPath.Length - 1)
-                    throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
+                    throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
-                source = res;
 
                 if (i == splitPath.Length - 1)
                 {
-                    var valid = validationRequest.Invoke(new ValidationRequest
+                    if (!validationRequest.Invoke(new ValidationRequest
                     {
                         Path = fullPath,
                         Property = propertyName,
-                        Value = source
-                    });
+                        Value = res,
+                        Type = ValidationRequestType.UpdateProperty,
+                        PatchItem = patch,
+                        OriginalItem = original
+                    }))
+                        throw new BadRequestException($"Validation on {path} failed with value {patch}");
 
-                    if (!valid)
-                        throw new BadRequestException($"Validation on {path} failed with value {source}");
+                    patch = res;
 
                     try
                     {
-                        targetProperty.SetValue(target, Convert.ChangeType(source, targetProperty.PropertyType));
+                        originalProperty.SetValue(original, Convert.ChangeType(patch, originalProperty.PropertyType));
                     }
                     catch (InvalidCastException)
                     {
-                        if (targetProperty.PropertyType.IsGenericType && targetProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
-                            if (source == null)
+                        if (originalProperty.PropertyType.IsGenericType && originalProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
+                            if (patch == null)
                             {
-                                targetProperty.SetValue(target, null);
+                                originalProperty.SetValue(original, null);
                                 return;
                             }
 
-                        targetProperty.SetValue(target, Convert.ChangeType(source, Nullable.GetUnderlyingType(targetProperty.PropertyType)));
+                        originalProperty.SetValue(original, Convert.ChangeType(patch, Nullable.GetUnderlyingType(originalProperty.PropertyType)));
                     }
                 }
                 else
                 {
-                    var targetRes = property.GetValue(target, null);
-                    if (targetRes == null)
-                        throw new NullReferenceException($"{currentSourceType.Name}.{propertyName} not initialized.");
+                    var originalValue = patchProperty.GetValue(original, null);
+                    if (originalValue == null)
+                        throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
-                    target = targetRes;
+                    patch = res;
+                    original = originalValue;
                 }
             }
         }
@@ -361,7 +412,6 @@ namespace Simplic.OxS.Server
 
             throw new ArgumentException($"Collection at {path} does not derive from IList");
         }
-
 
         public PatchConfiguration Configuration { get; set; }
     }

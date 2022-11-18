@@ -640,7 +640,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper(cfg =>
             {
-                cfg.ForCollcectionPath("PhoneNumbers").ChangeAddItem<TestPhoneNumberRequest, TestPhoneNumber>(x =>
+                cfg.ForCollectionPath("PhoneNumbers").ChangeAddItem<TestPhoneNumberRequest, TestPhoneNumber>(x =>
                 {
                     return new TestPhoneNumber();
                 });

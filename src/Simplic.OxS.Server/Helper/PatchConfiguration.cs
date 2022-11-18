@@ -26,7 +26,7 @@
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        public PatchConfigutationCollectionItem ForCollcectionPath(string path)
+        public PatchConfigutationCollectionItem ForCollectionPath(string path)
         {
             var item = new PatchConfigutationCollectionItem
             {

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using HotChocolate.Execution.Configuration;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Abstract;
+using Microsoft.AspNetCore.Builder;
 
 namespace Simplic.OxS.Server.Extensions
 {
@@ -15,19 +16,23 @@ namespace Simplic.OxS.Server.Extensions
 	{
 		/// <summary>
 		/// Enable the use of GraphQL within the simplic eco system 
-		/// In order to work you will need to implement the <see cref="QueryBase"/>
+		/// In order to work you will need to implement the <see cref="IQueryBase"/>
 		/// </summary>
 		/// <param name="services"></param>
 		/// <returns></returns>
-		internal static IServiceCollection UseSimplicGraphQL(this IServiceCollection services)
+		internal static IServiceCollection UseSimplicGraphQL(this IServiceCollection services, Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder)
 		{
+			
 			services.AddGraphQLServer()
 						.AddHttpRequestInterceptor<HttpRequestInterceptor>()
 						.AddAuthorization()
-						.AddQueryType<QueryBase>()
+						.AddQueryType<IQueryBase>()
 						.AddMongoDbFiltering()
 						.AddMongoDbProjections()
 						.AddMongoDbSorting();
+
+			builder.MapGraphQL();
+
 			return services;
 		}
 	}

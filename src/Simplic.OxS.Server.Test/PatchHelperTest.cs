@@ -39,8 +39,6 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.FirstName.Should().Be("John");
         }
 
-
-
         /// <summary>
         /// Tests whether the patch method will patch a single and the right property 
         /// when called with the right parameters (ignore property case).

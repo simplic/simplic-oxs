@@ -39,8 +39,6 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.FirstName.Should().Be("John");
         }
 
-
-
         /// <summary>
         /// Tests whether the patch method will patch a single and the right property 
         /// when called with the right parameters (ignore property case).
@@ -665,12 +663,9 @@ namespace Simplic.OxS.Server.Test
         [Fact]
         public async Task Patch_JSON_Employee()
         {
-            var originalTestPerson = new Employee()
-            {
-               
-            };
+            var originalTestPerson = new Employee(){};
 
-            var patchRequest = new UpdateEmployeeRequest()
+            var patchRequest = new EmployeeBaseModel()
             {
                 Address = new AddressModel() { FirstName = "Test" }
             };
@@ -679,12 +674,12 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestEmployee = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
 
-            patchedTestPerson.Address.FirstName.Should().Be("Test");
+            patchedTestEmployee.Address.FirstName.Should().Be("Test");
         }
     }
 }

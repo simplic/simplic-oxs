@@ -20,9 +20,8 @@ namespace Simplic.OxS.Server.Extensions
 		/// </summary>
 		/// <param name="services"></param>
 		/// <returns></returns>
-		internal static IServiceCollection UseSimplicGraphQL(this IServiceCollection services, Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder)
+		internal static IServiceCollection UseSimplicGraphQL(this IServiceCollection services)
 		{
-			
 			services.AddGraphQLServer()
 						.AddHttpRequestInterceptor<HttpRequestInterceptor>()
 						.AddAuthorization()
@@ -31,7 +30,6 @@ namespace Simplic.OxS.Server.Extensions
 						.AddMongoDbProjections()
 						.AddMongoDbSorting();
 
-			builder.MapGraphQL();
 
 			return services;
 		}

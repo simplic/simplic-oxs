@@ -378,12 +378,13 @@ namespace Simplic.OxS.Server
                 }
                 else
                 {
-                    var originalValue = patchProperty.GetValue(original, null);
+                    var originalValue = originalProperty.GetValue(original, null);
                     if (originalValue == null)
                         throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
                     patch = res;
                     original = originalValue;
+                    currentOriginalType = original.GetType();
                 }
             }
         }

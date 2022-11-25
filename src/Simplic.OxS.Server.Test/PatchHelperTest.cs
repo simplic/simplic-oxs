@@ -655,5 +655,31 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.PhoneNumbers.First().PhoneNumber.Should().Be("5678");
         }
+
+        /// <summary>
+        /// Tests whether the patch method will patch a single and the right property 
+        /// when called with the right parameters.
+        /// </summary>
+        [Fact]
+        public async Task Patch_JSON_Employee()
+        {
+            var originalTestPerson = new Employee(){};
+
+            var patchRequest = new EmployeeBaseModel()
+            {
+                Address = new AddressModel() { FirstName = "Test" }
+            };
+
+            var json = "{ \"address\": { \"firstName\": \"string\" }}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestEmployee = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestEmployee.Address.FirstName.Should().Be("Test");
+        }
     }
 }

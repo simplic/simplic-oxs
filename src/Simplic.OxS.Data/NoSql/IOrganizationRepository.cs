@@ -1,4 +1,6 @@
-﻿namespace Simplic.OxS.Data
+﻿using HotChocolate;
+
+namespace Simplic.OxS.Data
 {
     /// <summary>
     /// Basic repository
@@ -17,5 +19,11 @@
         /// <param name="queryAllOrganizations"></param>
         /// <returns>Entity</returns>
         Task<TDocument> GetAsync(TId id, bool queryAllOrganizations = false);
-    }
+
+        /// <summary>
+        /// Gets the collection of an document as an executeable.
+        /// </summary>
+        /// <returns></returns>
+		Task<IExecutable<TDocument>> GetCollection();
+	}
 }

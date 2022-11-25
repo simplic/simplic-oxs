@@ -63,7 +63,7 @@ namespace Simplic.OxS.Server.Extensions
 
                 // Set the comments path for the Swagger JSON and UI.
                 var xmlFile = $"{Assembly.GetEntryAssembly().GetName().Name}.xml";
-                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                var xmlPath = System.IO.Path.Combine(AppContext.BaseDirectory, xmlFile);
 
                 if (File.Exists(xmlPath))
                 {

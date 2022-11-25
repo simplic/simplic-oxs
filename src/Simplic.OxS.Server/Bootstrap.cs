@@ -13,6 +13,7 @@ using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
+using StackExchange.Redis;
 
 namespace Simplic.OxS.Server
 {
@@ -65,6 +66,10 @@ namespace Simplic.OxS.Server
             services.AddSingleton(mapper);
 
             services.AddTransient<IMapService, MapService>();
+
+            var redisUrl = Configuration.GetValue<string>("Redis:RedisCacheUrl");
+            var existingConnection = ConnectionMultiplexer.Connect(redisUrl);
+            services.AddTransient<IResourceLockingService, ResourceLockingService>(x => new ResourceLockingService(existingConnection));
 
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();

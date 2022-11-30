@@ -16,7 +16,7 @@ namespace Simplic.OxS.ResourceLocking
         /// <param name="services">Service collection</param>
         /// <param name="Assemblies">List of assemblies that should be loaded for reading hook definitions</param>
         /// <returns>Service collection instance</returns>
-        public static IServiceCollection AddResourceLocking(this IServiceCollection services, IConnectionMultiplexer connectionMultiplexer, IList<string>? assemblies = null)
+        public static IServiceCollection AddResourceLocking(this IServiceCollection services, IConfiguration configuration, IList<string>? assemblies = null)
         {
             if (assemblies != null)
             {
@@ -34,7 +34,10 @@ namespace Simplic.OxS.ResourceLocking
                 }
             }
 
-            var resourceLockingService = new ResourceLockingService(connectionMultiplexer);
+            var redisUrl = configuration.GetValue<string>("Redis:RedisCacheUrl");
+            var existingConnection = ConnectionMultiplexer.Connect(redisUrl);
+
+            var resourceLockingService = new ResourceLockingService(existingConnection);
 
             services.AddSingleton((x) => resourceLockingService);
 

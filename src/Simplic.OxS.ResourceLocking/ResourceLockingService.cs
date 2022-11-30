@@ -5,10 +5,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Simplic.OxS.Data
+namespace Simplic.OxS.ResourceLocking
 {
     /// <inheritdoc/>
-    public class ResourceLockingService : IResourceLockingService
+    public class ResourceLockingService
     {
         private readonly IDatabase database;
 

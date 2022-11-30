@@ -69,7 +69,6 @@ namespace Simplic.OxS.Server
 
             var redisUrl = Configuration.GetValue<string>("Redis:RedisCacheUrl");
             var existingConnection = ConnectionMultiplexer.Connect(redisUrl);
-            services.AddTransient<IResourceLockingService, ResourceLockingService>(x => new ResourceLockingService(existingConnection));
 
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();

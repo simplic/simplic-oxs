@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Simplic.OxS.Data;
+using Simplic.OxS.Server.Controller;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,16 +9,16 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Simplic.OxS.Server.Controller
+namespace Simplic.OxS.ResourceLocking
 {
     [Authorize]
     [ApiController]
     [Route("[controller]")]
     public class ResourceLockingController : OxSController
     {
-        private readonly IResourceLockingService resourceLockingService;
+        private readonly ResourceLockingService resourceLockingService;
 
-        public ResourceLockingController(IResourceLockingService resourceLockingService)
+        public ResourceLockingController(ResourceLockingService resourceLockingService)
         {
             this.resourceLockingService = resourceLockingService;
         }

@@ -5,16 +5,16 @@ using StackExchange.Redis;
 namespace Simplic.OxS.ResourceLocking
 {
     /// <summary>
-    /// Adds the possibility to add hook definitions to a service
+    /// Allows adding resource locking to services.
     /// </summary>
     public static class ResourceLockingExtension
     {
         /// <summary>
-        /// Adds the mongodb extension
+        /// Adds resource locking service to services.
         /// </summary>
-        /// <param name="services">Service collection</param>
-        /// <param name="Assemblies">List of assemblies that should be loaded for reading hook definitions</param>
-        /// <returns>Service collection instance</returns>
+        /// <param name="services">The service collection</param>
+        /// <param name="configuration">The configuration</param>
+        /// <returns></returns>
         public static IServiceCollection AddResourceLocking(this IServiceCollection services, IConfiguration configuration)
         {
             var redisUrl = configuration.GetValue<string>("Redis:RedisCacheUrl");

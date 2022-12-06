@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.ResourceLocking
+﻿namespace Simplic.OxS.ResourceLocking
 {
     /// <summary>
     /// Service for locking resources from being edited by another user.

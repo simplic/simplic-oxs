@@ -10,9 +10,9 @@ namespace Simplic.OxS.ResourceLocking
     [Route("[controller]")]
     public class ResourceLockingController : OxSController
     {
-        private readonly IResourceLockingService resourceLockingService;
+        private readonly ResourceLockingService resourceLockingService;
 
-        public ResourceLockingController(IResourceLockingService resourceLockingService)
+        public ResourceLockingController(ResourceLockingService resourceLockingService)
         {
             this.resourceLockingService = resourceLockingService;
         }
@@ -46,7 +46,7 @@ namespace Simplic.OxS.ResourceLocking
             return Ok(resourceLockingService.ReleaseLock(resourceId, userId));
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{resourceId}")]
         [ProducesResponseType(typeof(bool), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.BadRequest)]
         [ProducesResponseType((int)HttpStatusCode.Unauthorized)]

@@ -25,7 +25,8 @@
         /// </summary>
         /// <param name="resourceId">Resource given by ID</param>
         /// <param name="userId">User given by ID</param>
-        void RefreshLock(Guid resourceId, Guid userId);
+        /// <returns>Success state</returns>
+        bool RefreshLock(Guid resourceId, Guid userId);
 
         /// <summary>
         /// Checks if a given resource is locked.

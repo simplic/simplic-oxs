@@ -37,12 +37,15 @@ namespace Simplic.OxS.ResourceLocking
         }
 
         /// <inheritdoc/>
-        public void RefreshLock(Guid resourceId, Guid userId)
+        public bool RefreshLock(Guid resourceId, Guid userId)
         {
             var key = resourceId.ToString();
 
-            if (database.StringGet(key).Equals(userId.ToString()))
-                database.KeyExpire(key, expireTime);
+            if (!database.StringGet(key).Equals(userId.ToString()))
+                return false;
+                
+            database.KeyExpire(key, expireTime);
+            return true;
         }
 
         /// <inheritdoc/>

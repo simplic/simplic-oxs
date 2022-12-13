@@ -122,8 +122,7 @@ namespace Simplic.OxS.Server
                         break;
 
                     case JsonValueKind.Array:
-                        await HandleArray(element, GetCollection(originalDocument, parentPath),
-                                    GetCollection(patch, parentPath), parentPath, validationRequest, parentPath);
+                        await HandleArray(element, originalDocument, patch, parentPath, validationRequest, parentPath);
                         break;
 
                     // Sets the value for all types that are not array or object.
@@ -154,7 +153,7 @@ namespace Simplic.OxS.Server
         /// <param name="path">The path to the array.</param>
         /// <param name="validationRequest">The validation request from the patch.</param>
         /// <param name="fullPath">The full path to the array.</param>
-        private async Task HandleArray(JsonElement element, IList originalCollection, IList patchCollection,
+        private async Task HandleArray(JsonElement element, object original, object patch,
              string path, Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
             var elements = element.EnumerateArray().ToList();
@@ -166,12 +165,13 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    await HandleObjectArray(element, originalCollection, patchCollection, validationRequest, fullPath);
+                    await HandleObjectArray(element, GetCollection(original, path), GetCollection(patch, path),
+                        validationRequest, fullPath);
                     break;
 
                 case JsonValueKind.Array:
                     //TODO: This might be a bad idea, since the array might contain objects .
-                    await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
+                    await SetSourceValueAtPath(GetCollection(original, path), GetCollection(patch, path), path, validationRequest, fullPath);
                     break;
 
                 case JsonValueKind.String:
@@ -179,7 +179,7 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.True:
                 case JsonValueKind.False:
                     // TODO: This should be tested, but from my current understanding it won't work at the current state. 
-                    await SetSourceValueAtPath(patchCollection, originalCollection, ".", validationRequest, fullPath);
+                    await SetSourceValueAtPath(original, patch, path, validationRequest, fullPath);
                     break;
             }
         }

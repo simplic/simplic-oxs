@@ -179,7 +179,7 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.True:
                 case JsonValueKind.False:
                     // TODO: This should be tested, but from my current understanding it won't work at the current state. 
-                    await SetSourceValueAtPath(original, patch, path, validationRequest, fullPath);
+                    await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
                     break;
             }
         }
@@ -362,7 +362,7 @@ namespace Simplic.OxS.Server
 
                     try
                     {
-                        originalProperty.SetValue(original, Convert.ChangeType(patch, originalProperty.PropertyType));
+                        originalProperty.SetValue(original, patch);
                     }
                     catch (InvalidCastException)
                     {

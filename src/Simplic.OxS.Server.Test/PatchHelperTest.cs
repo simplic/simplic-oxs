@@ -681,5 +681,32 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestEmployee.Address.FirstName.Should().Be("Test");
         }
+
+        /// <summary>
+        /// Tests whether the patch method will add a new item to the original object.
+        /// </summary>
+        [Fact]
+        public async Task Patch_SimpleList_PatchesList()
+        {
+            var originalTestPerson = new TestPerson();
+
+            originalTestPerson.Tags.Add("Test");
+
+            var patchRequest = new TestPersonRequest();
+            patchRequest.Tags.Add("Test");
+            patchRequest.Tags.Add("Tag");
+
+            var json = @"{""Tags"" : [""Test"", ""Tag"" ]}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.Tags.Should().Contain("Test");
+            patchedTestPerson.Tags.Should().Contain("Tag");
+        }
     }
 }

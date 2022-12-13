@@ -29,5 +29,8 @@ namespace Simplic.OxS.Server.Test
 
         public IList<TestPhoneNumber> PhoneNumbers { get; set; }
             = new List<TestPhoneNumber>();
+
+        public IList<string> Tags { get; set; }
+            = new List<string>();
     }
 }

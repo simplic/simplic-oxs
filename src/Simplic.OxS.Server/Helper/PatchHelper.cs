@@ -178,6 +178,9 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
+                    originalCollection = patchCollection;
+                    break;
+
                     // TODO: This should be tested, but from my current understanding it won't work at the current state. 
                     await SetSourceValueAtPath(patchCollection, originalCollection, path, validationRequest, fullPath);
                     break;

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server.Test
 {
-    public class TestPerson : IDocument<Guid>
+    public class TestPersonRequest : IDocument<Guid>
     {
         public Guid Id { get; set; }
 
@@ -17,20 +17,21 @@ namespace Simplic.OxS.Server.Test
 
         public string? LastName { get; set; }
 
-        public Guid TestGuid { get; set; }
+        public Guid? TestGuid { get; set; }
 
-        public DateTime? TestDateTime { get; set; }
+        public DateTime TestDateTime { get; set; }
 
-        public int TestInt { get; set; }
+        public int? TestInt { get; set; }
 
-        public bool TestBool { get; set; }
+        public bool? TestBool { get; set; }
 
-        public double TestDouble { get; set; }
+        public double? TestDouble { get; set; }
 
-        public IList<TestPhoneNumber> PhoneNumbers { get; set; }
-            = new List<TestPhoneNumber>();
+        public IList<TestPhoneNumberRequest> PhoneNumbers { get; set; }
+            = new List<TestPhoneNumberRequest>();
 
         public IList<string> Tags { get; set; }
             = new List<string>();
+
     }
 }

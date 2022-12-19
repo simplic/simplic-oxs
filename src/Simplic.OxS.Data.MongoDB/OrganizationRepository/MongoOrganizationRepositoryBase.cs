@@ -55,11 +55,12 @@ namespace Simplic.OxS.Data.MongoDB
                 sort = isAscending
                     ? Builders<TDocument>.Sort.Ascending(sortField)
                     : Builders<TDocument>.Sort.Descending(sortField);
+
             var findOptions = new FindOptions();
             if (collation != null)
                 findOptions.Collation = collation;
-            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
 
+            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
         }
 
         public async Task<IEnumerable<TDocument>> GetAllAsync()

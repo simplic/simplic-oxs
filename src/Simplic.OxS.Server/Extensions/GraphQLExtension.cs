@@ -20,7 +20,7 @@ namespace Simplic.OxS.Server.Extensions
 		/// </summary>
 		/// <param name="services"></param>
 		/// <returns></returns>
-		internal static IServiceCollection UseSimplicGraphQL(this IServiceCollection services)
+		public static IServiceCollection UseGraphQL(this IServiceCollection services)
 		{
 			services.AddGraphQLServer()
 						.AddHttpRequestInterceptor<HttpRequestInterceptor>()

@@ -1,3 +1,5 @@
+using HotChocolate;
+using HotChocolate.Data;
 using MongoDB.Driver;
 
 namespace Simplic.OxS.Data.MongoDB
@@ -6,10 +8,12 @@ namespace Simplic.OxS.Data.MongoDB
         where TDocument : IOrganizationDocument<Guid>
         where TFilter : IOrganizationFilter<Guid>, new() 
     {
+        private readonly IMongoContext context;
         private readonly IRequestContext requestContext;
 
         protected MongoOrganizationRepositoryBase(IMongoContext context, IRequestContext requestContext) : base(context)
         {
+            this.context = context;
             this.requestContext = requestContext;
         }
 
@@ -124,6 +128,11 @@ namespace Simplic.OxS.Data.MongoDB
                 ? builder.And(filterQueries)
                 : builder.Empty;
         }
+
+        public async Task<IExecutable<TDocument>> GetCollection()
+        {
+			return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId).AsExecutable();
+		}
     }
 
     public abstract class MongoOrganizationRepositoryBase<TDocument> : MongoOrganizationRepositoryBase<TDocument, OrganizationFilterBase>

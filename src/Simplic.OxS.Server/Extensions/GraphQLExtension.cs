@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Builder;
 
 namespace Simplic.OxS.Server.Extensions
 {
-	internal static class GraphQLExtension
+	public static class GraphQLExtension
 	{
 		/// <summary>
 		/// Enable the use of GraphQL within the simplic eco system 

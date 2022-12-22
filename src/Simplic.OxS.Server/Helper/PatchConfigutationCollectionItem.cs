@@ -19,6 +19,15 @@
         }
 
         /// <summary>
+        /// This method will change the collection handling to take the patched collection as granted without the option
+        /// to add or remove specific objects.
+        /// </summary>
+        public void OverwriteCollectionInPatch()
+        {
+            OverwriteCollection = true;
+        }
+
+        /// <summary>
         /// Calls the delegate.
         /// </summary>
         /// <param name="original"></param>
@@ -33,5 +42,6 @@
         /// </summary>
         public string Path { get; set; }
 
+        internal bool OverwriteCollection { get; set; } = false;
     }
 }

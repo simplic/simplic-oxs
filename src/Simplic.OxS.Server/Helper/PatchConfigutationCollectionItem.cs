@@ -41,7 +41,7 @@
 
         internal object GetAsOriginalType(object patchCollection)
         {
-            return action.Invoke(patchCollection);
+            return getAsOriginalType.Invoke(patchCollection);
         }
 
         /// <summary>

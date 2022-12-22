@@ -20,12 +20,12 @@ namespace Simplic.OxS.Server.Extensions
 		/// </summary>
 		/// <param name="services"></param>
 		/// <returns></returns>
-		public static IServiceCollection UseGraphQL(this IServiceCollection services)
+		public static IServiceCollection UseGraphQL<TQuery>(this IServiceCollection services) where TQuery : class
 		{
 			services.AddGraphQLServer()
 						.AddHttpRequestInterceptor<HttpRequestInterceptor>()
 						.AddAuthorization()
-						.AddQueryType<IQueryBase>()
+						.AddQueryType<TQuery>()
 						.AddMongoDbFiltering()
 						.AddMongoDbProjections()
 						.AddMongoDbSorting();

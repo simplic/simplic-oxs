@@ -165,6 +165,9 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
+                    if(Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                        await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+
                     await HandleObjectArray(element, GetCollection(original, path), GetCollection(patch, path),
                         validationRequest, fullPath);
                     break;

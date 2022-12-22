@@ -122,7 +122,10 @@ namespace Simplic.OxS.Server
                         break;
 
                     case JsonValueKind.Array:
-                        await HandleArray(element, originalDocument, patch, parentPath, validationRequest, parentPath);
+                        var arrayfullPath = parentPath;
+                        if (startingPath != string.Empty)
+                            arrayfullPath = startingPath + "." + parentPath;
+                        await HandleArray(element, originalDocument, patch, parentPath, validationRequest, arrayfullPath);
                         break;
 
                     // Sets the value for all types that are not array or object.

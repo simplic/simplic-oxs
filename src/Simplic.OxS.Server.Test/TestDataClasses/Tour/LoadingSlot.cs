@@ -11,6 +11,6 @@ namespace Simplic.OxS.Server.Test.TestDataClasses.Tour
     {
         public Guid Id { get; set; }
 
-        public string? TestString { get; set; }
+        public string? Name { get; set; }
     }
 }

@@ -368,6 +368,15 @@ namespace Simplic.OxS.Server
 
                     try
                     {
+                        var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
+                            x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection);
+                            
+                        if (collectionConfigItem != null)
+                        {
+                            originalProperty.SetValue(original, collectionConfigItem.GetAsOriginalType(patch));
+                            return;
+                        }
+
                         originalProperty.SetValue(original, patch);
                     }
                     catch (InvalidCastException)

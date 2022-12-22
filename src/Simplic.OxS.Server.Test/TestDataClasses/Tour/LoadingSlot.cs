@@ -10,5 +10,7 @@ namespace Simplic.OxS.Server.Test.TestDataClasses.Tour
     public class LoadingSlot : IItemId
     {
         public Guid Id { get; set; }
+
+        public string? TestString { get; set; }
     }
 }

@@ -168,7 +168,7 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    if(Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                    if (Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
                         await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
 
                     await HandleObjectArray(element, GetCollection(original, path), GetCollection(patch, path),
@@ -331,16 +331,37 @@ namespace Simplic.OxS.Server
             Type currentPatchType = patch.GetType();
             Type currentOriginalType = original.GetType();
             var splitPath = path.Split(".");
+            PropertyInfo? patchProperty = null;
+            PropertyInfo? originalProperty = null;
+            object originalParent = null;
+            object patchParent = null;
 
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
-                
+
                 if (propertyName.ToLower() == "id")
                     return;
 
-                var patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-                var originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                if (currentOriginalType.IsGenericType && currentOriginalType.GetGenericTypeDefinition() 
+                    == typeof(Dictionary<,>))
+                {
+                    Type[] types = currentOriginalType.GetGenericArguments();
+                    Type keyType = types[0];
+                    Type valueType = types[1];
+                    Type genericType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+
+                    var dict = patchProperty.GetValue(patchParent, null) as IDictionary;
+                    var value = dict[propertyName];
+
+                    dict = originalProperty.GetValue(originalParent, null) as IDictionary;
+                    dict[propertyName] = value;
+
+                    return;
+                }
+
+                patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
                 if (patchProperty == null)
                     throw new BadRequestException($"{currentPatchType.Name} does not contain property: {propertyName}");
@@ -373,7 +394,7 @@ namespace Simplic.OxS.Server
                     {
                         var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
                             x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection);
-                            
+
                         if (collectionConfigItem != null)
                         {
                             originalProperty.SetValue(original, collectionConfigItem.GetAsOriginalType(patch));
@@ -381,6 +402,7 @@ namespace Simplic.OxS.Server
                         }
 
                         originalProperty.SetValue(original, patch);
+
                     }
                     catch (InvalidCastException)
                     {
@@ -400,7 +422,9 @@ namespace Simplic.OxS.Server
                     if (originalValue == null)
                         throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
+                    patchParent = patch;
                     patch = res;
+                    originalParent = original;
                     original = originalValue;
                     currentOriginalType = original.GetType();
                 }
@@ -433,6 +457,16 @@ namespace Simplic.OxS.Server
         }
 
         public PatchConfiguration Configuration { get; set; }
+
+        public static object GetDictionaryValue<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key)
+        {
+            return dict[key];
+        }
+
+        public static void SetDictionaryValue<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key, TValue value)
+        {
+            dict[key] = value;
+        }
     }
 }
 

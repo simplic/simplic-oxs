@@ -784,5 +784,22 @@ namespace Simplic.OxS.Server.Test
             originalTour.Actions.First().UsedLoadingSlots.Should().HaveCount(1);
         }
 
+        [Fact]
+        public async Task Patch_Dictionary_AddsNewEntry()
+        {
+            var original = new TestPerson();
+
+            var patch = new TestPerson();
+            patch.AddonProperties.Add("Test", 12);
+
+            var json = JsonConvert.SerializeObject(patch);
+
+            var patchHelper = new PatchHelper();
+            var patched = await patchHelper.Patch<TestPerson>(original, patch, json, x => true);
+
+            patched.AddonProperties.Should().HaveCount(1);
+            patched.AddonProperties.First().Value.Should().Be(12);
+            patched.AddonProperties.First().Key.Should().Be("Test");
+        }
     }
 }

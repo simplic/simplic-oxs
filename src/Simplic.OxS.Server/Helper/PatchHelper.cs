@@ -184,6 +184,9 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
+                    if (Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                        await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+
                     // TODO: This should be tested, but from my current understanding it won't work at the current state. 
                     await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
                     break;

@@ -469,16 +469,6 @@ namespace Simplic.OxS.Server
         }
 
         public PatchConfiguration Configuration { get; set; }
-
-        public static object GetDictionaryValue<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key)
-        {
-            return dict[key];
-        }
-
-        public static void SetDictionaryValue<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key, TValue value)
-        {
-            dict[key] = value;
-        }
     }
 }
 

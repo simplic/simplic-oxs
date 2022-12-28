@@ -420,7 +420,19 @@ namespace Simplic.OxS.Server
                 {
                     var originalValue = originalProperty.GetValue(original, null);
                     if (originalValue == null)
-                        throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
+                    {
+                        try
+                        {
+                            var type = originalProperty.PropertyType;
+                            var value = type.GetConstructor(new Type[] { })?.Invoke(new object[] { });
+                            originalProperty.SetValue(original, value);
+                            originalValue = originalProperty.GetValue(original, null);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception($"Could not initialize not initialized type {currentOriginalType.Name}.{propertyName}");
+                        }
+                    }
 
                     patchParent = patch;
                     patch = res;
@@ -457,16 +469,6 @@ namespace Simplic.OxS.Server
         }
 
         public PatchConfiguration Configuration { get; set; }
-
-        public static object GetDictionaryValue<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key)
-        {
-            return dict[key];
-        }
-
-        public static void SetDictionaryValue<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key, TValue value)
-        {
-            dict[key] = value;
-        }
     }
 }
 

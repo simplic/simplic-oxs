@@ -420,7 +420,19 @@ namespace Simplic.OxS.Server
                 {
                     var originalValue = originalProperty.GetValue(original, null);
                     if (originalValue == null)
-                        throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
+                    {
+                        try
+                        {
+                            var type = originalProperty.PropertyType;
+                            var value = type.GetConstructor(new Type[] { })?.Invoke(new object[] { });
+                            originalProperty.SetValue(original, value);
+                            originalValue = originalProperty.GetValue(original, null);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception($"Could not initialize not initialized type {currentOriginalType.Name}.{propertyName}");
+                        }
+                    }
 
                     patchParent = patch;
                     patch = res;

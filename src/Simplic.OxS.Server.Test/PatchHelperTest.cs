@@ -801,5 +801,26 @@ namespace Simplic.OxS.Server.Test
             patched.AddonProperties.First().Value.Should().Be(12);
             patched.AddonProperties.First().Key.Should().Be("Test");
         }
+
+        [Fact]
+        public async Task Patch_NotInitalized_InitializesNewProperty()
+        {
+            var original = new TestPerson();
+
+            var patch = new TestPersonRequest()
+            {
+                NotInitializedPhoneNumber = new TestPhoneNumberRequest
+                {
+                    PhoneNumber = "32319009878"
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(patch);
+            var patchHelper = new PatchHelper();
+            var patched = await patchHelper.Patch(original, patch, json, x => true);
+
+            patched.NotInitializedPhoneNumber.Should().NotBeNull();
+            patched.NotInitializedPhoneNumber.PhoneNumber.Should().Be(patch.NotInitializedPhoneNumber.PhoneNumber);
+        }
     }
 }

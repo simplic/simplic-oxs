@@ -20,7 +20,9 @@ namespace Simplic.OxS.Data.Service
         {
             AssertRequest(obj, false);
 
-            obj.Id = Guid.NewGuid();
+            if (obj.Id == default)
+                obj.Id = Guid.NewGuid();
+
             obj.OrganizationId = requestContext.OrganizationId.Value;
 
             if (obj is IDocumentDataExtension ext)

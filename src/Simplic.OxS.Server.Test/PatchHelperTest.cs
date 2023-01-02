@@ -1,4 +1,6 @@
 ﻿using FluentAssertions;
+using Newtonsoft.Json;
+using Simplic.OxS.Server.Test.TestDataClasses.Tour;
 using System.Text;
 
 namespace Simplic.OxS.Server.Test
@@ -219,6 +221,40 @@ namespace Simplic.OxS.Server.Test
         /// </summary>
         [Fact]
         public async Task Patch_ListRemoveContent_RemovesTheItem()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "1234"
+            });
+
+            var patchRequest = new TestPersonRequest();
+            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
+            {
+                Id = guid,
+            });
+
+            var json = @"{""PhoneNumbers"" : [{ ""Id"" : """ + guid.ToString() + @""", ""_remove"" : true }]}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.Count().Should().Be(0);
+        }
+
+
+        /// <summary>
+        /// Tests whether the patch method will ignore the _remove property when its set to false.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ListRemoveContentFalse_DoesIgnoreProperty()
         {
             var guid = Guid.NewGuid();
 
@@ -707,6 +743,84 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.Tags.Should().Contain("Test");
             patchedTestPerson.Tags.Should().Contain("Tag");
+        }
+
+        [Fact]
+        public async Task Patch_TourWithLoadingSlot_OverwritesTheCollectionBehaviour()
+        {
+            var actionId = Guid.NewGuid();
+
+            var originalTour = new Tour();
+            originalTour.Actions.Add(new TestDataClasses.Tour.Action { Id = actionId });
+
+
+            var patchTour = new TourModel();
+            var action = new ActionModel { Id = actionId };
+            action.UsedLoadingSlots.Add(new LoadingSlotModel { Id = Guid.NewGuid(), Name = "Test" });
+            patchTour.Actions.Add(action);
+
+            var json = JsonConvert.SerializeObject(patchTour);
+
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForCollectionPath("Actions.UsedLoadingSlots").OverwriteCollectionInPatch<IList<LoadingSlotModel>, IList<LoadingSlot>>(patch =>
+                {
+                    var list = new List<LoadingSlot>();
+                    foreach (var slot in patch)
+                        list.Add(new LoadingSlot
+                        {
+                            Id = slot.Id,
+                            Name = slot.Name
+                        });
+                    return list;
+                });
+
+                return cfg;
+            });
+
+            var res = patchHelper.Patch(originalTour, patchTour, json, x => true);
+
+            originalTour.Actions.First().UsedLoadingSlots.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task Patch_Dictionary_AddsNewEntry()
+        {
+            var original = new TestPerson();
+
+            var patch = new TestPerson();
+            patch.AddonProperties.Add("Test", 12);
+
+            var json = JsonConvert.SerializeObject(patch);
+
+            var patchHelper = new PatchHelper();
+            var patched = await patchHelper.Patch<TestPerson>(original, patch, json, x => true);
+
+            patched.AddonProperties.Should().HaveCount(1);
+            patched.AddonProperties.First().Value.Should().Be(12);
+            patched.AddonProperties.First().Key.Should().Be("Test");
+        }
+
+        [Fact]
+        public async Task Patch_NotInitalized_InitializesNewProperty()
+        {
+            var original = new TestPerson();
+
+            var patch = new TestPersonRequest()
+            {
+                NotInitializedPhoneNumber = new TestPhoneNumberRequest
+                {
+                    PhoneNumber = "32319009878"
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(patch);
+            var patchHelper = new PatchHelper();
+            var patched = await patchHelper.Patch(original, patch, json, x => true);
+
+            patched.NotInitializedPhoneNumber.Should().NotBeNull();
+            patched.NotInitializedPhoneNumber.PhoneNumber.Should().Be(patch.NotInitializedPhoneNumber.PhoneNumber);
         }
     }
 }

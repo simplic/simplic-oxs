@@ -5,10 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <Version>1.0.8422.1214</Version>
+    <Version>1.0.9322.1228</Version>
   </PropertyGroup>
   
   <ItemGroup>
+    <PackageReference Include="HotChocolate" Version="12.15.2" />
+    <PackageReference Include="HotChocolate.AspNetCore" Version="12.15.2" />
+    <PackageReference Include="HotChocolate.AspNetCore.Authorization" Version="12.15.2" />
+    <PackageReference Include="HotChocolate.Data.MongoDb" Version="12.15.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.6" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="6.0.7" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="6.0.6" />

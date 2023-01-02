@@ -33,5 +33,9 @@ namespace Simplic.OxS.Server.Test
         public IList<string> Tags { get; set; }
             = new List<string>();
 
+        public IDictionary<string, object> AddonProperties { get; set; }
+            = new Dictionary<string, object>();
+
+        public TestPhoneNumberRequest? NotInitializedPhoneNumber { get; set; }
     }
 }

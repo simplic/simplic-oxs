@@ -4,11 +4,12 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.5022.1214</Version>
+    <Version>1.0.5122.1221</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="6.7.0" />
+    <PackageReference Include="HotChocolate.Abstractions" Version="12.15.2" />
     <PackageReference Include="MongoDB.Bson" Version="2.17.1" />
     <PackageReference Include="MongoDB.Driver.Core" Version="2.17.1" />
   </ItemGroup>

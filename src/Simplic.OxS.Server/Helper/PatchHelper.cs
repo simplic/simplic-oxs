@@ -122,7 +122,10 @@ namespace Simplic.OxS.Server
                         break;
 
                     case JsonValueKind.Array:
-                        await HandleArray(element, originalDocument, patch, parentPath, validationRequest, parentPath);
+                        var arrayfullPath = parentPath;
+                        if (startingPath != string.Empty)
+                            arrayfullPath = startingPath + "." + parentPath;
+                        await HandleArray(element, originalDocument, patch, parentPath, validationRequest, arrayfullPath);
                         break;
 
                     // Sets the value for all types that are not array or object.
@@ -165,6 +168,9 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
+                    if (Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                        await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+
                     await HandleObjectArray(element, GetCollection(original, path), GetCollection(patch, path),
                         validationRequest, fullPath);
                     break;
@@ -178,6 +184,9 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
+                    if (Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                        await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+
                     // TODO: This should be tested, but from my current understanding it won't work at the current state. 
                     await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
                     break;
@@ -300,6 +309,9 @@ namespace Simplic.OxS.Server
         private async Task SetSourceValueAtPath(object patch, object original, string path,
             Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
+            if (path.EndsWith("_remove"))
+                return;
+
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
                 (fullPath.ToLower().StartsWith(x.Path) && fullPath.ToLower().EndsWith(x.EndPath)));
 
@@ -322,16 +334,37 @@ namespace Simplic.OxS.Server
             Type currentPatchType = patch.GetType();
             Type currentOriginalType = original.GetType();
             var splitPath = path.Split(".");
+            PropertyInfo? patchProperty = null;
+            PropertyInfo? originalProperty = null;
+            object originalParent = null;
+            object patchParent = null;
 
             for (int i = 0; i < splitPath.Length; i++)
             {
                 var propertyName = splitPath[i];
-                
+
                 if (propertyName.ToLower() == "id")
                     return;
 
-                var patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-                var originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                if (currentOriginalType.IsGenericType && currentOriginalType.GetGenericTypeDefinition() 
+                    == typeof(Dictionary<,>))
+                {
+                    Type[] types = currentOriginalType.GetGenericArguments();
+                    Type keyType = types[0];
+                    Type valueType = types[1];
+                    Type genericType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+
+                    var dict = patchProperty.GetValue(patchParent, null) as IDictionary;
+                    var value = dict[propertyName];
+
+                    dict = originalProperty.GetValue(originalParent, null) as IDictionary;
+                    dict[propertyName] = value;
+
+                    return;
+                }
+
+                patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
 
                 if (patchProperty == null)
                     throw new BadRequestException($"{currentPatchType.Name} does not contain property: {propertyName}");
@@ -362,7 +395,17 @@ namespace Simplic.OxS.Server
 
                     try
                     {
+                        var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
+                            x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection);
+
+                        if (collectionConfigItem != null)
+                        {
+                            originalProperty.SetValue(original, collectionConfigItem.GetAsOriginalType(patch));
+                            return;
+                        }
+
                         originalProperty.SetValue(original, patch);
+
                     }
                     catch (InvalidCastException)
                     {
@@ -380,9 +423,23 @@ namespace Simplic.OxS.Server
                 {
                     var originalValue = originalProperty.GetValue(original, null);
                     if (originalValue == null)
-                        throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
+                    {
+                        try
+                        {
+                            var type = originalProperty.PropertyType;
+                            var value = type.GetConstructor(new Type[] { })?.Invoke(new object[] { });
+                            originalProperty.SetValue(original, value);
+                            originalValue = originalProperty.GetValue(original, null);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception($"Could not initialize not initialized type {currentOriginalType.Name}.{propertyName}");
+                        }
+                    }
 
+                    patchParent = patch;
                     patch = res;
+                    originalParent = original;
                     original = originalValue;
                     currentOriginalType = original.GetType();
                 }

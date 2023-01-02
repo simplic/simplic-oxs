@@ -18,12 +18,13 @@ namespace Simplic.OxS.Server.Extensions
             var req = services.AddGraphQLServer()
                         .AddHttpRequestInterceptor<HttpRequestInterceptor>()
                         .AddAuthorization()
-                        .AddQueryType<TQuery>()
-                        .AddMongoDbFiltering()
-                        .AddMongoDbProjections()
-                        .AddMongoDbSorting();
+                        .AddQueryType<TQuery>();
 
             builder?.Invoke(req);
+
+            req.AddMongoDbFiltering()
+               .AddMongoDbProjections()
+               .AddMongoDbSorting();
 
             return services;
         }

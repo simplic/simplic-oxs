@@ -76,7 +76,8 @@ namespace Simplic.OxS.Data.MongoDB
         {
             return await GetByFilterAsync(new TFilter
             {
-                QueryAllOrganizations = queryAllOrganizations
+                QueryAllOrganizations = queryAllOrganizations,
+                IsDeleted = false
             });
         }
 

@@ -18,7 +18,7 @@
         /// <summary>
         /// Gets or sets whether to filter deleted data
         /// </summary>
-        public bool? IsDeleted { get; set; } = false;
+        public bool? IsDeleted { get; set; }
         public bool QueryAllOrganizations { get; set; } = false;
         public IList<Guid> IncludeIds { get; set; }
         public Guid? ExcludeId { get; set; }

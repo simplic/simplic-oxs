@@ -26,7 +26,7 @@ namespace Simplic.OxS.Server.Middleware
         /// <param name="httpContext">Http context instance</param>
         public async Task Invoke(HttpContext httpContext)
         {
-            if (httpContext.Request.Method?.ToUpper() == "PATCH")
+            if (httpContext.Request.Method?.ToUpper() == "PATCH" || httpContext.Request.Method?.ToUpper() == "POST")
             {
                 // enable buffering in order to see raw object
                 httpContext.Request.EnableBuffering();

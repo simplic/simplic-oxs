@@ -313,7 +313,7 @@ namespace Simplic.OxS.Server
                 return;
 
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
-                (fullPath.ToLower().StartsWith(x.Path) && fullPath.ToLower().EndsWith(x.EndPath)));
+                (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())));
 
             if (configItem != null)
             {

@@ -828,7 +828,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
         /// </summary>
         [Fact]
-        public async Task Patch_LowerCaseJson_AllDataIsWritten2()
+        public async Task Patch_ItemsInItems_PatchesWithAStartAndEndPatchConfiguration()
         {
             var typeId = Guid.NewGuid();
 
@@ -858,7 +858,6 @@ namespace Simplic.OxS.Server.Test
                     }
                 }
             };
-
 
             var json = JsonConvert.SerializeObject(patchedTransaction, settings: new JsonSerializerSettings
             {

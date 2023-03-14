@@ -1,4 +1,4 @@
-﻿namespace Simplic.OxS.Server.Test.TestDataClasses.ERP.Simple
+﻿namespace Simplic.OxS.Server.Test.TestDataClasses.ERP
 {
     /// <summary>
     /// Just a sample type to fill for easier assertion.

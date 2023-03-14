@@ -846,7 +846,13 @@ namespace Simplic.OxS.Server.Test
                         {
                             new TransactionItemRequest
                             {
-                                TypeId = typeId
+                                Items = new List<TransactionItemRequest>
+                                {
+                                    new TransactionItemRequest
+                                    {
+                                        TypeId = typeId
+                                    }
+                                }
                             }
                         }
                     }
@@ -880,7 +886,7 @@ namespace Simplic.OxS.Server.Test
             var patchedTestPerson = await patchHelper.Patch<Transaction>(originalTransaction, patchedTransaction, json, null);
 
 
-            patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
+            patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
         }
     }
 }

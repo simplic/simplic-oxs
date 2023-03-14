@@ -826,7 +826,7 @@ namespace Simplic.OxS.Server.Test
         }
 
         /// <summary>
-        /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
+        /// Tests whether the patch helper will patch items with partial paths given in the configuration.
         /// </summary>
         [Fact]
         public async Task Patch_ItemsInItems_PatchesWithAStartAndEndPatchConfiguration()
@@ -837,7 +837,7 @@ namespace Simplic.OxS.Server.Test
             {
             };
 
-            var patchedTransaction = new TransactionRequest
+            var transactionRequest = new TransactionRequest
             {
                 Items = new List<TransactionItemRequest>
                 {
@@ -860,7 +860,7 @@ namespace Simplic.OxS.Server.Test
                 }
             };
 
-            var json = JsonConvert.SerializeObject(patchedTransaction, settings: new JsonSerializerSettings
+            var json = JsonConvert.SerializeObject(transactionRequest, settings: new JsonSerializerSettings
             {
                 NullValueHandling = NullValueHandling.Ignore,
                 Formatting = Formatting.Indented,
@@ -883,27 +883,25 @@ namespace Simplic.OxS.Server.Test
                 return cfg;
             });
 
-            var patchedTestPerson = await patchHelper.Patch(originalTransaction, patchedTransaction, json, null);
+            var patchedTransaction = await patchHelper.Patch(originalTransaction, transactionRequest, json, null);
 
-            patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
+            patchedTransaction.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
         }
 
         /// <summary>
-        /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
+        /// Tests whether the patch method change the add item behaviour right when a partial path is configured.
         /// </summary>
         [Fact]
-        public async Task Patch_ItemsInItems_PatchesWithAStartAndEndPatchConfiguration2()
+        public async Task Patch_AddingItemsInItemsInItems_CallsTheCahngeAddItemWithPartialPaths()
         {
             var groupTypeId = Guid.NewGuid();
             var articleTypeId = Guid.NewGuid();
-
-
 
             var originalTransaction = new Transaction
             {
             };
 
-            var patchedTransaction = new TransactionRequest
+            var transactionRequest = new TransactionRequest
             {
                 Items = new List<TransactionItemRequest>
                 {
@@ -928,7 +926,7 @@ namespace Simplic.OxS.Server.Test
                 }
             };
 
-            var json = JsonConvert.SerializeObject(patchedTransaction, settings: new JsonSerializerSettings
+            var json = JsonConvert.SerializeObject(transactionRequest, settings: new JsonSerializerSettings
             {
                 NullValueHandling = NullValueHandling.Ignore,
                 Formatting = Formatting.Indented,
@@ -941,13 +939,13 @@ namespace Simplic.OxS.Server.Test
                     if (!patch.TypeId.HasValue)
                         throw new Exception();
 
-                    if(patch.TypeId.Value == groupTypeId)
+                    if (patch.TypeId.Value == groupTypeId)
                         original.Type = new TransactionItemType
                         {
                             Id = patch.TypeId.Value,
                             Name = "Group"
                         };
-                    
+
                     if (patch.TypeId.Value == articleTypeId)
                         original.Type = new TransactionItemType
                         {
@@ -976,18 +974,18 @@ namespace Simplic.OxS.Server.Test
                 return cfg;
             });
 
-            var patchedTestPerson = await patchHelper.Patch(originalTransaction, patchedTransaction, json, null);
+            var patchedTransaction = await patchHelper.Patch(originalTransaction, transactionRequest, json, null);
 
-            patchedTestPerson.Should().NotBeNull();
-            patchedTestPerson.Items.Should().ContainSingle();
-            patchedTestPerson.Items.First().Should().BeOfType<GroupTransactionItem>();
-            var firstGroup = patchedTestPerson.Items.First() as GroupTransactionItem;
+            patchedTransaction.Should().NotBeNull();
+            patchedTransaction.Items.Should().ContainSingle();
+            patchedTransaction.Items.First().Should().BeOfType<GroupTransactionItem>();
+            var firstGroup = patchedTransaction.Items.First() as GroupTransactionItem;
             firstGroup.Items.Should().ContainSingle();
             firstGroup.Items.First().Should().BeOfType<GroupTransactionItem>();
             var secondGroup = firstGroup.Items.First() as GroupTransactionItem;
             secondGroup.Items.Should().ContainSingle();
             secondGroup.Items.First().Should().BeOfType<ArticleTransactionItem>();
-            
+
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using Newtonsoft.Json;
+using Simplic.OxS.Server.Test.TestDataClasses.ERP;
 using Simplic.OxS.Server.Test.TestDataClasses.Tour;
 using System.Text;
 
@@ -99,7 +100,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson =await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
             {
                 return true;
             });
@@ -131,7 +132,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson =await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -166,7 +167,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson =await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -330,7 +331,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            await this.Invoking( x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return false;
             })).Should().ThrowAsync<BadRequestException>();
@@ -580,7 +581,7 @@ namespace Simplic.OxS.Server.Test
 
             var bobTheBuilder = new StringBuilder();
             bobTheBuilder.AppendLine("{");
-            bobTheBuilder.AppendLine($@"""TestBool"" : {(mappedTestPerson.TestBool.Value ? 1 : 0 )},");
+            bobTheBuilder.AppendLine($@"""TestBool"" : {(mappedTestPerson.TestBool.Value ? 1 : 0)},");
             bobTheBuilder.AppendLine($@"""TestDateTime"" : ""{mappedTestPerson.TestDateTime}"",");
             bobTheBuilder.AppendLine($@"""TestDouble"" : ""{mappedTestPerson.TestDouble}"",");
             bobTheBuilder.AppendLine($@"""TestGuid"" : ""{mappedTestPerson.TestGuid}"",");
@@ -699,7 +700,7 @@ namespace Simplic.OxS.Server.Test
         [Fact]
         public async Task Patch_JSON_Employee()
         {
-            var originalTestPerson = new Employee(){};
+            var originalTestPerson = new Employee() { };
 
             var patchRequest = new EmployeeBaseModel()
             {
@@ -821,6 +822,65 @@ namespace Simplic.OxS.Server.Test
 
             patched.NotInitializedPhoneNumber.Should().NotBeNull();
             patched.NotInitializedPhoneNumber.PhoneNumber.Should().Be(patch.NotInitializedPhoneNumber.PhoneNumber);
+        }
+
+        /// <summary>
+        /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
+        /// </summary>
+        [Fact]
+        public async Task Patch_LowerCaseJson_AllDataIsWritten2()
+        {
+            var typeId = Guid.NewGuid();
+
+            var originalTransaction = new Transaction
+            {
+            };
+
+            var patchedTransaction = new TransactionRequest
+            {
+                Items = new List<TransactionItemRequest> 
+                { 
+                    new TransactionItemRequest
+                    {
+                        Items = new List<TransactionItemRequest>
+                        {
+                            new TransactionItemRequest
+                            {
+                                TypeId = typeId
+                            }
+                        }
+                    }
+                }
+            };
+
+
+            var json = JsonConvert.SerializeObject(patchedTransaction, settings: new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore,
+                Formatting = Formatting.Indented,
+            });
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForPath("Items", "TypeId").ChangeAction<TransactionItem, TransactionItemRequest>((original, patch) =>
+                {
+                    if (!patch.TypeId.HasValue)
+                        throw new Exception();
+
+                    original.Type = new TransactionItemType
+                    {
+                        Id = patch.TypeId.Value,
+                        Name = "Test"
+                    };
+                    return Task.CompletedTask;
+                });
+                return cfg;
+            });
+
+            var patchedTestPerson = await patchHelper.Patch<Transaction>(originalTransaction, patchedTransaction, json, null);
+
+
+            patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
         }
     }
 }

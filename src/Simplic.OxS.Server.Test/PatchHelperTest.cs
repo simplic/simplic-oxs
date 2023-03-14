@@ -978,6 +978,15 @@ namespace Simplic.OxS.Server.Test
 
             var patchedTestPerson = await patchHelper.Patch(originalTransaction, patchedTransaction, json, null);
 
+            patchedTestPerson.Should().NotBeNull();
+            patchedTestPerson.Items.Should().ContainSingle();
+            patchedTestPerson.Items.First().Should().BeOfType<GroupTransactionItem>();
+            var firstGroup = patchedTestPerson.Items.First() as GroupTransactionItem;
+            firstGroup.Items.Should().ContainSingle();
+            firstGroup.Items.First().Should().BeOfType<GroupTransactionItem>();
+            var secondGroup = firstGroup.Items.First() as GroupTransactionItem;
+            secondGroup.Items.Should().ContainSingle();
+            secondGroup.Items.First().Should().BeOfType<ArticleTransactionItem>();
             
         }
     }

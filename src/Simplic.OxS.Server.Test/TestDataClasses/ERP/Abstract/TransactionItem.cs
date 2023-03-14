@@ -15,6 +15,6 @@ namespace Simplic.OxS.Server.Test.TestDataClasses.ERP.Abstract
         /// <summary>
         /// Just a type to check whether the right type is added.
         /// </summary>
-        public TransactionItemType Type { get; set; }
+        public Simple.TransactionItemType Type { get; set; }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using FluentAssertions;
 using Newtonsoft.Json;
+using Simplic.OxS.Server.Test.TestDataClasses.ERP;
+using Simplic.OxS.Server.Test.TestDataClasses.ERP.Abstract;
 using Simplic.OxS.Server.Test.TestDataClasses.Tour;
 using System.Text;
 
@@ -99,7 +101,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson =await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
             {
                 return true;
             });
@@ -131,7 +133,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson =await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -166,7 +168,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson =await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -330,7 +332,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper();
 
-            await this.Invoking( x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            await this.Invoking(x => patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return false;
             })).Should().ThrowAsync<BadRequestException>();
@@ -580,7 +582,7 @@ namespace Simplic.OxS.Server.Test
 
             var bobTheBuilder = new StringBuilder();
             bobTheBuilder.AppendLine("{");
-            bobTheBuilder.AppendLine($@"""TestBool"" : {(mappedTestPerson.TestBool.Value ? 1 : 0 )},");
+            bobTheBuilder.AppendLine($@"""TestBool"" : {(mappedTestPerson.TestBool.Value ? 1 : 0)},");
             bobTheBuilder.AppendLine($@"""TestDateTime"" : ""{mappedTestPerson.TestDateTime}"",");
             bobTheBuilder.AppendLine($@"""TestDouble"" : ""{mappedTestPerson.TestDouble}"",");
             bobTheBuilder.AppendLine($@"""TestGuid"" : ""{mappedTestPerson.TestGuid}"",");
@@ -699,7 +701,7 @@ namespace Simplic.OxS.Server.Test
         [Fact]
         public async Task Patch_JSON_Employee()
         {
-            var originalTestPerson = new Employee(){};
+            var originalTestPerson = new Employee() { };
 
             var patchRequest = new EmployeeBaseModel()
             {
@@ -821,6 +823,169 @@ namespace Simplic.OxS.Server.Test
 
             patched.NotInitializedPhoneNumber.Should().NotBeNull();
             patched.NotInitializedPhoneNumber.PhoneNumber.Should().Be(patch.NotInitializedPhoneNumber.PhoneNumber);
+        }
+
+        /// <summary>
+        /// Tests whether the patch helper will patch items with partial paths given in the configuration.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ItemsInItems_PatchesWithAStartAndEndPatchConfiguration()
+        {
+            var typeId = Guid.NewGuid();
+
+            var originalTransaction = new TestDataClasses.ERP.Simple.Transaction
+            {
+            };
+
+            var transactionRequest = new TransactionRequest
+            {
+                Items = new List<TransactionItemRequest>
+                {
+                    new TransactionItemRequest
+                    {
+                        Items = new List<TransactionItemRequest>
+                        {
+                            new TransactionItemRequest
+                            {
+                                Items = new List<TransactionItemRequest>
+                                {
+                                    new TransactionItemRequest
+                                    {
+                                        TypeId = typeId
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(transactionRequest, settings: new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore,
+                Formatting = Formatting.Indented,
+            });
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForPath("Items", "TypeId").ChangeAction<TestDataClasses.ERP.Simple.TransactionItem, TransactionItemRequest>((original, patch) =>
+                {
+                    if (!patch.TypeId.HasValue)
+                        throw new Exception();
+
+                    original.Type = new TransactionItemType
+                    {
+                        Id = patch.TypeId.Value,
+                        Name = "Test"
+                    };
+                    return Task.CompletedTask;
+                });
+                return cfg;
+            });
+
+            var patchedTransaction = await patchHelper.Patch(originalTransaction, transactionRequest, json, null);
+
+            patchedTransaction.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
+        }
+
+        /// <summary>
+        /// Tests whether the patch method change the add item behaviour right when a partial path is configured.
+        /// </summary>
+        [Fact]
+        public async Task Patch_AddingItemsInItemsInItems_CallsTheCahngeAddItemWithPartialPaths()
+        {
+            var groupTypeId = Guid.NewGuid();
+            var articleTypeId = Guid.NewGuid();
+
+            var originalTransaction = new Transaction
+            {
+            };
+
+            var transactionRequest = new TransactionRequest
+            {
+                Items = new List<TransactionItemRequest>
+                {
+                    new TransactionItemRequest
+                    {
+                        TypeId = groupTypeId,
+                        Items = new List<TransactionItemRequest>
+                        {
+                            new TransactionItemRequest
+                            {
+                                TypeId = groupTypeId,
+                                Items = new List<TransactionItemRequest>
+                                {
+                                    new TransactionItemRequest
+                                    {
+                                        TypeId = articleTypeId
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(transactionRequest, settings: new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore,
+                Formatting = Formatting.Indented,
+            });
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForPath("Items", "TypeId").ChangeAction<TransactionItem, TransactionItemRequest>((original, patch) =>
+                {
+                    if (!patch.TypeId.HasValue)
+                        throw new Exception();
+
+                    if (patch.TypeId.Value == groupTypeId)
+                        original.Type = new TransactionItemType
+                        {
+                            Id = patch.TypeId.Value,
+                            Name = "Group"
+                        };
+
+                    if (patch.TypeId.Value == articleTypeId)
+                        original.Type = new TransactionItemType
+                        {
+                            Id = patch.TypeId.Value,
+                            Name = "Article"
+                        };
+
+                    return Task.CompletedTask;
+                });
+
+                cfg.ForCollectionPath("", "Items").ChangeAddItem<TransactionItemRequest, TransactionItem>((patchItem) =>
+                {
+                    if (!patchItem.TypeId.HasValue)
+                        throw new Exception();
+
+                    if (patchItem.TypeId.Value == groupTypeId)
+                        return new GroupTransactionItem();
+
+                    if (patchItem.TypeId.Value == articleTypeId)
+                        return new ArticleTransactionItem();
+
+                    throw new Exception();
+
+                });
+
+                return cfg;
+            });
+
+            var patchedTransaction = await patchHelper.Patch(originalTransaction, transactionRequest, json, null);
+
+            patchedTransaction.Should().NotBeNull();
+            patchedTransaction.Items.Should().ContainSingle();
+            patchedTransaction.Items.First().Should().BeOfType<GroupTransactionItem>();
+            var firstGroup = patchedTransaction.Items.First() as GroupTransactionItem;
+            firstGroup.Items.Should().ContainSingle();
+            firstGroup.Items.First().Should().BeOfType<GroupTransactionItem>();
+            var secondGroup = firstGroup.Items.First() as GroupTransactionItem;
+            secondGroup.Items.Should().ContainSingle();
+            secondGroup.Items.First().Should().BeOfType<ArticleTransactionItem>();
+
         }
     }
 }

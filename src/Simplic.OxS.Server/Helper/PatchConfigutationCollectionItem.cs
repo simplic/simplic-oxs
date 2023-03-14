@@ -49,6 +49,11 @@
         /// </summary>
         public string Path { get; set; }
 
+        /// <summary>
+        /// Gets or sets the endpath.
+        /// </summary>
+        public string EndPath { get; set; } = "";
+
         internal bool OverwriteCollection { get; set; } = false;
     }
 }

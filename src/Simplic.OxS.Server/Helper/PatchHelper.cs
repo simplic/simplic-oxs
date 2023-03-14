@@ -168,8 +168,13 @@ namespace Simplic.OxS.Server
             switch (firstElement.ValueKind)
             {
                 case JsonValueKind.Object:
-                    if (Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                    if (Configuration.CollectionItems.Any(x =>
+                        (x.Path.ToLower() == fullPath.ToLower()
+                        || (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())))
+                        && x.OverwriteCollection))
+                    {
                         await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+                    }
 
                     await HandleObjectArray(element, GetCollection(original, path), GetCollection(patch, path),
                         validationRequest, fullPath);
@@ -184,8 +189,13 @@ namespace Simplic.OxS.Server
                 case JsonValueKind.Number:
                 case JsonValueKind.True:
                 case JsonValueKind.False:
-                    if (Configuration.CollectionItems.Any(x => x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection))
+                    if (Configuration.CollectionItems.Any(x =>
+                        (x.Path.ToLower() == fullPath.ToLower()
+                        || (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())))
+                        && x.OverwriteCollection))
+                    {
                         await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+                    }
 
                     // TODO: This should be tested, but from my current understanding it won't work at the current state. 
                     await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
@@ -275,7 +285,9 @@ namespace Simplic.OxS.Server
         private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
-            var configItem = Configuration.CollectionItems.FirstOrDefault(x => x.Path.ToLower() == path.ToLower());
+            var configItem = Configuration.CollectionItems.FirstOrDefault(x => 
+                        x.Path.ToLower() == path.ToLower()
+                        || (path.ToLower().StartsWith(x.Path.ToLower()) && path.ToLower().EndsWith(x.EndPath.ToLower())));
 
             //Func to create an instance of the generic type of the collection. 
             var func = new Func<object>(() =>
@@ -313,7 +325,7 @@ namespace Simplic.OxS.Server
                 return;
 
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
-                (fullPath.ToLower().StartsWith(x.Path) && fullPath.ToLower().EndsWith(x.EndPath)));
+                (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())));
 
             if (configItem != null)
             {
@@ -346,7 +358,7 @@ namespace Simplic.OxS.Server
                 if (propertyName.ToLower() == "id")
                     return;
 
-                if (currentOriginalType.IsGenericType && currentOriginalType.GetGenericTypeDefinition() 
+                if (currentOriginalType.IsGenericType && currentOriginalType.GetGenericTypeDefinition()
                     == typeof(Dictionary<,>))
                 {
                     Type[] types = currentOriginalType.GetGenericArguments();
@@ -396,9 +408,11 @@ namespace Simplic.OxS.Server
                     try
                     {
                         var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
-                            x.Path.ToLower() == fullPath.ToLower() && x.OverwriteCollection);
+                                (x.Path.ToLower() == fullPath.ToLower()
+                                || (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())))
+                                && x.OverwriteCollection);
 
-                        if (collectionConfigItem != null)
+                            if (collectionConfigItem != null)
                         {
                             originalProperty.SetValue(original, collectionConfigItem.GetAsOriginalType(patch));
                             return;

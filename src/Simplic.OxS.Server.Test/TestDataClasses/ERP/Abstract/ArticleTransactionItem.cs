@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server.Test.TestDataClasses.ERP.Abstract
 {
-    public class ArticleTransactionItem
+    public class ArticleTransactionItem : TransactionItem
     {
         public Guid ArticleId { get; set; }
     }

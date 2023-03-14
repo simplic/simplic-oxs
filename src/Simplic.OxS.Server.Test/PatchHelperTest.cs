@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using Newtonsoft.Json;
 using Simplic.OxS.Server.Test.TestDataClasses.ERP;
+using Simplic.OxS.Server.Test.TestDataClasses.ERP.Abstract;
 using Simplic.OxS.Server.Test.TestDataClasses.Tour;
 using System.Text;
 
@@ -882,9 +883,102 @@ namespace Simplic.OxS.Server.Test
                 return cfg;
             });
 
-            var patchedTestPerson = await patchHelper.Patch<TestDataClasses.ERP.Simple.Transaction>(originalTransaction, patchedTransaction, json, null);
+            var patchedTestPerson = await patchHelper.Patch(originalTransaction, patchedTransaction, json, null);
 
             patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
+        }
+
+        /// <summary>
+        /// Tests whether the patch method will apply changes correctly when the json has just lower case properties.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ItemsInItems_PatchesWithAStartAndEndPatchConfiguration2()
+        {
+            var groupTypeId = Guid.NewGuid();
+            var articleTypeId = Guid.NewGuid();
+
+
+
+            var originalTransaction = new Transaction
+            {
+            };
+
+            var patchedTransaction = new TransactionRequest
+            {
+                Items = new List<TransactionItemRequest>
+                {
+                    new TransactionItemRequest
+                    {
+                        TypeId = groupTypeId,
+                        Items = new List<TransactionItemRequest>
+                        {
+                            new TransactionItemRequest
+                            {
+                                TypeId = groupTypeId,
+                                Items = new List<TransactionItemRequest>
+                                {
+                                    new TransactionItemRequest
+                                    {
+                                        TypeId = articleTypeId
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(patchedTransaction, settings: new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore,
+                Formatting = Formatting.Indented,
+            });
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForPath("Items", "TypeId").ChangeAction<TransactionItem, TransactionItemRequest>((original, patch) =>
+                {
+                    if (!patch.TypeId.HasValue)
+                        throw new Exception();
+
+                    if(patch.TypeId.Value == groupTypeId)
+                        original.Type = new TransactionItemType
+                        {
+                            Id = patch.TypeId.Value,
+                            Name = "Group"
+                        };
+                    
+                    if (patch.TypeId.Value == articleTypeId)
+                        original.Type = new TransactionItemType
+                        {
+                            Id = patch.TypeId.Value,
+                            Name = "Article"
+                        };
+
+                    return Task.CompletedTask;
+                });
+
+                cfg.ForCollectionPath("Items").ChangeAddItem<TransactionItemRequest, TransactionItem>((patchItem) =>
+                {
+                    if (!patchItem.TypeId.HasValue)
+                        throw new Exception();
+
+                    if (patchItem.TypeId.Value == groupTypeId)
+                        return new GroupTransactionItem();
+
+                    if (patchItem.TypeId.Value == articleTypeId)
+                        return new ArticleTransactionItem();
+
+                    throw new Exception();
+
+                });
+
+                return cfg;
+            });
+
+            var patchedTestPerson = await patchHelper.Patch(originalTransaction, patchedTransaction, json, null);
+
+            
         }
     }
 }

@@ -836,19 +836,19 @@ namespace Simplic.OxS.Server.Test
             {
             };
 
-            var patchedTransaction = new TestDataClasses.ERP.Simple.TransactionRequest
+            var patchedTransaction = new TransactionRequest
             {
-                Items = new List<TestDataClasses.ERP.Simple.TransactionItemRequest>
+                Items = new List<TransactionItemRequest>
                 {
-                    new TestDataClasses.ERP.Simple.TransactionItemRequest
+                    new TransactionItemRequest
                     {
-                        Items = new List<TestDataClasses.ERP.Simple.TransactionItemRequest>
+                        Items = new List<TransactionItemRequest>
                         {
-                            new TestDataClasses.ERP.Simple.TransactionItemRequest
+                            new TransactionItemRequest
                             {
-                                Items = new List<TestDataClasses.ERP.Simple.TransactionItemRequest>
+                                Items = new List<TransactionItemRequest>
                                 {
-                                    new TestDataClasses.ERP.Simple.TransactionItemRequest
+                                    new TransactionItemRequest
                                     {
                                         TypeId = typeId
                                     }
@@ -867,7 +867,7 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper(cfg =>
             {
-                cfg.ForPath("Items", "TypeId").ChangeAction<TestDataClasses.ERP.Simple.TransactionItem, TestDataClasses.ERP.Simple.TransactionItemRequest>((original, patch) =>
+                cfg.ForPath("Items", "TypeId").ChangeAction<TestDataClasses.ERP.Simple.TransactionItem, TransactionItemRequest>((original, patch) =>
                 {
                     if (!patch.TypeId.HasValue)
                         throw new Exception();
@@ -883,7 +883,6 @@ namespace Simplic.OxS.Server.Test
             });
 
             var patchedTestPerson = await patchHelper.Patch<TestDataClasses.ERP.Simple.Transaction>(originalTransaction, patchedTransaction, json, null);
-
 
             patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);
         }

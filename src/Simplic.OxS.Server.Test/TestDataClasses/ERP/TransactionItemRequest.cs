@@ -1,6 +1,6 @@
 ﻿using Simplic.OxS.Data;
 
-namespace Simplic.OxS.Server.Test.TestDataClasses.ERP.Simple
+namespace Simplic.OxS.Server.Test.TestDataClasses.ERP
 {
     public class TransactionItemRequest : IItemId
     {

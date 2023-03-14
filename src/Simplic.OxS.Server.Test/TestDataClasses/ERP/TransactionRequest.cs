@@ -1,4 +1,4 @@
-﻿namespace Simplic.OxS.Server.Test.TestDataClasses.ERP.Simple
+﻿namespace Simplic.OxS.Server.Test.TestDataClasses.ERP
 {
     public class TransactionRequest
     {

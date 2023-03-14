@@ -55,6 +55,18 @@
             return item;
         }
 
+        public PatchConfigutationCollectionItem ForCollectionPath(string start, string end)
+        {
+            var item = new PatchConfigutationCollectionItem
+            {
+                Path = start,
+                EndPath = end
+            };
+
+            CollectionItems.Add(item);
+            return item;
+        }
+
         /// <summary>
         /// Adds a list of items.
         /// </summary>

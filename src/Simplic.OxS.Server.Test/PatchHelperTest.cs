@@ -958,7 +958,7 @@ namespace Simplic.OxS.Server.Test
                     return Task.CompletedTask;
                 });
 
-                cfg.ForCollectionPath("Items").ChangeAddItem<TransactionItemRequest, TransactionItem>((patchItem) =>
+                cfg.ForCollectionPath("", "Items").ChangeAddItem<TransactionItemRequest, TransactionItem>((patchItem) =>
                 {
                     if (!patchItem.TypeId.HasValue)
                         throw new Exception();

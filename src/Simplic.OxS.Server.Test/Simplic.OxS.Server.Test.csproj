@@ -26,4 +26,8 @@
     <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="TestDataClasses\ERP\Abstract\" />
+  </ItemGroup>
+
 </Project>

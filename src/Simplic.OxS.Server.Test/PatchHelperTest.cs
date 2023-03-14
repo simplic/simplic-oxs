@@ -832,23 +832,23 @@ namespace Simplic.OxS.Server.Test
         {
             var typeId = Guid.NewGuid();
 
-            var originalTransaction = new Transaction
+            var originalTransaction = new TestDataClasses.ERP.Simple.Transaction
             {
             };
 
-            var patchedTransaction = new TransactionRequest
+            var patchedTransaction = new TestDataClasses.ERP.Simple.TransactionRequest
             {
-                Items = new List<TransactionItemRequest> 
-                { 
-                    new TransactionItemRequest
+                Items = new List<TestDataClasses.ERP.Simple.TransactionItemRequest>
+                {
+                    new TestDataClasses.ERP.Simple.TransactionItemRequest
                     {
-                        Items = new List<TransactionItemRequest>
+                        Items = new List<TestDataClasses.ERP.Simple.TransactionItemRequest>
                         {
-                            new TransactionItemRequest
+                            new TestDataClasses.ERP.Simple.TransactionItemRequest
                             {
-                                Items = new List<TransactionItemRequest>
+                                Items = new List<TestDataClasses.ERP.Simple.TransactionItemRequest>
                                 {
-                                    new TransactionItemRequest
+                                    new TestDataClasses.ERP.Simple.TransactionItemRequest
                                     {
                                         TypeId = typeId
                                     }
@@ -867,12 +867,12 @@ namespace Simplic.OxS.Server.Test
 
             var patchHelper = new PatchHelper(cfg =>
             {
-                cfg.ForPath("Items", "TypeId").ChangeAction<TransactionItem, TransactionItemRequest>((original, patch) =>
+                cfg.ForPath("Items", "TypeId").ChangeAction<TestDataClasses.ERP.Simple.TransactionItem, TestDataClasses.ERP.Simple.TransactionItemRequest>((original, patch) =>
                 {
                     if (!patch.TypeId.HasValue)
                         throw new Exception();
 
-                    original.Type = new TransactionItemType
+                    original.Type = new TestDataClasses.ERP.Simple.TransactionItemType
                     {
                         Id = patch.TypeId.Value,
                         Name = "Test"
@@ -882,7 +882,7 @@ namespace Simplic.OxS.Server.Test
                 return cfg;
             });
 
-            var patchedTestPerson = await patchHelper.Patch<Transaction>(originalTransaction, patchedTransaction, json, null);
+            var patchedTestPerson = await patchHelper.Patch<TestDataClasses.ERP.Simple.Transaction>(originalTransaction, patchedTransaction, json, null);
 
 
             patchedTestPerson.Items.FirstOrDefault().Items.FirstOrDefault().Items.FirstOrDefault().Type.Id.Should().Be(typeId);

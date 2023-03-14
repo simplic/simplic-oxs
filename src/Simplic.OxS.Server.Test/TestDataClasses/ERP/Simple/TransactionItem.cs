@@ -1,11 +1,6 @@
 ﻿using Simplic.OxS.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Simplic.OxS.Server.Test.TestDataClasses.ERP
+namespace Simplic.OxS.Server.Test.TestDataClasses.ERP.Simple
 {
     public class TransactionItem : IItemId
     {

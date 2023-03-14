@@ -940,14 +940,14 @@ namespace Simplic.OxS.Server.Test
                         throw new Exception();
 
                     if (patch.TypeId.Value == groupTypeId)
-                        original.Type = new TransactionItemType
+                        original.Type = new TestDataClasses.ERP.Simple.TransactionItemType
                         {
                             Id = patch.TypeId.Value,
                             Name = "Group"
                         };
 
                     if (patch.TypeId.Value == articleTypeId)
-                        original.Type = new TransactionItemType
+                        original.Type = new TestDataClasses.ERP.Simple.TransactionItemType
                         {
                             Id = patch.TypeId.Value,
                             Name = "Article"

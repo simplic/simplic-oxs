@@ -44,9 +44,9 @@
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        public PatchConfigutationCollectionItem ForCollectionPath(string path)
+        public PatchConfigurationCollectionItem ForCollectionPath(string path)
         {
-            var item = new PatchConfigutationCollectionItem
+            var item = new PatchConfigurationCollectionItem
             {
                 Path = path
             };
@@ -55,9 +55,9 @@
             return item;
         }
 
-        public PatchConfigutationCollectionItem ForCollectionPath(string start, string end)
+        public PatchConfigurationCollectionItem ForCollectionPath(string start, string end)
         {
-            var item = new PatchConfigutationCollectionItem
+            var item = new PatchConfigurationCollectionItem
             {
                 Path = start,
                 EndPath = end
@@ -76,7 +76,7 @@
         /// <summary>
         /// Gets or sets the list of collection items.
         /// </summary>
-        internal IList<PatchConfigutationCollectionItem> CollectionItems { get; set; }
-            = new List<PatchConfigutationCollectionItem>();
+        internal IList<PatchConfigurationCollectionItem> CollectionItems { get; set; }
+            = new List<PatchConfigurationCollectionItem>();
     }
 }

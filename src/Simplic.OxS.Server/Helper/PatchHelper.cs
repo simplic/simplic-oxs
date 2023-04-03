@@ -415,9 +415,16 @@ namespace Simplic.OxS.Server
                         try
                         {
                             var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
-                                    (x.Path.ToLower() == fullPath.ToLower()
-                                    || (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())))
-                                    && x.OverwriteCollection);
+                                    x.OverwriteCollection &&
+                                    (
+                                        x.Path.ToLower() == fullPath.ToLower() 
+                                        || (
+                                                !string.IsNullOrWhiteSpace(x.EndPath)
+                                                && fullPath.ToLower().StartsWith(x.Path.ToLower()) 
+                                                && fullPath.ToLower().EndsWith(x.EndPath.ToLower())
+                                           )
+                                    )
+                                 );
 
                             if (collectionConfigItem != null)
                             {

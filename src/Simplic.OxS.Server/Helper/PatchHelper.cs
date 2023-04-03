@@ -1,6 +1,8 @@
-﻿using Simplic.OxS.Data;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Simplic.OxS.Data;
 using System.Collections;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 
 namespace Simplic.OxS.Server
@@ -327,6 +329,9 @@ namespace Simplic.OxS.Server
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
                 (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())));
 
+            PropertyInfo? patchProperty = null;
+            PropertyInfo? originalProperty = null;
+
             try
             {
 
@@ -350,8 +355,6 @@ namespace Simplic.OxS.Server
                 Type currentPatchType = patch.GetType();
                 Type currentOriginalType = original.GetType();
                 var splitPath = path.Split(".");
-                PropertyInfo? patchProperty = null;
-                PropertyInfo? originalProperty = null;
                 object originalParent = null;
                 object patchParent = null;
 
@@ -468,7 +471,17 @@ namespace Simplic.OxS.Server
                 if(ex is BadRequestException)
                     throw ex;
 
-                throw new SetValueException(fullPath + $" Value: {patch?.ToString() ?? "<null>"} of type {path?.GetType().FullName}", ex);
+                var builder = new StringBuilder();
+                builder.AppendLine($"Path: {fullPath}");
+                builder.AppendLine($"Value to set: {patch?.ToString() ?? "<null>"}  of type {path?.GetType().FullName}");
+
+                if (patchProperty != null)
+                    builder.AppendLine($"Patch property: {patchProperty.Name} / {patchProperty.PropertyType.FullName}");
+
+                if (originalProperty != null)
+                    builder.AppendLine($"Original property: {originalProperty.Name} / {originalProperty.PropertyType.FullName}");
+
+                throw new SetValueException(builder.ToString(), ex);
             }
         }
 

@@ -465,6 +465,9 @@ namespace Simplic.OxS.Server
             }
             catch (Exception ex)
             {
+                if(ex is BadRequestException)
+                    throw ex;
+
                 throw new SetValueException(fullPath, ex);
             }
         }

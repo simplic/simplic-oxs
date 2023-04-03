@@ -468,7 +468,7 @@ namespace Simplic.OxS.Server
                 if(ex is BadRequestException)
                     throw ex;
 
-                throw new SetValueException(fullPath, ex);
+                throw new SetValueException(fullPath + $" Value: {patch?.ToString() ?? "<null>"} of type {path?.GetType().FullName}", ex);
             }
         }
 

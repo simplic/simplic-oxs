@@ -3,7 +3,7 @@
     /// <summary>
     /// The item for a patch collection configuration, will contain the path and delegate for the change.
     /// </summary>
-    public class PatchConfigutationCollectionItem
+    public class PatchConfigurationCollectionItem
     {
         private Func<object, object> action;
         private Func<object, object> getAsOriginalType;

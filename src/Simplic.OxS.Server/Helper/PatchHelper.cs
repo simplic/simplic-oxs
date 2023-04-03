@@ -285,7 +285,7 @@ namespace Simplic.OxS.Server
         private async Task AddNewItemToCollection(IList originalCollection, object patchItem, JsonElement jsonElement,
             Func<ValidationRequest, bool> validationRequest, string path)
         {
-            var configItem = Configuration.CollectionItems.FirstOrDefault(x => 
+            var configItem = Configuration.CollectionItems.FirstOrDefault(x =>
                         x.Path.ToLower() == path.ToLower()
                         || (path.ToLower().StartsWith(x.Path.ToLower()) && path.ToLower().EndsWith(x.EndPath.ToLower())));
 
@@ -327,136 +327,148 @@ namespace Simplic.OxS.Server
             var configItem = Configuration.Items.FirstOrDefault(x => x.Path.ToLower() == fullPath.ToLower() ||
                 (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())));
 
-            if (configItem != null)
+            try
             {
-                if (!validationRequest.Invoke(new ValidationRequest
-                {
-                    Path = fullPath,
-                    Property = fullPath.Split(".").Last(),
-                    Type = ValidationRequestType.UpdateProperty,
-                    OriginalItem = original,
-                    PatchItem = patch
-                }))
-                    throw new BadRequestException($"Validation on {path} failed with value {patch}");
-
-                await configItem.ApplyChange(original, patch);
-                return;
-            }
-
-            Type currentPatchType = patch.GetType();
-            Type currentOriginalType = original.GetType();
-            var splitPath = path.Split(".");
-            PropertyInfo? patchProperty = null;
-            PropertyInfo? originalProperty = null;
-            object originalParent = null;
-            object patchParent = null;
-
-            for (int i = 0; i < splitPath.Length; i++)
-            {
-                var propertyName = splitPath[i];
-
-                if (propertyName.ToLower() == "id")
-                    return;
-
-                if (currentOriginalType.IsGenericType && currentOriginalType.GetGenericTypeDefinition()
-                    == typeof(Dictionary<,>))
-                {
-                    Type[] types = currentOriginalType.GetGenericArguments();
-                    Type keyType = types[0];
-                    Type valueType = types[1];
-                    Type genericType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
-
-                    var dict = patchProperty.GetValue(patchParent, null) as IDictionary;
-                    var value = dict[propertyName];
-
-                    dict = originalProperty.GetValue(originalParent, null) as IDictionary;
-                    dict[propertyName] = value;
-
-                    return;
-                }
-
-                patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-                originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-
-                if (patchProperty == null)
-                    throw new BadRequestException($"{currentPatchType.Name} does not contain property: {propertyName}");
-
-                if (originalProperty == null)
-                    throw new BadRequestException($"{currentOriginalType.Name} does not contain property: {propertyName}");
-
-                currentPatchType = patchProperty.PropertyType;
-                var res = patchProperty.GetValue(patch, null);
-                if (res == null && i != splitPath.Length - 1)
-                    throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
 
 
-                if (i == splitPath.Length - 1)
+                if (configItem != null)
                 {
                     if (!validationRequest.Invoke(new ValidationRequest
                     {
                         Path = fullPath,
-                        Property = propertyName,
-                        Value = res,
+                        Property = fullPath.Split(".").Last(),
                         Type = ValidationRequestType.UpdateProperty,
-                        PatchItem = patch,
-                        OriginalItem = original
+                        OriginalItem = original,
+                        PatchItem = patch
                     }))
                         throw new BadRequestException($"Validation on {path} failed with value {patch}");
 
-                    patch = res;
+                    await configItem.ApplyChange(original, patch);
+                    return;
+                }
 
-                    try
+                Type currentPatchType = patch.GetType();
+                Type currentOriginalType = original.GetType();
+                var splitPath = path.Split(".");
+                PropertyInfo? patchProperty = null;
+                PropertyInfo? originalProperty = null;
+                object originalParent = null;
+                object patchParent = null;
+
+                for (int i = 0; i < splitPath.Length; i++)
+                {
+                    var propertyName = splitPath[i];
+
+                    if (propertyName.ToLower() == "id")
+                        return;
+
+                    if (currentOriginalType.IsGenericType && currentOriginalType.GetGenericTypeDefinition()
+                        == typeof(Dictionary<,>))
                     {
-                        var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
-                                (x.Path.ToLower() == fullPath.ToLower()
-                                || (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())))
-                                && x.OverwriteCollection);
+                        Type[] types = currentOriginalType.GetGenericArguments();
+                        Type keyType = types[0];
+                        Type valueType = types[1];
+                        Type genericType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+
+                        var dict = patchProperty.GetValue(patchParent, null) as IDictionary;
+                        var value = dict[propertyName];
+
+                        dict = originalProperty.GetValue(originalParent, null) as IDictionary;
+                        dict[propertyName] = value;
+
+                        return;
+                    }
+
+                    patchProperty = currentPatchType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                    originalProperty = currentOriginalType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+
+                    if (patchProperty == null)
+                        throw new BadRequestException($"{currentPatchType.Name} does not contain property: {propertyName}");
+
+                    if (originalProperty == null)
+                        throw new BadRequestException($"{currentOriginalType.Name} does not contain property: {propertyName}");
+
+                    currentPatchType = patchProperty.PropertyType;
+                    var res = patchProperty.GetValue(patch, null);
+                    if (res == null && i != splitPath.Length - 1)
+                        throw new NullReferenceException($"{currentPatchType.Name}.{propertyName} not initialized.");
+
+
+                    if (i == splitPath.Length - 1)
+                    {
+                        if (!validationRequest.Invoke(new ValidationRequest
+                        {
+                            Path = fullPath,
+                            Property = propertyName,
+                            Value = res,
+                            Type = ValidationRequestType.UpdateProperty,
+                            PatchItem = patch,
+                            OriginalItem = original
+                        }))
+                            throw new BadRequestException($"Validation on {path} failed with value {patch}");
+
+                        patch = res;
+
+                        try
+                        {
+                            var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
+                                    (x.Path.ToLower() == fullPath.ToLower()
+                                    || (fullPath.ToLower().StartsWith(x.Path.ToLower()) && fullPath.ToLower().EndsWith(x.EndPath.ToLower())))
+                                    && x.OverwriteCollection);
 
                             if (collectionConfigItem != null)
-                        {
-                            originalProperty.SetValue(original, collectionConfigItem.GetAsOriginalType(patch));
-                            return;
-                        }
-
-                        originalProperty.SetValue(original, patch);
-
-                    }
-                    catch (InvalidCastException)
-                    {
-                        if (originalProperty.PropertyType.IsGenericType && originalProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
-                            if (patch == null)
                             {
-                                originalProperty.SetValue(original, null);
+                                originalProperty.SetValue(original, collectionConfigItem.GetAsOriginalType(patch));
                                 return;
                             }
 
-                        originalProperty.SetValue(original, Convert.ChangeType(patch, Nullable.GetUnderlyingType(originalProperty.PropertyType)));
-                    }
-                }
-                else
-                {
-                    var originalValue = originalProperty.GetValue(original, null);
-                    if (originalValue == null)
-                    {
-                        try
-                        {
-                            var type = originalProperty.PropertyType;
-                            var value = type.GetConstructor(new Type[] { })?.Invoke(new object[] { });
-                            originalProperty.SetValue(original, value);
-                            originalValue = originalProperty.GetValue(original, null);
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new Exception($"Could not initialize not initialized type {currentOriginalType.Name}.{propertyName}");
-                        }
-                    }
+                            originalProperty.SetValue(original, patch);
 
-                    patchParent = patch;
-                    patch = res;
-                    originalParent = original;
-                    original = originalValue;
-                    currentOriginalType = original.GetType();
+                        }
+                        catch (InvalidCastException)
+                        {
+                            if (originalProperty.PropertyType.IsGenericType && originalProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
+                                if (patch == null)
+                                {
+                                    originalProperty.SetValue(original, null);
+                                    return;
+                                }
+
+                            originalProperty.SetValue(original, Convert.ChangeType(patch, Nullable.GetUnderlyingType(originalProperty.PropertyType)));
+                        }
+                    }
+                    else
+                    {
+                        var originalValue = originalProperty.GetValue(original, null);
+                        if (originalValue == null)
+                        {
+                            try
+                            {
+                                var type = originalProperty.PropertyType;
+                                var value = type.GetConstructor(new Type[] { })?.Invoke(new object[] { });
+                                originalProperty.SetValue(original, value);
+                                originalValue = originalProperty.GetValue(original, null);
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new Exception($"Could not initialize not initialized type {currentOriginalType.Name}.{propertyName}");
+                            }
+                        }
+
+                        patchParent = patch;
+                        patch = res;
+                        originalParent = original;
+                        original = originalValue;
+                        currentOriginalType = original.GetType();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                if(ex is BadRequestException)
+                    throw ex;
+
+                throw new SetValueException(fullPath, ex);
             }
         }
 

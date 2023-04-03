@@ -430,14 +430,27 @@ namespace Simplic.OxS.Server
                         }
                         catch (InvalidCastException)
                         {
-                            if (originalProperty.PropertyType.IsGenericType && originalProperty.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
+                            if (originalProperty.PropertyType.IsGenericType)
+                            {
                                 if (patch == null)
                                 {
                                     originalProperty.SetValue(original, null);
                                     return;
                                 }
 
-                            originalProperty.SetValue(original, Convert.ChangeType(patch, Nullable.GetUnderlyingType(originalProperty.PropertyType)));
+                                var type = Nullable.GetUnderlyingType(originalProperty.PropertyType);
+
+                                if (type != null)
+                                    originalProperty.SetValue(original, Convert.ChangeType(patch, type));
+                                else
+                                {
+                                    throw;
+                                }
+                            }
+                            else
+                            {
+                                throw;
+                            }
                         }
                     }
                     else
@@ -468,7 +481,7 @@ namespace Simplic.OxS.Server
             }
             catch (Exception ex)
             {
-                if(ex is BadRequestException)
+                if (ex is BadRequestException)
                     throw ex;
 
                 var builder = new StringBuilder();

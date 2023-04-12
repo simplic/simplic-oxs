@@ -21,9 +21,9 @@ namespace Simplic.OxS.Data
         Task<TDocument> GetAsync(TId id, bool queryAllOrganizations = false);
 
         /// <summary>
-        /// Gets the collection of an document as an executeable.
+        /// Gets the collection of an document as an queryable.
         /// </summary>
         /// <returns></returns>
-		Task<IExecutable<TDocument>> GetCollection();
+		Task<IQueryable<TDocument>> GetCollection();
 	}
 }

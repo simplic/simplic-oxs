@@ -69,12 +69,14 @@ namespace Simplic.OxS.Server
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();
             services.AddScoped<RequestContextActionFilter>();
+            services.AddScoped<ValidationActionFilter>();
             services.AddScoped<IInternalClient, InternalClientBase>();
 
             // Register web-api controller. Must be executed before creating swagger configuration
             services.AddControllers(o =>
             {
-                o.Filters.Add(typeof(RequestContextActionFilter));
+                o.Filters.Add<RequestContextActionFilter>();
+                o.Filters.Add<ValidationActionFilter>();
             });
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());

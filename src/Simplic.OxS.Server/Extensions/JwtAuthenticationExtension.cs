@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -17,15 +18,15 @@ namespace Simplic.OxS.Server.Extensions
         /// </summary>
         /// <param name="services">Service collection</param>
         /// <param name="configuration">Service configuration</param>
-        /// <returns>Service collection instance</returns>
-        internal static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
+        /// <returns>Auth builder instance</returns>
+        internal static AuthenticationBuilder? AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<OxS.Settings.AuthSettings>(options => configuration.GetSection("Auth").Bind(options));
             var authSettings = configuration.GetSection("Auth").Get<OxS.Settings.AuthSettings>();
 
             if (authSettings != null)
             {
-                services.AddAuthentication(x =>
+                return services.AddAuthentication(x =>
                 {
                     x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                     x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -58,7 +59,7 @@ namespace Simplic.OxS.Server.Extensions
                 });
             }
 
-            return services;
+            return null;
         }
     }
 }

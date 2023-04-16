@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
@@ -53,7 +54,9 @@ namespace Simplic.OxS.Server
             services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
 
             // Add Jwt authentication and bind configuration
-            services.AddJwtAuthentication(Configuration);
+            var authBuilder = services.AddJwtAuthentication(Configuration);
+            if(authBuilder != null)
+                ConfigureAuthentication(authBuilder);
 
             // Register custom services
             RegisterServices(services);
@@ -199,6 +202,12 @@ namespace Simplic.OxS.Server
         /// <param name="services">Service collection</param>
         /// <param name="settings">MessageBroker settings</param>
         protected virtual void ConfigureEndpointConventions(IServiceCollection services, MessageBrokerSettings settings) { }
+
+        /// <summary>
+        /// Method that should be used for added additional auth schemes/methods
+        /// </summary>
+        /// <param name="authBuilder">Authentication builder instance, for adding additional auth scheme</param>
+        protected virtual void ConfigureAuthentication(AuthenticationBuilder authBuilder) { }
 
         /// <summary>
         /// Will be called for registering custom services.

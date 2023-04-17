@@ -22,7 +22,8 @@ namespace Simplic.OxS.Server.Extensions
 
             builder?.Invoke(req);
 
-            req.AddMongoDbFiltering()
+            req.AddMongoDbPagingProviders()
+                .AddMongoDbFiltering()
                .AddMongoDbProjections()
                .AddMongoDbSorting();
 

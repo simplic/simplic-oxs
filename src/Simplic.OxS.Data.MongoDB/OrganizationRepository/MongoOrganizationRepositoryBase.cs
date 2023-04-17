@@ -130,11 +130,10 @@ namespace Simplic.OxS.Data.MongoDB
                 : builder.Empty;
         }
 
-        public async Task<IQueryable<TDocument>> GetCollection()
+        public async Task<IExecutable<TDocument>> GetCollection()
         {
-            return context.GetCollection<TDocument>(GetCollectionName()).AsQueryable()
-                .Where(x => x.OrganizationId == requestContext.OrganizationId);
-		}
+            return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId).AsExecutable();
+        }
     }
 
     public abstract class MongoOrganizationRepositoryBase<TDocument> : MongoOrganizationRepositoryBase<TDocument, OrganizationFilterBase>

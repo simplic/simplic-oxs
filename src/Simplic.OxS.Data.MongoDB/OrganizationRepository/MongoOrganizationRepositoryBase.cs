@@ -132,8 +132,8 @@ namespace Simplic.OxS.Data.MongoDB
 
         public async Task<IQueryable<TDocument>> GetCollection()
         {
-			return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId)
-                .ToEnumerable().AsQueryable();
+            return context.GetCollection<TDocument>(GetCollectionName()).AsQueryable()
+                .Where(x => x.OrganizationId == requestContext.OrganizationId);
 		}
     }
 

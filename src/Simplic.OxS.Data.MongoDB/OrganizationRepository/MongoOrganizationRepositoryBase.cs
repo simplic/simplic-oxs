@@ -130,6 +130,7 @@ namespace Simplic.OxS.Data.MongoDB
                 : builder.Empty;
         }
 
+        /// <inheritdoc/>
         public async Task<IExecutable<TDocument>> GetCollection()
         {
             return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId).AsExecutable();

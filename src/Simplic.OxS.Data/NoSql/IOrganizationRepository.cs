@@ -24,6 +24,6 @@ namespace Simplic.OxS.Data
         /// Gets the collection of an document as an queryable.
         /// </summary>
         /// <returns></returns>
-		Task<IQueryable<TDocument>> GetCollection();
+		Task<IExecutable<TDocument>> GetCollection();
 	}
 }

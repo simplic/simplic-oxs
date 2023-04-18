@@ -18,7 +18,7 @@ public class Query
 		}
 	}
 ```
-In your Startup.cs inside the **Configure** method use following code snippet `services.UseSimplicGraphQL<Query>();`
+In your Startup.cs inside the **Configure** method use following code snippet `services.UseGraphQL<Query>();`
 
  In your Startup.cs inside the **MapHubs** method use following statement `builder.MapGraphQL();`
 

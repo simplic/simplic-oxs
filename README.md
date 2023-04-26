@@ -3,7 +3,7 @@
 
 ## Using GraphQL in Simplic.OxS modules
 
-To use GraphQL you need to update your Simplic.OxS to  **1.0.8922.1222 or higher** and follow these 3 steps.
+To use GraphQL you need to update your Simplic.OxS.Server to  **1.0.8922.1222 or higher** and follow these 3 steps.
 
  Create a class called **Query** inside your Server projects. An example for **workshops** would be as following
  ```cs

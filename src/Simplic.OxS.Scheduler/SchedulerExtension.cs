@@ -45,6 +45,7 @@ namespace Simplic.OxS.Scheduler
                 services.AddHangfireServer(serverOptions =>
                 {
                     serverOptions.ServerName = $"Hangfire.Mongo server - {serviceName}";
+                    serverOptions.Queues = new[] { serviceName };
                 });
             }
 

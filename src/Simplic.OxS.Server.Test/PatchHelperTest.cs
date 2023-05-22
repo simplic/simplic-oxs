@@ -987,5 +987,31 @@ namespace Simplic.OxS.Server.Test
             secondGroup.Items.First().Should().BeOfType<ArticleTransactionItem>();
 
         }
+
+        [Fact]
+        public async Task Patch_ItemList_WithEmptyItemList()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "1234"
+            });
+
+            var patchRequest = new TestPersonRequest();
+            
+            var json = @"{""PhoneNumbers"" : []}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.Should().HaveCount(0);
+        }
     }
 }

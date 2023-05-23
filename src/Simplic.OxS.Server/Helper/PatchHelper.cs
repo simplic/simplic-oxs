@@ -548,3 +548,4 @@ namespace Simplic.OxS.Server
         public PatchConfiguration Configuration { get; set; }
     }
 }
+

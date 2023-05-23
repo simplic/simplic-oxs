@@ -162,8 +162,21 @@ namespace Simplic.OxS.Server
              string path, Func<ValidationRequest, bool> validationRequest, string fullPath)
         {
             var elements = element.EnumerateArray().ToList();
+
             if (!elements.Any())
+            {
+                var collection = GetCollection(original, path);
+                var type = collection.GetType();
+
+                if (type.IsGenericType)
+                {
+                    var collectionType = type.GetGenericArguments()[0];
+                    if (collectionType.IsValueType || collectionType == typeof(string))
+                        collection.Clear();
+                }
+
                 return;
+            }
 
             var firstElement = elements.First();
 
@@ -417,10 +430,10 @@ namespace Simplic.OxS.Server
                             var collectionConfigItem = Configuration.CollectionItems.FirstOrDefault(x =>
                                     x.OverwriteCollection &&
                                     (
-                                        x.Path.ToLower() == fullPath.ToLower() 
+                                        x.Path.ToLower() == fullPath.ToLower()
                                         || (
                                                 !string.IsNullOrWhiteSpace(x.EndPath)
-                                                && fullPath.ToLower().StartsWith(x.Path.ToLower()) 
+                                                && fullPath.ToLower().StartsWith(x.Path.ToLower())
                                                 && fullPath.ToLower().EndsWith(x.EndPath.ToLower())
                                            )
                                     )

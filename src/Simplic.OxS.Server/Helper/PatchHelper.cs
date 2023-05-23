@@ -168,6 +168,8 @@ namespace Simplic.OxS.Server
                 var collection = GetCollection(original, path);
                 var type = collection.GetType();
 
+                // To ensure that a list of strings, guids or other value types is set to an empty list when a empty list
+                // is send to the patch helper.
                 if (type.IsGenericType)
                 {
                     var collectionType = type.GetGenericArguments()[0];

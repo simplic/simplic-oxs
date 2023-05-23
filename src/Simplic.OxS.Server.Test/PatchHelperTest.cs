@@ -988,6 +988,9 @@ namespace Simplic.OxS.Server.Test
 
         }
 
+        /// <summary>
+        /// Tests whether a list set to an empty list does not remove items from a list of complex objects.
+        /// </summary>
         [Fact]
         public async Task Patch_ListOfClasses_WithEmptyItemList()
         {
@@ -1014,6 +1017,9 @@ namespace Simplic.OxS.Server.Test
             patchedTestPerson.PhoneNumbers.Should().HaveCount(1);
         }
 
+        /// <summary>
+        /// Tests whether the patch method works correctly when a list of items that are simple types like strings or ints or guids.
+        /// </summary>
         [Fact]
         public async Task Patch_ListOfSimpleTypes_WithEmptyItemList()
         {

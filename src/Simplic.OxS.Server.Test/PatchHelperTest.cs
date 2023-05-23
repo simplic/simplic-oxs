@@ -989,7 +989,7 @@ namespace Simplic.OxS.Server.Test
         }
 
         [Fact]
-        public async Task Patch_ItemList_WithEmptyItemList()
+        public async Task Patch_ListOfClasses_WithEmptyItemList()
         {
             var guid = Guid.NewGuid();
 
@@ -1011,7 +1011,29 @@ namespace Simplic.OxS.Server.Test
                 return true;
             });
 
-            patchedTestPerson.PhoneNumbers.Should().HaveCount(0);
+            patchedTestPerson.PhoneNumbers.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task Patch_ListOfSimpleTypes_WithEmptyItemList()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.Tags.Add("1234");
+
+            var patchRequest = new TestPersonRequest();
+
+            var json = @"{""Tags"" : []}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.Tags.Should().HaveCount(0);
         }
     }
 }

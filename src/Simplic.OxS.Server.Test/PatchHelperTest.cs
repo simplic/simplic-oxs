@@ -987,5 +987,59 @@ namespace Simplic.OxS.Server.Test
             secondGroup.Items.First().Should().BeOfType<ArticleTransactionItem>();
 
         }
+
+        /// <summary>
+        /// Tests whether a list set to an empty list does not remove items from a list of complex objects.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ListOfClasses_WithEmptyItemList()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.PhoneNumbers.Add(new TestPhoneNumber
+            {
+                Id = guid,
+                PhoneNumber = "1234"
+            });
+
+            var patchRequest = new TestPersonRequest();
+            
+            var json = @"{""PhoneNumbers"" : []}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.PhoneNumbers.Should().HaveCount(1);
+        }
+
+        /// <summary>
+        /// Tests whether the patch method works correctly when a list of items that are simple types like strings or ints or guids.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ListOfSimpleTypes_WithEmptyItemList()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            originalTestPerson.Tags.Add("1234");
+
+            var patchRequest = new TestPersonRequest();
+
+            var json = @"{""Tags"" : []}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.Tags.Should().HaveCount(0);
+        }
     }
 }

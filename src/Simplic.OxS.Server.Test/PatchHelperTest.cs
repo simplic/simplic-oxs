@@ -1041,5 +1041,31 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.Tags.Should().HaveCount(0);
         }
+
+        /// <summary>
+        /// Tests whether the patch method works correctly when a list of items that are NO simple types like strings or ints or guids.
+        /// </summary>
+        [Fact]
+        public async Task Patch_ListOfSimpleTypes_WithEmptyItemList2()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            var testItem = new TestItem { Id= Guid.NewGuid(), Name="Test" };
+            originalTestPerson.Items.Add(testItem);
+
+            var patchRequest = new TestPersonRequest();
+
+            var json = @"{""Items"" : []}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.Items.Should().HaveCount(0);
+        }
     }
 }

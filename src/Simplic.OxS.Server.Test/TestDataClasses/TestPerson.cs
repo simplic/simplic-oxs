@@ -37,5 +37,7 @@ namespace Simplic.OxS.Server.Test
             = new Dictionary<string, object>();
 
         public TestPhoneNumber? NotInitializedPhoneNumber { get; set; }
+
+        public IList<TestItem> Items { get; set; } = new List<TestItem>();
     }
 }

@@ -171,3 +171,7 @@ An example for offset paging:
   	  }
 	}
 
+
+With a ? after a property you can define this property to nullable.
+Banana Cake pop display a error but its still work.
+It is important to use this in querys when something can be null.

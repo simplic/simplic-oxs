@@ -165,7 +165,7 @@ namespace Simplic.OxS.Server
 
             if (!elements.Any())
             {
-                var collection = GetCollection(original, path);
+                var collection = GetCollection(patch, path);
                 var type = collection.GetType();
 
                 // To ensure that a list of strings, guids or other value types is set to an empty list when a empty list
@@ -174,7 +174,10 @@ namespace Simplic.OxS.Server
                 {
                     var collectionType = type.GetGenericArguments()[0];
                     if (collectionType.IsValueType || collectionType == typeof(string))
-                        collection.Clear();
+                    {
+                        var originalCollection = GetCollection(original, path);
+                        originalCollection.Clear();
+                    }
                 }
 
                 return;

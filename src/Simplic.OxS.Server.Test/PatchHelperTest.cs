@@ -1041,5 +1041,31 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.Tags.Should().HaveCount(0);
         }
+
+        /// <summary>
+        /// Tests whether the patch method will clear a list of non value types when the request contains a list of value types referencing the first.
+        /// </summary>
+        [Fact]
+        public async Task Patch_RequestWithListOfSimpleTypesReferencingObjectsInSourceObject_SetsListEmpty()
+        {
+            var guid = Guid.NewGuid();
+
+            var originalTestPerson = new TestPerson();
+            var testItem = new TestItem { Id= Guid.NewGuid(), Name="Test" };
+            originalTestPerson.Items.Add(testItem);
+
+            var patchRequest = new TestPersonRequest();
+
+            var json = @"{""Items"" : []}";
+
+            var patchHelper = new PatchHelper();
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.Items.Should().HaveCount(0);
+        }
     }
 }

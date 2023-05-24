@@ -1046,7 +1046,7 @@ namespace Simplic.OxS.Server.Test
         /// Tests whether the patch method works correctly when a list of items that are NO simple types like strings or ints or guids.
         /// </summary>
         [Fact]
-        public async Task Patch_ListOfSimpleTypes_WithEmptyItemList2()
+        public async Task Patch_ListOfSimpleTypes_WithEmptyItemListTwo()
         {
             var guid = Guid.NewGuid();
 

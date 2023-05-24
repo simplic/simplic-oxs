@@ -38,6 +38,6 @@ namespace Simplic.OxS.Server.Test
 
         public TestPhoneNumberRequest? NotInitializedPhoneNumber { get; set; }
 
-        public IList<TestItem> Items { get; set; } = new List<TestItem>();
+        public IList<Guid>? Items { get; set; } = new List<Guid>();
     }
 }

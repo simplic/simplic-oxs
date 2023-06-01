@@ -4,6 +4,7 @@ using Simplic.OxS.Server.Test.TestDataClasses.ERP;
 using Simplic.OxS.Server.Test.TestDataClasses.ERP.Abstract;
 using Simplic.OxS.Server.Test.TestDataClasses.Tour;
 using System.Text;
+using System.Xml.XPath;
 
 namespace Simplic.OxS.Server.Test
 {
@@ -158,13 +159,15 @@ namespace Simplic.OxS.Server.Test
             });
 
             var patchRequest = new TestPersonRequest();
-            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
-            {
-                Id = guid,
-                PhoneNumber = "5678"
-            });
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest>() {new TestPhoneNumberRequest
+                {
+                    Id = guid,
+                    PhoneNumber = "5678"
+                }
+            };
 
-            var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 
@@ -197,18 +200,20 @@ namespace Simplic.OxS.Server.Test
                 PhoneNumber = "1234"
             });
 
-            var patchReqeust = new TestPersonRequest();
-            patchReqeust.PhoneNumbers.Add(new TestPhoneNumberRequest
-            {
-                Id = guid,
-                PhoneNumber = "5678"
-            });
+            var patchRequest = new TestPersonRequest();
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest> {new TestPhoneNumberRequest
+                {
+                    Id = guid,
+                    PhoneNumber = "5678"
+                }
+            };
 
-            var json = @"{""PhoneNumbers"" : [{""Id"": """ + guid.ToString() + @""", ""PhoneNumber"" : ""5678"" }]}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 
-            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchReqeust, json, (validation) =>
+            var patchedTestPerson = await patchHelper.Patch<TestPerson>(originalTestPerson, patchRequest, json, (validation) =>
             {
                 return true;
             });
@@ -234,12 +239,15 @@ namespace Simplic.OxS.Server.Test
             });
 
             var patchRequest = new TestPersonRequest();
-            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
-            {
-                Id = guid,
-            });
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest>() {new TestPhoneNumberRequest
+                {
+                    Id = guid,
+                    _remove = true
+                }
+            };
 
-            var json = @"{""PhoneNumbers"" : [{ ""Id"" : """ + guid.ToString() + @""", ""_remove"" : true }]}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 
@@ -268,12 +276,17 @@ namespace Simplic.OxS.Server.Test
             });
 
             var patchRequest = new TestPersonRequest();
-            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
-            {
-                Id = guid,
-            });
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest>() {new TestPhoneNumberRequest
+                {
+                    Id = guid,
+                    _remove = true
+                }
+            };
 
-            var json = @"{""PhoneNumbers"" : [{ ""Id"" : """ + guid.ToString() + @""", ""_remove"" : true }]}";
+
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+
 
             var patchHelper = new PatchHelper();
 
@@ -294,12 +307,16 @@ namespace Simplic.OxS.Server.Test
             var originalTestPerson = new TestPerson();
 
             var patchRequest = new TestPersonRequest();
-            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest>
             {
-                PhoneNumber = "5678"
-            });
+                new TestPhoneNumberRequest
+                {
+                    PhoneNumber = "5678"
+                }
+            };
 
-            var json = @"{""PhoneNumbers"" : [{ ""PhoneNumber"" : ""5678"" }]}";
+            var json = JsonConvert.SerializeObject(patchRequest, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+            //var json = @"{""PhoneNumbers"" : [{ ""PhoneNumber"" : ""5678"" }]}";
 
             var patchHelper = new PatchHelper();
 
@@ -669,12 +686,14 @@ namespace Simplic.OxS.Server.Test
             var originalTestPerson = new TestPerson();
 
             var patchRequest = new TestPersonRequest();
-            patchRequest.PhoneNumbers.Add(new TestPhoneNumberRequest
-            {
-                PhoneNumber = "5678"
-            });
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest>() { new TestPhoneNumberRequest
+                {
+                    PhoneNumber = "5678"
+                }
+            };
 
-            var json = @"{""PhoneNumbers"" : [{ ""PhoneNumber"" : ""5678"" }]}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper(cfg =>
             {
@@ -731,10 +750,10 @@ namespace Simplic.OxS.Server.Test
             originalTestPerson.Tags.Add("Test");
 
             var patchRequest = new TestPersonRequest();
-            patchRequest.Tags.Add("Test");
-            patchRequest.Tags.Add("Tag");
+            patchRequest.Tags = new List<string> { "Test", "Tag" };
 
-            var json = @"{""Tags"" : [""Test"", ""Tag"" ]}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 
@@ -1004,8 +1023,10 @@ namespace Simplic.OxS.Server.Test
             });
 
             var patchRequest = new TestPersonRequest();
-            
-            var json = @"{""PhoneNumbers"" : []}";
+            patchRequest.PhoneNumbers = new List<TestPhoneNumberRequest>();
+
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 
@@ -1029,8 +1050,10 @@ namespace Simplic.OxS.Server.Test
             originalTestPerson.Tags.Add("1234");
 
             var patchRequest = new TestPersonRequest();
+            patchRequest.Tags = new List<string>();
 
-            var json = @"{""Tags"" : []}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 
@@ -1051,12 +1074,14 @@ namespace Simplic.OxS.Server.Test
             var guid = Guid.NewGuid();
 
             var originalTestPerson = new TestPerson();
-            var testItem = new TestItem { Id= Guid.NewGuid(), Name="Test" };
+            var testItem = new TestItem { Id = Guid.NewGuid(), Name = "Test" };
             originalTestPerson.Items.Add(testItem);
 
             var patchRequest = new TestPersonRequest();
+            patchRequest.Items = new List<Guid>();
 
-            var json = @"{""Items"" : []}";
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
             var patchHelper = new PatchHelper();
 

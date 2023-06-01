@@ -8,5 +8,7 @@ namespace Simplic.OxS.Server.Test
 
         public string? PhoneNumber { get; set; }
 
+        public bool? _remove { get; set; }
+
     }
 }

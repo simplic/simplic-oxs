@@ -38,6 +38,6 @@ namespace Simplic.OxS.Server.Test
 
         public IList<Guid>? Items { get; set; }
 
-        public IList<(string, string)> TestTuple { get; set; }
+        public IList<(string, string)>? TestTuple { get; set; }
     }
 }

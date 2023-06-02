@@ -1092,5 +1092,41 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.Items.Should().HaveCount(0);
         }
+
+        [Fact]
+        public async Task Patch_RequestWithTupleList_HandlesListLikeSimpleObjects()
+        {
+            var originalTestPerson = new TestPerson();
+
+            var patchRequest = new TestPersonRequest()
+            {
+                TestTuple = new List<(string, string)>
+                {
+                    ("Test", "Tuple"),
+                    ("Second", "Typle")
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(patchRequest,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+
+            var patchHelper = new PatchHelper(cfg =>
+            {
+                cfg.ForCollectionPath("TestTuple").OverwriteCollectionInPatch<List<(string, string)>, List<(string, string)>>((patch) =>
+                {
+                    return patch;
+                });
+
+
+                return cfg;
+            });
+
+            var patchedTestPerson = await patchHelper.Patch(originalTestPerson, patchRequest, json, (validation) =>
+            {
+                return true;
+            });
+
+            patchedTestPerson.TestTuple.Should().HaveCount(2);
+        }
     }
 }

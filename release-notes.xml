@@ -2,4 +2,7 @@
   <ChangeSet guid="g6d48f4a-b886-260c-bf73-3aa3c4d7a54f" version="1.2.623.523" date="2023-05-23">
     <Change type="feature">Update the Patchhelper to patch list of guid, string or something else.</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="feature">Update the Patchhelper to be able to patch a list of tuples when configured correctly.</Change>
+  </ChangeSet>
 </ReleaseNotes>

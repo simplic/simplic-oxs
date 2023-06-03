@@ -39,5 +39,7 @@ namespace Simplic.OxS.Server.Test
         public TestPhoneNumber? NotInitializedPhoneNumber { get; set; }
 
         public IList<TestItem> Items { get; set; } = new List<TestItem>();
+
+        public IList<(string, string)> TestTuple { get; set; } = new List<(string, string)>();
     }
 }

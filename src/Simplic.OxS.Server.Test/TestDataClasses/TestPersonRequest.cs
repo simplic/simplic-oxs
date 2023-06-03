@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server.Test
@@ -27,17 +28,16 @@ namespace Simplic.OxS.Server.Test
 
         public double? TestDouble { get; set; }
 
-        public IList<TestPhoneNumberRequest> PhoneNumbers { get; set; }
-            = new List<TestPhoneNumberRequest>();
+        public IList<TestPhoneNumberRequest>? PhoneNumbers { get; set; }
 
-        public IList<string> Tags { get; set; }
-            = new List<string>();
+        public IList<string>? Tags { get; set; }
 
-        public IDictionary<string, object> AddonProperties { get; set; }
-            = new Dictionary<string, object>();
+        public IDictionary<string, object>? AddonProperties { get; set; }
 
         public TestPhoneNumberRequest? NotInitializedPhoneNumber { get; set; }
 
-        public IList<Guid>? Items { get; set; } = new List<Guid>();
+        public IList<Guid>? Items { get; set; }
+
+        public IList<(string, string)>? TestTuple { get; set; }
     }
 }

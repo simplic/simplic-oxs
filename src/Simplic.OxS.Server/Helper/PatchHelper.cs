@@ -194,6 +194,7 @@ namespace Simplic.OxS.Server
                         && x.OverwriteCollection))
                     {
                         await SetSourceValueAtPath(patch, original, path, validationRequest, fullPath);
+                        return;
                     }
 
                     await HandleObjectArray(element, GetCollection(original, path), GetCollection(patch, path),
@@ -352,8 +353,6 @@ namespace Simplic.OxS.Server
 
             try
             {
-
-
                 if (configItem != null)
                 {
                     if (!validationRequest.Invoke(new ValidationRequest
@@ -453,7 +452,7 @@ namespace Simplic.OxS.Server
                             originalProperty.SetValue(original, patch);
 
                         }
-                        catch (InvalidCastException)
+                        catch (InvalidCastException ex)
                         {
                             if (originalProperty.PropertyType.IsGenericType)
                             {

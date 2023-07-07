@@ -67,8 +67,6 @@ namespace Simplic.OxS.Server
             IMapper mapper = mapperConfig.CreateMapper();
             services.AddSingleton(mapper);
 
-            services.AddTransient<IMapService, MapService>();
-
             // Add internal services
             services.AddScoped<IRequestContext, RequestContext>();
             services.AddScoped<RequestContextActionFilter>();

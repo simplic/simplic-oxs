@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Simplic.OxS.Server;
 
@@ -21,7 +20,7 @@ public class LowercaseAttribute : ValidationAttribute
 		{
 			string? lowercaseValue = value.ToString()?.ToLower();
 
-			if(lowercaseValue == null) 
+			if (lowercaseValue == null)
 				return ValidationResult.Success;
 
 			validationContext.ObjectType.GetProperty(validationContext.MemberName)?

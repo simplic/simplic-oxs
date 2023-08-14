@@ -2,8 +2,14 @@
 
 namespace Simplic.OxS.Data.Service
 {
-    public class OrganizationServiceBase<TDocument, TFilter> : IOrganizationServiceBase<TDocument, TFilter> where TDocument : IOrganizationDocument<Guid>
-                                                                                                            where TFilter : IOrganizationFilter<Guid>
+    /// <summary>
+    /// Base class for services that manage <see cref="IOrganizationDocument{TId}"/>s.
+    /// </summary>
+    /// <typeparam name="TDocument">Document type (must inherit from <see cref="IOrganizationDocument{TId}"/>)</typeparam>
+    /// <typeparam name="TFilter">Filter type (must inherit from <see cref="IOrganizationFilter{TId}"/>)</typeparam>
+    public class OrganizationServiceBase<TDocument, TFilter> : IOrganizationServiceBase<TDocument, TFilter>
+        where TDocument : IOrganizationDocument<Guid>
+        where TFilter : IOrganizationFilter<Guid>
     {
         private readonly IOrganizationRepository<Guid, TDocument, TFilter> repository;
         private readonly IRequestContext requestContext;
@@ -14,8 +20,10 @@ namespace Simplic.OxS.Data.Service
             this.requestContext = requestContext;
         }
 
-        public virtual async Task<TDocument> GetById(Guid id) => await repository.GetAsync(id);
+        /// <inheritdoc />
+        public virtual async Task<TDocument?> GetById(Guid id) => await repository.GetAsync(id);
 
+        /// <inheritdoc />
         public virtual async Task<TDocument> Create([NotNull] TDocument obj)
         {
             AssertRequest(obj, false);
@@ -23,7 +31,7 @@ namespace Simplic.OxS.Data.Service
             if (obj.Id == default)
                 obj.Id = Guid.NewGuid();
 
-            obj.OrganizationId = requestContext.OrganizationId.Value;
+            obj.OrganizationId = requestContext.OrganizationId!.Value;
 
             if (obj is IDocumentDataExtension ext)
             {
@@ -40,6 +48,7 @@ namespace Simplic.OxS.Data.Service
             return obj;
         }
 
+        /// <inheritdoc />
         public virtual async Task<TDocument> Update([NotNull] TDocument obj)
         {
             AssertRequest(obj, true);
@@ -59,6 +68,7 @@ namespace Simplic.OxS.Data.Service
             return obj;
         }
 
+        /// <inheritdoc />
         public virtual async Task<TDocument> Delete([NotNull] TDocument obj)
         {
             AssertRequest(obj, true);
@@ -77,10 +87,11 @@ namespace Simplic.OxS.Data.Service
             return obj;
         }
 
+        /// <inheritdoc />
         public virtual async Task Delete(Guid id)
         {
             var obj = await GetById(id);
-            if (obj != null)
+            if (obj is not null)
                 await Delete(obj);
         }
 

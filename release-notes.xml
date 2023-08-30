@@ -5,4 +5,5 @@
   <ChangeSet>
     <Change type="feature">Update the Patchhelper to be able to patch a list of tuples when configured correctly.</Change>
   </ChangeSet>
+  <Change type="bug">Fix issue allowing to query all organizations when no organization id is set in the request context.</Change>
 </ReleaseNotes>

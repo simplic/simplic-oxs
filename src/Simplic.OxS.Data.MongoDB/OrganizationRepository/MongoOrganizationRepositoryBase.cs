@@ -52,7 +52,9 @@ namespace Simplic.OxS.Data.MongoDB
                  ? predicate.OrganizationId
                  : predicate.QueryAllOrganizations
                     ? null
-                    : requestContext.OrganizationId;
+                    : requestContext.OrganizationId 
+                        // Using an empty guid to prevent reading data from all Organizations.
+                        ?? Guid.Empty;
 
             SortDefinition<TDocument> sort = null;
             if (!string.IsNullOrWhiteSpace(sortField))
@@ -89,7 +91,9 @@ namespace Simplic.OxS.Data.MongoDB
                 ? filter.OrganizationId
                 : filter.QueryAllOrganizations
                     ? null
-                    : requestContext.OrganizationId;
+                    : requestContext.OrganizationId
+                        // Using an empty guid to prevent reading data from all Organizations.
+                        ?? Guid.Empty;
 
             return (await Collection.FindAsync(BuildFilterQuery(filter)))
                     .ToEnumerable();

@@ -42,9 +42,6 @@ namespace Simplic.OxS.Scheduler
                     })
                 );
 
-                services.AddScoped<IJobContextAccessor, JobContextAccessor>();
-                services.AddScoped<IJobWithRequestContext, JobWithRequestContext>();
-
                 // Add the processing server as IHostedService
                 services.AddHangfireServer(serverOptions =>
                 {

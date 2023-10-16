@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Simplic.OxS.Scheduler
 {
-    internal class JobWithRequestContextActivator : AspNetCoreJobActivator
+    public class JobWithRequestContextActivator : AspNetCoreJobActivator
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
 
@@ -25,8 +25,9 @@ namespace Simplic.OxS.Scheduler
 
             var serviceScope = _serviceScopeFactory.CreateScope();
 
-            var userContextForJob = serviceScope.ServiceProvider.GetRequiredService<IJobContextAccessor>();
-            userContextForJob.Context = new JobWithRequestContext { ReqeustContext = requestContext };
+            var userContextForJob = serviceScope.ServiceProvider.GetRequiredService<IRequestContext>();
+            userContextForJob.OrganizationId = requestContext.OrganizationId;
+            userContextForJob.CorrelationId = Guid.NewGuid();
 
             return new ServiceJobActivatorScope(serviceScope);
         }

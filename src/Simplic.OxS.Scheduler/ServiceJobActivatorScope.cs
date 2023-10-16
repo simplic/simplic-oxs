@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Simplic.OxS.Scheduler
 {
-    internal class ServiceJobActivatorScope : JobActivatorScope
+    public class ServiceJobActivatorScope : JobActivatorScope
     {
         private IServiceScope serviceScope;
 

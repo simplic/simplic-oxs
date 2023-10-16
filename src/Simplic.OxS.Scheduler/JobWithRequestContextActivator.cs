@@ -28,6 +28,7 @@ namespace Simplic.OxS.Scheduler
             var userContextForJob = serviceScope.ServiceProvider.GetRequiredService<IRequestContext>();
             userContextForJob.OrganizationId = requestContext.OrganizationId;
             userContextForJob.CorrelationId = Guid.NewGuid();
+            userContextForJob.UserId = requestContext.UserId;
 
             return new ServiceJobActivatorScope(serviceScope);
         }

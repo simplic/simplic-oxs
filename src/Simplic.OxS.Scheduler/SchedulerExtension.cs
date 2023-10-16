@@ -29,6 +29,7 @@ namespace Simplic.OxS.Scheduler
                     .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
                     .UseSimpleAssemblyNameTypeSerializer()
                     .UseRecommendedSerializerSettings()
+                    .UseActivator(new JobWithRequestContextActivator(services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>()))
                     .UseMongoStorage(settings.ConnectionString, settings.Database, new MongoStorageOptions
                     {
                         MigrationOptions = new MongoMigrationOptions
@@ -40,6 +41,9 @@ namespace Simplic.OxS.Scheduler
                         CheckConnection = true
                     })
                 );
+
+                services.AddScoped<IJobContextAccessor, JobContextAccessor>();
+                services.AddScoped<IJobWithRequestContext, JobWithRequestContext>();
 
                 // Add the processing server as IHostedService
                 services.AddHangfireServer(serverOptions =>

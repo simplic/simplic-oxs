@@ -1,150 +1,186 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using OpenTelemetry.Logs;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
-using Simplic.OxS.Server.Settings;
-using StackExchange.Redis;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
+using Serilog;
+using Serilog.Context;
+using Serilog.Core.Enrichers;
+using Serilog.Events;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
-namespace Simplic.OxS.Server.Extensions
+namespace Simplic.OxS.Server.Extensions;
+
+/// <summary>
+/// Extension methods for logging.
+/// </summary>
+public static class LoggingExtension
 {
     /// <summary>
-    /// Add logging and tracing extension
+    /// Add serilog to the logging pipeline.
     /// </summary>
-    internal static class MonitoringExtension
+    /// <param name="logging"></param>
+    /// <param name="configure"></param>
+    internal static void AddSerilog(this ILoggingBuilder logging, Action<LoggerConfiguration> configure)
     {
-        /// <summary>
-        /// Add logging and metric/tracing to the service
-        /// </summary>
-        /// <param name="services">Service collection</param>
-        /// <param name="serviceName">Actual service name</param>
-        /// <returns>Service collection</returns>
-        internal static IServiceCollection AddLoggingAndMetricTracing(this IServiceCollection services, IConfiguration configuration, string serviceName)
+        var config = new LoggerConfiguration();
+        configure.Invoke(config);
+        // use this?
+        // logging.AddSerilog(config.CreateBootstrapLogger());
+
+        logging.AddSerilog(config.CreateLogger());
+    }
+
+    /// <summary>
+    /// Writes a log message using the `Trace`/`Verbose` log level.
+    /// Used for logging the most minor information.
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    public static void Verbose(this ILogger logger, string? message, params object?[] args)
+    {
+        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        using (CallerScope())
         {
-            // Bind and read settings
-            services.Configure<MonitoringSettings>(options => configuration.GetSection("Monitoring").Bind(options));
-            var monitoringSettings = configuration.GetSection("Monitoring").Get<MonitoringSettings>();
-
-            if (monitoringSettings == null)
-            {
-                Console.WriteLine("Could not find monitoring section in app-settings. Please ensure that a valid enviornment-name is passed (e.g. Local, Development, ...).");
-                return services;
-            }
-
-            var resourceBuilder = ResourceBuilder.CreateDefault()
-                                                 .AddService($"Simplic.OxS.{serviceName}")
-                                                 .AddTelemetrySdk();
-
-            services.AddOpenTelemetryTracing((builder) =>
-            {
-                builder.SetResourceBuilder(resourceBuilder)
-                       .AddAspNetCoreInstrumentation(o =>
-                       {
-                           o.RecordException = true;
-                       })
-                       .AddMassTransitInstrumentation()
-                       .AddHttpClientInstrumentation(o =>
-                       {
-                           o.RecordException = true;
-                       })
-                       .SetErrorStatusOnException(true);
-
-                // Add redis instruments if connection is set
-                var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();
-                if (redisSettings != null && !string.IsNullOrWhiteSpace(redisSettings.RedisCacheUrl))
-                {
-                    var connection = ConnectionMultiplexer.Connect(redisSettings.RedisCacheUrl);
-                    builder.AddRedisInstrumentation(connection);
-
-                    Console.WriteLine("Add OpenTelemetry redis instruments");
-                }
-
-                if (UseConsoleExporter(monitoringSettings.TracingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                    builder.AddConsoleExporter();
-
-                if (UseOtlpExporter(monitoringSettings.TracingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                {
-                    builder.AddOtlpExporter(opt =>
-                    {
-                        opt.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                    });
-                }
-            });
-
-            // Add logging provider
-            services.AddLogging(logging =>
-            {
-                logging.ClearProviders();
-
-                logging.AddConsole();
-
-                logging.AddOpenTelemetry(options =>
-                 {
-                     options.SetResourceBuilder(resourceBuilder);
-
-                     options.IncludeScopes = true;
-                     options.ParseStateValues = true;
-                     options.IncludeFormattedMessage = true;
-
-                     if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                         options.AddConsoleExporter();
-
-                     if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                     {
-                         options.AddOtlpExporter(otlpOptions =>
-                         {
-                             otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                         });
-                     }
-                 });
-            });
-
-            services.Configure<OpenTelemetryLoggerOptions>(opt =>
-            {
-                opt.IncludeScopes = true;
-                opt.ParseStateValues = true;
-                opt.IncludeFormattedMessage = true;
-            });
-
-            // Metrics
-            services.AddOpenTelemetryMetrics(options =>
-            {
-                options.SetResourceBuilder(resourceBuilder)
-                    .AddHttpClientInstrumentation()
-                    .AddAspNetCoreInstrumentation();
-
-                if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                    options.AddConsoleExporter();
-
-                if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                {
-                    options.AddOtlpExporter(otlpOptions =>
-                    {
-                        otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                    });
-                }
-
-            });
-
-            return services;
+            logger.LogTrace(eventId, message, args);
         }
+    }
 
-        /// <summary>
-        /// Determines whether console export should be used
-        /// </summary>
-        /// <param name="settings">Settings as string</param>
-        /// <returns>True if console exporter should be used</returns>
-        private static bool UseConsoleExporter(string settings) => settings?.ToLower()?.Contains("console") ?? false;
+    /// <summary>
+    /// Writes a log message using the `Debug` log level.
+    /// Used for debugging purposes.
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    public static void Debug(this ILogger logger, string? message, params object?[] args)
+    {
+        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        using (CallerScope())
+        {
+            logger.LogDebug(eventId, message, args);
+        }
+    }
 
-        /// <summary>
-        /// Determines whether otlp export should be used
-        /// </summary>
-        /// <param name="settings">Settings as string</param>
-        /// <returns>True if otlp exporter should be used</returns>
-        private static bool UseOtlpExporter(string settings) => settings?.ToLower()?.Contains("otlp") ?? false;
+    /// <summary>
+    /// Writes a log message using the `Information` log level.
+    /// Used for general logging of noteworthy information.
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    public static void Info(this ILogger logger, string? message, params object?[] args)
+    {
+        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        using (CallerScope())
+        {
+            logger.LogInformation(eventId, message, args);
+        }
+    }
+
+    /// <summary>
+    /// Writes a log message using the `Warning` log level.
+    /// Used for logging unexpected or problematic situations.
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    public static void Warn(this ILogger logger, string? message, params object?[] args)
+    {
+        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        using (CallerScope())
+        {
+            logger.LogWarning(eventId, message, args);
+        }
+    }
+
+    /// <summary>
+    /// Writes a log message using the `Error` log level.
+    /// Used for logging exceptions.
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <param name="e"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    public static void Error(
+        this ILogger logger,
+        Exception e,
+        string message = "",
+        params object?[] args
+    )
+    {
+        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        using (CallerScope())
+        {
+            logger.LogError(eventId, e, message, args);
+        }
+    }
+
+    /// <summary>
+    /// Writes a log message using the `Critical`/`Fatal` log level.
+    /// Used for logging the most severe errors that should be taken care of immediately.
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <param name="e"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    public static void Crit(
+        this ILogger logger,
+        Exception e,
+        string message = "",
+        params object?[] args
+    )
+    {
+        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        using (CallerScope())
+        {
+            logger.LogCritical(eventId, e, message, args);
+        }
+    }
+
+    /// <summary>
+    /// Converts a <see cref="LogLevel"/> to a <see cref="LogEventLevel"/>.
+    /// </summary>
+    /// <param name="logLevel"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    public static LogEventLevel ToLogEventLevel(this LogLevel logLevel) =>
+        logLevel switch
+        {
+            LogLevel.Trace => LogEventLevel.Verbose,
+            LogLevel.Debug => LogEventLevel.Debug,
+            LogLevel.Information => LogEventLevel.Information,
+            LogLevel.Warning => LogEventLevel.Warning,
+            LogLevel.Error => LogEventLevel.Error,
+            LogLevel.Critical => LogEventLevel.Fatal,
+            _ => throw new ArgumentOutOfRangeException(nameof(logLevel), logLevel, null)
+        };
+
+    /// <summary>
+    /// Creates an <see cref="IDisposable"/> containing properties for serilog
+    /// that involve caller information such as the class/type and function name.
+    /// </summary>
+    private static IDisposable CallerScope()
+    {
+        try
+        {
+            var callerMethod = new StackTrace().GetFrame(2)!.GetMethod();
+            var callerType = callerMethod!.ReflectedType!.Name;
+            var callerFn = callerMethod.Name;
+
+            const string fnColor = "\u001b[33m";
+            const string classColor = "\u001b[38;2;30;216;184m";
+            const string noColor = "\u001b[0m";
+
+            return LogContext.Push(
+                new PropertyEnricher("Caller", $"{callerType}.{callerFn}"),
+                new PropertyEnricher(
+                    "CallerColored",
+                    $"{classColor}{callerType}{noColor}.{fnColor}{callerFn}"
+                )
+            );
+        }
+        catch (Exception)
+        {
+            return LogContext.PushProperty("Caller", "");
+        }
     }
 }

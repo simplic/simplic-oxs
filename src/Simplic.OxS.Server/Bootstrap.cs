@@ -55,7 +55,7 @@ namespace Simplic.OxS.Server
 
             // Add Jwt authentication and bind configuration
             var authBuilder = services.AddJwtAuthentication(Configuration);
-            if(authBuilder != null)
+            if (authBuilder != null)
                 ConfigureAuthentication(authBuilder);
 
             // Register custom services

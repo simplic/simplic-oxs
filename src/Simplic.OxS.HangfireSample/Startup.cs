@@ -12,6 +12,10 @@ namespace Simplic.OxS.HangfireSample
 
         protected override void RegisterServices(IServiceCollection services)
         {
+            // Add job services
+            services.AddTransient<SampleJob>();
+            services.AddTransient<SampleAsyncJob>();
+
             services.AddJobScheduler(Configuration, ServiceName);
 
             services.AddCors(opt =>
@@ -29,8 +33,20 @@ namespace Simplic.OxS.HangfireSample
         {
             base.Configure(app, env);
 
-            // Every 5 minutes
-            RecurringJob.AddOrUpdate("SampleCronJob", () => Console.WriteLine("Recurring!"), "*/5 * * * *");
+            // Every minute
+            RecurringJob.AddOrUpdate<ScopedJob>("SampleJob", "sample", (x) => x.ExecuteJob(typeof(SampleJob), new ScopeJobParameter
+            {
+                OrganizationId = Guid.NewGuid(),
+                UserId = Guid.Empty
+            }), "* * * * *");
+
+
+            // Every minute
+            RecurringJob.AddOrUpdate<AsyncScopedJob>("SampleJobAsync", "sample", (x) => x.ExecuteJobAsync(typeof(SampleAsyncJob), new ScopeJobParameter
+            {
+                OrganizationId = Guid.NewGuid(),
+                UserId = Guid.Empty
+            }), "* * * * *");
         }
 
         protected override void MapEndpoints(IEndpointRouteBuilder builder)

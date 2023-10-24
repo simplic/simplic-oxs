@@ -34,18 +34,26 @@ namespace Simplic.OxS.HangfireSample
             base.Configure(app, env);
 
             // Every minute
-            RecurringJob.AddOrUpdate<ScopedJob>("SampleJob", "sample", (x) => x.ExecuteJob(typeof(SampleJob), new ScopeJobParameter
+            RecurringJob.AddOrUpdate<ScopedJob>("SampleJob", "sample", (x) => x.ExecuteJob(typeof(SampleJob), new ScopedJobParameter
             {
                 OrganizationId = Guid.NewGuid(),
-                UserId = Guid.Empty
+                UserId = Guid.Empty,
+                Parameters = new Dictionary<string, string> 
+                {
+                    { "Key", "Value!" }
+                }
             }), "* * * * *");
 
 
             // Every minute
-            RecurringJob.AddOrUpdate<AsyncScopedJob>("SampleJobAsync", "sample", (x) => x.ExecuteJobAsync(typeof(SampleAsyncJob), new ScopeJobParameter
+            RecurringJob.AddOrUpdate<AsyncScopedJob>("SampleJobAsync", "sample", (x) => x.ExecuteJobAsync(typeof(SampleAsyncJob), new ScopedJobParameter
             {
                 OrganizationId = Guid.NewGuid(),
-                UserId = Guid.Empty
+                UserId = Guid.Empty,
+                Parameters = new Dictionary<string, string>
+                {
+                    { "Key", "Value!" }
+                }
             }), "* * * * *");
         }
 

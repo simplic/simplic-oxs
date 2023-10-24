@@ -10,6 +10,7 @@ namespace Simplic.OxS.Scheduler
         /// <summary>
         /// Execute job
         /// </summary>
-        void Execute();
+        /// <param name="parameter">Contains the scoped job parameter</param>
+        void Execute(ScopedJobParameter parameter);
     }
 }

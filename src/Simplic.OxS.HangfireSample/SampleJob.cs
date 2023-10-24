@@ -15,7 +15,7 @@ namespace Simplic.OxS.HangfireSample
             this.requestContext = requestContext;
         }
 
-        public void Execute()
+        public void Execute(ScopedJobParameter parameter)
         {
             logger.LogInformation($"Executing job with data: {requestContext.CorrelationId}");
             logger.LogInformation($" User: {requestContext.UserId}");

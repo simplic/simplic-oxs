@@ -13,4 +13,7 @@
     <Change type="feature">Add scoped services for hangfire</Change>
     <Change type="enhancement">Switch open-telemetry from beta-libraries to stable libraries</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="feature">Add generic parameter to scoped jobs.</Change>
+  </ChangeSet>
 </ReleaseNotes>

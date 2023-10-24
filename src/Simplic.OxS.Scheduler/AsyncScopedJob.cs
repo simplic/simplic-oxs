@@ -28,7 +28,7 @@ namespace Simplic.OxS.Scheduler
         /// <param name="jobService">Job to execute as type. The type must be registered using services.AddTransient before.</param>
         /// <param name="parameter">Parameter for passing e.g. user-id, organization-id, etv.</param>
         /// <exception cref="Exception">Throws an exception, if the jobService is not registered</exception>
-        public async Task ExecuteJobAsync(Type jobService, ScopeJobParameter parameter)
+        public async Task ExecuteJobAsync(Type jobService, ScopedJobParameter parameter)
         {
             // Set requestContext data for the current scope
             requestContext!.CorrelationId = Guid.NewGuid();
@@ -43,7 +43,7 @@ namespace Simplic.OxS.Scheduler
 
             if (service is IAsyncScopedJobService scopedService)
             {
-                await scopedService.ExecuteAsync();
+                await scopedService.ExecuteAsync(parameter);
             }
             else
             {

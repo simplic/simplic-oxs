@@ -10,6 +10,7 @@ namespace Simplic.OxS.Scheduler
         /// <summary>
         /// Execute async job
         /// </summary>
-        Task ExecuteAsync();
+        /// <param name="parameter">Contains the scoped job parameter</param>
+        Task ExecuteAsync(ScopedJobParameter parameter);
     }
 }

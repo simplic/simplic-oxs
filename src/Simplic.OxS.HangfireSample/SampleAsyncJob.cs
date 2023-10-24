@@ -15,7 +15,7 @@ namespace Simplic.OxS.HangfireSample
             this.requestContext = requestContext;
         }
 
-        public async Task ExecuteAsync()
+        public async Task ExecuteAsync(ScopedJobParameter parameter)
         {
             logger.LogWarning($"ASYNC! Executing job with data: {requestContext.CorrelationId}");
             logger.LogWarning($" User: {requestContext.UserId}");

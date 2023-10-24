@@ -38,8 +38,7 @@ namespace Simplic.OxS.Scheduler
                             BackupStrategy = new CollectionMongoBackupStrategy()
                         },
                         Prefix = "hangfire",
-                        CheckConnection = true,
-                        CheckQueuedJobsStrategy = CheckQueuedJobsStrategy.TailNotificationsCollection
+                        CheckConnection = true
                     })
                 );
 

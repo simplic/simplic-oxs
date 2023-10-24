@@ -161,8 +161,34 @@ public static class LoggingExtension
     {
         try
         {
-            var callerMethod = new StackTrace().GetFrame(2)!.GetMethod();
-            var callerType = callerMethod!.ReflectedType!.Name;
+            var stack = new StackTrace();
+
+            /*
+                when a stack trace is created in the same scope as the function/method
+                the method will be at frame 0 for non-async methods
+                for async methods it will be at frame 3 due to async middleware being called
+                since the caller (of which method we want) is calling the logging function which adds one frame
+                and additionally the logging function calling this function which adds another frame
+                the caller method will be at frame 2 for non-async and frame 5 for async methods
+            */
+            const int frameOffset = 2;
+            const int frameOffsetAsync = frameOffset + 3;
+
+            /*
+                if the caller method is async, we would expect the function name `MoveNext` at frame 2 and the type `AsyncMethodBuilderCore` at frame 3
+                [POTENTIAL BUG]
+                    if this would for some reason be not the case, although the method being async then this code will be false
+                    a reason could be that microsoft changed one of those names
+            */
+            var callerFrame = stack.GetFrame(frameOffset)!;
+            var isAsync = callerFrame.GetMethod()?.Name == "MoveNext" &&
+                          stack.GetFrame(frameOffset + 1)?.GetMethod()?.ReflectedType?.Name == "AsyncMethodBuilderCore";
+
+            if (isAsync)
+                callerFrame = stack.GetFrame(frameOffsetAsync)!;
+
+            var callerMethod = callerFrame.GetMethod()!;
+            var callerType = callerMethod.ReflectedType!.Name;
             var callerFn = callerMethod.Name;
 
             const string fnColor = "\u001b[33m";

@@ -8,4 +8,9 @@
   <ChangeSet>
     <Change type="bug">Fix issue allowing to query all organizations when no organization id is set in the request context.</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="enhancement">Update to .net 7.</Change>
+    <Change type="feature">Add scoped services for hangfire</Change>
+    <Change type="enhancement">Switch open-telemetry from beta-libraries to stable libraries</Change>
+  </ChangeSet>
 </ReleaseNotes>

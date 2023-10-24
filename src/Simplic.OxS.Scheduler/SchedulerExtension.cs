@@ -30,7 +30,6 @@ namespace Simplic.OxS.Scheduler
                     .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
                     .UseSimpleAssemblyNameTypeSerializer()
                     .UseRecommendedSerializerSettings()
-                    // .UseActivator(new JobWithRequestContextActivator())
                     .UseMongoStorage(settings.ConnectionString, settings.Database, new MongoStorageOptions
                     {
                         MigrationOptions = new MongoMigrationOptions

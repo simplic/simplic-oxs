@@ -1,7 +1,5 @@
-﻿using Hangfire;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics.CodeAnalysis;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace Simplic.OxS.Scheduler
 {

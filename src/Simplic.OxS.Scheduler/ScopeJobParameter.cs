@@ -1,14 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Simplic.OxS.Scheduler
+﻿namespace Simplic.OxS.Scheduler
 {
+    /// <summary>
+    /// Parameter that can be passed to a scoped hangfire job
+    /// </summary>
     public class ScopeJobParameter
     {
+        /// <summary>
+        /// Gets or sets the organization id that should be used in that job
+        /// </summary>
         public Guid? OrganizationId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the user id that should be used in that job
+        /// </summary>
         public Guid? UserId { get; set; }
     }
 }

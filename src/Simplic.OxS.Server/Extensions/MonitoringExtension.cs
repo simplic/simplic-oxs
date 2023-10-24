@@ -82,7 +82,27 @@ internal static class MonitoringExtension
         {
             logging.ClearProviders();
 
-            logging.AddConsole();
+            // logging.AddConsole();
+
+            // logging.AddOpenTelemetry(options =>
+            // {
+            //     options.SetResourceBuilder(resourceBuilder);
+
+            //     options.IncludeScopes = true;
+            //     options.ParseStateValues = true;
+            //     options.IncludeFormattedMessage = true;
+
+            //     if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+            //         options.AddConsoleExporter();
+
+            //     if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+            //     {
+            //         options.AddOtlpExporter(otlpOptions =>
+            //         {
+            //             otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
+            //         });
+            //     }
+            // });
 
             logging.AddSerilog(options =>
             {
@@ -108,34 +128,8 @@ internal static class MonitoringExtension
                 options.WriteTo.OpenTelemetry(o =>
                 {
                     o.Endpoint = monitoringSettings.OtlpEndpoint;
-                    o.ResourceAttributes = new Dictionary<string, object>
-                    {
-                        ["service.name"] = $"{serviceName}.ITWORKS",
-                        ["index"] = 10,
-                        ["flag"] = true,
-                        ["value"] = 3.14
-                    };
+                    o.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
                 });
-            });
-
-            logging.AddOpenTelemetry(options =>
-            {
-                options.SetResourceBuilder(resourceBuilder);
-
-                options.IncludeScopes = true;
-                options.ParseStateValues = true;
-                options.IncludeFormattedMessage = true;
-
-                if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                    options.AddConsoleExporter();
-
-                if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                {
-                    options.AddOtlpExporter(otlpOptions =>
-                    {
-                        otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                    });
-                }
             });
         });
 

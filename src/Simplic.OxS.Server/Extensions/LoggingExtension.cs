@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MassTransit.Internals;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Context;
@@ -18,14 +19,12 @@ public static class LoggingExtension
     /// </summary>
     /// <param name="logging"></param>
     /// <param name="configure"></param>
-    internal static void AddSerilog(this ILoggingBuilder logging, Action<LoggerConfiguration> configure)
+    internal static ILoggingBuilder AddSerilog(this ILoggingBuilder logging, Action<LoggerConfiguration> configure)
     {
         var config = new LoggerConfiguration();
         configure.Invoke(config);
-        // use this?
-        // logging.AddSerilog(config.CreateBootstrapLogger());
 
-        logging.AddSerilog(config.CreateLogger());
+        return logging.AddSerilog(config.CreateLogger());
     }
 
     /// <summary>

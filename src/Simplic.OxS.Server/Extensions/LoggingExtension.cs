@@ -7,8 +7,6 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Simplic.OxS.Server.Settings;
 using StackExchange.Redis;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Simplic.OxS.Server.Extensions
 {
@@ -41,38 +39,21 @@ namespace Simplic.OxS.Server.Extensions
 
             services.ConfigureOpenTelemetryTracerProvider((builder) =>
             {
-                // builder.SetResourceBuilder(resourceBuilder)
-                //        .AddAspNetCoreInstrumentation(o =>
-                //        {
-                //            o.RecordException = true;
-                //        })
-                //        .AddMassTransitInstrumentation()
-                //        .AddHttpClientInstrumentation(o =>
-                //        {
-                //            o.RecordException = true;
-                //        })
-                //        .SetErrorStatusOnException(true);
-                // 
-                // // Add redis instruments if connection is set
-                // var redisSettings = configuration.GetSection("Redis").Get<RedisSettings>();
-                // if (redisSettings != null && !string.IsNullOrWhiteSpace(redisSettings.RedisCacheUrl))
-                // {
-                //     var connection = ConnectionMultiplexer.Connect(redisSettings.RedisCacheUrl);
-                //     builder.AddRedisInstrumentation(connection);
-                // 
-                //     Console.WriteLine("Add OpenTelemetry redis instruments");
-                // }
-                // 
-                // if (UseConsoleExporter(monitoringSettings.TracingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                //     builder.AddConsoleExporter();
-                // 
-                // if (UseOtlpExporter(monitoringSettings.TracingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                // {
-                //     builder.AddOtlpExporter(opt =>
-                //     {
-                //         opt.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                //     });
-                // }
+                builder.SetResourceBuilder(resourceBuilder)
+                       .AddSource(serviceName)
+                       .AddHttpClientInstrumentation()
+                       .SetErrorStatusOnException(true);
+                                
+                if (UseConsoleExporter(monitoringSettings.TracingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+                    builder.AddConsoleExporter();
+                
+                if (UseOtlpExporter(monitoringSettings.TracingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+                {
+                    builder.AddOtlpExporter(opt =>
+                    {
+                        opt.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
+                    });
+                }
             });
 
             // Add logging provider

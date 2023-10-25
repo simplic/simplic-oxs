@@ -180,13 +180,10 @@ public static class LoggingExtension
                     if this would for some reason be not the case, although the method being async then this code will be false
                     a reason could be that microsoft changed one of those names
             */
-            var callerFrame = stack.GetFrame(frameOffset)!;
-            var isAsync = callerFrame.GetMethod()?.Name == "MoveNext" &&
+            var isAsync = stack.GetFrame(frameOffset)?.GetMethod()?.Name == "MoveNext" &&
                           stack.GetFrame(frameOffset + 1)?.GetMethod()?.ReflectedType?.Name == "AsyncMethodBuilderCore";
 
-            if (isAsync)
-                callerFrame = stack.GetFrame(frameOffsetAsync)!;
-
+            var callerFrame = isAsync ? stack.GetFrame(frameOffsetAsync)! : stack.GetFrame(frameOffset)!;
             var callerMethod = callerFrame.GetMethod()!;
             var callerType = callerMethod.ReflectedType!.Name;
             var callerFn = callerMethod.Name;
@@ -196,16 +193,19 @@ public static class LoggingExtension
             const string noColor = "\u001b[0m";
 
             return LogContext.Push(
-                new PropertyEnricher("Caller", $"{callerType}.{callerFn}"),
+                new PropertyEnricher("Caller", $" {callerType}.{callerFn}"),
                 new PropertyEnricher(
                     "CallerColored",
-                    $"{classColor}{callerType}{noColor}.{fnColor}{callerFn}"
+                    $" {classColor}{callerType}{noColor}.{fnColor}{callerFn}"
                 )
             );
         }
         catch (Exception)
         {
-            return LogContext.PushProperty("Caller", "");
+            return LogContext.Push(
+                new PropertyEnricher("Caller", ""),
+                new PropertyEnricher("CallerColored", "")
+            );
         }
     }
 }

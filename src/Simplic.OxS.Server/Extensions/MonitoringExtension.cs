@@ -82,46 +82,24 @@ internal static class MonitoringExtension
         {
             logging.ClearProviders();
 
-            // logging.AddConsole();
-
-            // logging.AddOpenTelemetry(options =>
-            // {
-            //     options.SetResourceBuilder(resourceBuilder);
-
-            //     options.IncludeScopes = true;
-            //     options.ParseStateValues = true;
-            //     options.IncludeFormattedMessage = true;
-
-            //     if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-            //         options.AddConsoleExporter();
-
-            //     if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-            //     {
-            //         options.AddOtlpExporter(otlpOptions =>
-            //         {
-            //             otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-            //         });
-            //     }
-            // });
-
             logging.AddSerilog(options =>
             {
                 // use properties from log context
                 options.Enrich.FromLogContext();
 
                 options.WriteTo.Console(
-                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:3} {CallerColored}] {Message:lj}{NewLine}{Exception}",
+                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}{CallerColored}] {Message:lj}{NewLine}{Exception}",
                     theme: SerilogThemes.ConsoleTheme,
                     restrictedToMinimumLevel: LogEventLevel.Debug
                 );
 
-                // should maybe specified by appsettings
-                var filePath = $"logs/{serviceName}-.log";
+                var outDir = configuration.GetSection("Logging").GetValue<string>("OutDir") ?? "logs";
+                var filePath = $"{outDir}/{serviceName}-.log";
 
                 options.WriteTo.File(
                     path: filePath,
                     rollingInterval: RollingInterval.Day,
-                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u4} {Caller}] {Message:lj}{NewLine}{Exception}",
+                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u4}{Caller}] {Message:lj}{NewLine}{Exception}",
                     restrictedToMinimumLevel: LogEventLevel.Information
                 );
 

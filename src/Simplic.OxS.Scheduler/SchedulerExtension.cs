@@ -37,7 +37,7 @@ namespace Simplic.OxS.Scheduler
                             MigrationStrategy = new MigrateMongoMigrationStrategy(),
                             BackupStrategy = new CollectionMongoBackupStrategy()
                         },
-                        Prefix = "hangfire",
+                        Prefix = $"hangfire.{serviceName.ToLower()}",
                         CheckConnection = true
                     })
                 );

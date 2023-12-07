@@ -18,7 +18,7 @@ namespace Simplic.OxS.Data
         /// <param name="id"></param>
         /// <param name="queryAllOrganizations"></param>
         /// <returns>Entity</returns>
-        Task<TDocument> GetAsync(TId id, bool queryAllOrganizations = false);
+        Task<TDocument?> GetAsync(TId id, bool queryAllOrganizations = false);
 
         /// <summary>
         /// Gets the collection of an document as an queryable.

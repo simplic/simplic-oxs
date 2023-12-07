@@ -1,6 +1,4 @@
 ﻿using MongoDB.Driver;
-using Simplic.OxS.Data;
-using Simplic.OxS.Data;
 
 namespace Simplic.OxS.Data.MongoDB
 {

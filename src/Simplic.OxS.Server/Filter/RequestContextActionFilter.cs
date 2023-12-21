@@ -36,7 +36,8 @@ namespace Simplic.OxS.Server.Filter
                 requestContext.OrganizationId = GetOrganizationId(executionContext.HttpContext);
             }
 
-            if (authorization != null && authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey)
+            if (authorization != null && (authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey
+                                            || authorization[0].ToLower() == "v-bearer"))
             {
                 requestContext.UserId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderUserIdKey);
                 requestContext.OrganizationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderOrganizationIdKey);

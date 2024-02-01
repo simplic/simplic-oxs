@@ -124,6 +124,8 @@ namespace Simplic.OxS.Data.MongoDB
         /// <param name="transaction"></param>
         public virtual async Task UpdateAsync(TDocument document, ITransaction transaction)
         {
+            await Initialize();
+
             if (transaction == null)
                 throw new System.ArgumentNullException(nameof(transaction));
 
@@ -140,6 +142,8 @@ namespace Simplic.OxS.Data.MongoDB
         /// <param name="transaction"></param>
         public virtual async Task DeleteAsync(TId id, ITransaction transaction)
         {
+            await Initialize();
+
             if (transaction == null)
                 throw new System.ArgumentNullException(nameof(transaction));
 

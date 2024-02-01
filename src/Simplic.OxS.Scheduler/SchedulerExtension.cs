@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Simplic.OxS.Data.MongoDB;
+using System.Runtime.CompilerServices;
 
 namespace Simplic.OxS.Scheduler
 {
@@ -36,7 +37,7 @@ namespace Simplic.OxS.Scheduler
                             MigrationStrategy = new MigrateMongoMigrationStrategy(),
                             BackupStrategy = new CollectionMongoBackupStrategy()
                         },
-                        Prefix = "hangfire.mongo",
+                        Prefix = $"hangfire.{serviceName.ToLower()}",
                         CheckConnection = true
                     })
                 );
@@ -44,8 +45,8 @@ namespace Simplic.OxS.Scheduler
                 // Add the processing server as IHostedService
                 services.AddHangfireServer(serverOptions =>
                 {
-                    serverOptions.ServerName = $"Hangfire.Mongo server - {serviceName}";
-                    serverOptions.Queues = new[] { serviceName };
+                    serverOptions.ServerName = $"Hangfire.Mongo server - {serviceName.ToLower()}";
+                    serverOptions.Queues = new[] { serviceName.ToLower() };
                 });
             }
 

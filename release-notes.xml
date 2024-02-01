@@ -16,4 +16,7 @@
   <ChangeSet>
     <Change type="feature">Add generic parameter to scoped jobs.</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="bug">Fixes a bug where Update and Delete using Data.ITransactions do not successfully add the commands to the data transaction in MongoRepositoryBase.</Change>
+  </ChangeSet>
 </ReleaseNotes>

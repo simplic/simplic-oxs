@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.5423.808</Version>
+    <Version>1.1.24.305</Version>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HotChocolate.Abstractions" Version="13.5.1" />
+    <PackageReference Include="HotChocolate.Abstractions" Version="13.9.0" />
     <PackageReference Include="MongoDB.Bson" Version="2.22.0" />
     <PackageReference Include="MongoDB.Driver.Core" Version="2.22.0" />
   </ItemGroup>

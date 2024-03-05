@@ -1,18 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.0.1124.201</Version>
+    <Version>1.1.24.305</Version>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.6" />
-    <PackageReference Include="Hangfire.Mongo" Version="1.9.11" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.11" />
+    <PackageReference Include="Hangfire.Mongo" Version="1.10.4" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -97,6 +97,47 @@ namespace Simplic.OxS.InternalClient
         }
 
         /// <summary>
+        /// Send http get request specifically for endpoints that return some sort of a stream result.<br/>
+        /// Throws an exception if no success-code is returned from the given endpoint.
+        /// </summary>
+        /// <param name="service">The name of the service that will be called</param>
+        /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
+        /// <param name="action">Action name (e.g. get, search, ...)</param>
+        /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <returns>Result object</returns>
+        /// <exception cref="Exception"></exception>
+        public virtual async Task<StreamResult?> GetStream([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        {
+            var host = "unset";
+            if (hosts?.TryGetValue(service, out var _host) == true)
+                host = _host;
+
+            var endpoint = BuildUrl(host, service, controller, action, parameter);
+            SetRequestHeader();
+
+            var result = await client.GetAsync(endpoint);
+
+            if (!result.IsSuccessStatusCode)
+            {
+                var error = new InternalClientException("GET", endpoint, result);
+
+                logger.LogError(error.Message);
+
+                throw error;
+            }
+
+            if (result.Content == null)
+                return default;
+
+            return new StreamResult
+            {
+                Stream = await result.Content.ReadAsStreamAsync(),
+                FileName = result.Content.Headers.ContentDisposition?.FileName,
+                MimeType = result.Content.Headers.ContentType?.MediaType,
+            };
+        }
+
+        /// <summary>
         /// Send http post request. Throws an exception if no success-code is returned from the given endpoint.
         /// </summary>
         /// <typeparam name="T">Type of the object that is expected to be returned from the web-api.</typeparam>

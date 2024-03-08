@@ -170,10 +170,10 @@ namespace Simplic.OxS.Server
 
                 // To ensure that a list of strings, guids or other value types is set to an empty list when a empty list
                 // is send to the patch helper.
-                if (type.IsGenericType || !type.GetInterfaces().Any(x => x == typeof(IItemId)))
+                if (type.IsGenericType)
                 {
                     var collectionType = type.GetGenericArguments()[0];
-                    if (collectionType.IsValueType || collectionType == typeof(string))
+                    if (collectionType.IsValueType || collectionType == typeof(string) || !collectionType.GetInterfaces().Any(x => x == typeof(IItemId)))
                     {
                         var originalCollection = GetCollection(original, path);
                         originalCollection.Clear();

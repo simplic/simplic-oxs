@@ -131,7 +131,7 @@ namespace Simplic.OxS.Data.MongoDB
 
             if (transaction is MongoTransaction mongoTransaction)
                 await Collection.ReplaceOneAsync(
-                    mongoTransaction.Session, // Ensure the session is passed here
+                    mongoTransaction.Session,
                     GetFilterById(document.Id),
                     document
                 );

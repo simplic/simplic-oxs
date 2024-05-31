@@ -18,12 +18,12 @@ namespace Simplic.OxS.Data.MongoDB
         /// Initialize base repository
         /// </summary>
         /// <param name="context"></param>
-        protected MongoRepositoryBase(IMongoContext context) : base(context) 
-        { 
+        protected MongoRepositoryBase(IMongoContext context) : base(context)
+        {
         }
 
         protected MongoRepositoryBase(IMongoContext context, string configurationKey) : base(context, configurationKey)
-        { 
+        {
         }
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace Simplic.OxS.Data.MongoDB
                 document.IsDeleted = true;
                 await UpdateAsync(document);
             }
-        }        
+        }
 
         /// <summary>
         /// Create or replace entity
@@ -130,7 +130,11 @@ namespace Simplic.OxS.Data.MongoDB
                 throw new System.ArgumentNullException(nameof(transaction));
 
             if (transaction is MongoTransaction mongoTransaction)
-                await Collection.ReplaceOneAsync(GetFilterById(document.Id), document);
+                await Collection.ReplaceOneAsync(
+                    mongoTransaction.Session, // Ensure the session is passed here
+                    GetFilterById(document.Id),
+                    document
+                );
             else
                 throw new System.Exception($"Transaction is no of type {typeof(MongoTransaction).FullName}.");
         }

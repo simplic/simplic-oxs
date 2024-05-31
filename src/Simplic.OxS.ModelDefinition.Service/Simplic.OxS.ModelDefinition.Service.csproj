@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>1.0.2</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.ModelDefinition.Extenstion.Abstractions\Simplic.OxS.ModelDefinition.Extenstion.Abstractions.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.ModelDefinition\Simplic.OxS.ModelDefinition.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
+  </ItemGroup>
+
+</Project>

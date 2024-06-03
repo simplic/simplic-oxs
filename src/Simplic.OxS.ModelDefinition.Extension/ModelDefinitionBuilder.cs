@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Simplic.OxS.ModelDefinition.Service;
@@ -47,12 +48,28 @@ namespace Simplic.OxS.ModelDefinition.Extension
 
                 File.WriteAllText(filePath, ex.ToString());
             }
-            app.UseStaticFiles(new StaticFileOptions
+
+            // Add a custom middleware to handle the GET request
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.Path.Equals($"{basePath}/ModelDefinition"))
                 {
-                    FileProvider = new PhysicalFileProvider(directoryPath),
-                    RequestPath = $"{basePath}/ModelDefinition"
-                });
-            
+                    if (File.Exists(filePath))
+                    {
+                        context.Response.ContentType = "application/json";
+                        await context.Response.SendFileAsync(filePath);
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = 404;
+                        await context.Response.WriteAsync("ModelDefinition.json not found");
+                    }
+                }
+                else
+                {
+                    await next();
+                }
+            });            
         }
     }
 }

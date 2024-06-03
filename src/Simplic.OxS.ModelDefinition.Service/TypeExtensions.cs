@@ -20,26 +20,20 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         public static bool IsSimpleType(this Type type)
         {
-            return (type.IsValueType && !type.IsEnum )|| SimpleTypes.Contains(type) ||
+            return (type.IsValueType && !type.IsEnum) || SimpleTypes.Contains(type) ||
                    (Nullable.GetUnderlyingType(type)?.IsSimpleType() ?? false);
         }
 
         public static bool IsCollectionType(this Type type)
         {
             if (type.IsArray)
-            {
                 return true;
-            }
 
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-            {
                 return true;
-            }
 
             if (typeof(IEnumerable).IsAssignableFrom(type))
-            {
                 return true;
-            }
 
             return false;
         }

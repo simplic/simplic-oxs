@@ -12,14 +12,8 @@
             this.sourceUrl = sourceUrl;
         }
 
-        public string SourceUrl
-        {
-            get => sourceUrl;
-        }
+        public string SourceUrl => sourceUrl;
 
-        public string Endpoint
-        {
-            get => endpoint;
-        }
+        public string Endpoint => endpoint;
     }
 }

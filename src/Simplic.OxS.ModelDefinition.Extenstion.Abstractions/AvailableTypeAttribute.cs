@@ -10,9 +10,6 @@
             this.type = type;
         }
 
-        public Type Type
-        {
-            get { return type; }
-        }
+        public Type Type => type;
     }
 }

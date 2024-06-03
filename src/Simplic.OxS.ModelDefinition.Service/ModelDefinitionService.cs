@@ -80,7 +80,6 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static void BuildPatch(ModelDefinition modelDefinition, MethodInfo patchMethod)
         {
-
             var attribute = Attribute.GetCustomAttribute(patchMethod, typeof(ModelDefinitionPatchOperationAttribute));
 
             if (attribute is not ModelDefinitionPatchOperationAttribute patchAttribute)
@@ -115,8 +114,7 @@ namespace Simplic.OxS.ModelDefinition.Service
         private static void BuildPropertiesOrReference(ModelDefinition modelDefinition, Type response)
         {
             if (modelDefinition.Model != null
-                &&
-                modelDefinition.Model.Equals(GetReferenceName(response)))
+                && modelDefinition.Model.Equals(GetReferenceName(response)))
                 // Return since the type is alrady the model type.
                 return;
 
@@ -240,20 +238,18 @@ namespace Simplic.OxS.ModelDefinition.Service
             return properties;
         }
 
-        private static (string?, string?) GetMinAndMaxValue(PropertyInfo property)
+        private static (string? min, string? max) GetMinAndMaxValue(PropertyInfo property)
         {
             string? minValue = null;
             string? maxValue = null;
 
             if (property.PropertyType == typeof(string))
             {
-
                 var stringLenthAttribute = Attribute.GetCustomAttribute(property, typeof(StringLengthAttribute))
                     as StringLengthAttribute;
 
                 if (stringLenthAttribute != null)
                     return (stringLenthAttribute.MinimumLength.ToString(), stringLenthAttribute.MaximumLength.ToString());
-
 
                 var minLengthAttribute = Attribute.GetCustomAttribute(property, typeof(MinLengthAttribute))
                     as MinLengthAttribute;
@@ -355,10 +351,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             modelDefinition.References.Add(referenceDefinition);
         }
 
-        private static string GetReferenceName(Type type)
-        {
-            return $"${type.Name}";
-        }
+        private static string GetReferenceName(Type type) => $"${type.Name}";
 
         #endregion
     }

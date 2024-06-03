@@ -14,10 +14,10 @@
             this.request = request;
         }
 
-        public string Endpoint { get => endpoint; }
+        public string Endpoint => endpoint;
 
-        public Type Request { get => request; }
+        public Type Request => request;
 
-        public Type Response { get => response; }
+        public Type Response => response;
     }
 }

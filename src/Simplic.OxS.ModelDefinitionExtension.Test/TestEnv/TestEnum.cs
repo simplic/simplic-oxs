@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.ModelDefinitionExtension.Test.TestEnv
 {
-    internal enum TestEnum: int
+    internal enum TestEnum : int
     {
         ValueOne,
         ValueTwo,

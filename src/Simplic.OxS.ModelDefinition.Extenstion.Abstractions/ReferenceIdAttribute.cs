@@ -16,6 +16,6 @@ namespace Simplic.OxS.ModelDefinition.Extenstion.Abstractions
             this.referenceIdPropertyName = referenceIdPropertyName;
         }
 
-        public string ReferenceIdPropertyName { get { return this.referenceIdPropertyName; } }
+        public string ReferenceIdPropertyName => referenceIdPropertyName;
     }
 }

@@ -10,6 +10,6 @@
             this.endpoint = endpoint;
         }
 
-        public string Endpoint { get => endpoint; }
+        public string Endpoint => endpoint;
     }
 }

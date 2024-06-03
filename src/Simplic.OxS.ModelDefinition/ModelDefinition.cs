@@ -18,8 +18,10 @@ namespace Simplic.OxS.ModelDefinition
             = new Operations();
 
         public IList<DataSource> DataSources { get; set; }
+            = new List<DataSource>();
 
         public IList<PropertyDefinition> Properties { get; set; }
+            = new List<PropertyDefinition>();
 
         public IList<ReferenceDefinition> References { get; set; }
             = new List<ReferenceDefinition>();

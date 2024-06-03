@@ -12,8 +12,8 @@
             this.response = response;
         }
 
-        public string Endpoint { get => endpoint; }
+        public string Endpoint => endpoint;
 
-        public Type Response { get => response; }
+        public Type Response => response;
     }
 }

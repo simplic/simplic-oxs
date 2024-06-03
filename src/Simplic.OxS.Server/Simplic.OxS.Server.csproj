@@ -32,6 +32,7 @@
     <ProjectReference Include="..\Simplic.OxS.Data.MongoDB\Simplic.OxS.Data.MongoDB.csproj" />
     <ProjectReference Include="..\Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj" />
     <ProjectReference Include="..\Simplic.OxS.MessageBroker\Simplic.OxS.MessageBroker.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.ModelDefinition.Extension\Simplic.OxS.ModelDefinition.Extension.csproj" />
     <ProjectReference Include="..\Simplic.OxS\Simplic.OxS.csproj" />
   </ItemGroup>
   

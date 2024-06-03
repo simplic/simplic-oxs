@@ -10,7 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Simplic.OxS.ModelDefinition.Extenstion.Abstractions\Simplic.OxS.ModelDefinition.Extenstion.Abstractions.csproj" />
     <ProjectReference Include="..\Simplic.OxS.ModelDefinition\Simplic.OxS.ModelDefinition.csproj" />
-    <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
   </ItemGroup>
 
 </Project>

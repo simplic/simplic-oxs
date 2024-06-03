@@ -14,6 +14,7 @@ using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
+using Simplic.OxS.ModelDefinition.Extension;
 
 namespace Simplic.OxS.Server
 {
@@ -55,7 +56,7 @@ namespace Simplic.OxS.Server
 
             // Add Jwt authentication and bind configuration
             var authBuilder = services.AddJwtAuthentication(Configuration);
-            if(authBuilder != null)
+            if (authBuilder != null)
                 ConfigureAuthentication(authBuilder);
 
             // Register custom services
@@ -134,6 +135,10 @@ namespace Simplic.OxS.Server
                 c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}-SignalR/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}-SignalR");
             });
 
+            var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
+            if(modelDefinitionBuilderConfig.Count != 0)
+                app.AddControllerDefinitions(env, basePath, modelDefinitionBuilderConfig);
+
             app.UseHttpsRedirection();
 
             app.UseRouting();
@@ -210,6 +215,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="authBuilder">Authentication builder instance, for adding additional auth scheme</param>
         protected virtual void ConfigureAuthentication(AuthenticationBuilder authBuilder) { }
+
+        /// <summary>
+        /// Method that should return all controllers that are used to build model definitions
+        /// </summary>
+        /// <returns></returns>
+        protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
 
         /// <summary>
         /// Will be called for registering custom services.

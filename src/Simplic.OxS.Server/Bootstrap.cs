@@ -136,7 +136,7 @@ namespace Simplic.OxS.Server
             });
 
             var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
-            if(modelDefinitionBuilderConfig.Count != 0)
+            if (modelDefinitionBuilderConfig.Count != 0)
                 app.AddControllerDefinitions(env, basePath, modelDefinitionBuilderConfig);
 
             app.UseHttpsRedirection();

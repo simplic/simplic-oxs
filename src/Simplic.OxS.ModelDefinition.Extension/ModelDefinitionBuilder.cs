@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Simplic.OxS.ModelDefinition.Service;
 using System.Text.Json;
 
@@ -49,27 +52,41 @@ namespace Simplic.OxS.ModelDefinition.Extension
                 File.WriteAllText(filePath, ex.ToString());
             }
 
-            // Add a custom middleware to handle the GET request
-            app.Use(async (context, next) =>
+            //// Add a custom middleware to handle the GET request
+            //app.Use(async (context, next) =>
+            //{
+            //    if (context.Request.Path.Equals($"{basePath}/ModelDefinition"))
+            //    {
+            //        if (File.Exists(filePath))
+            //        {
+            //            context.Response.ContentType = "application/json";
+            //            await context.Response.SendFileAsync(filePath);
+            //        }
+            //        else
+            //        {
+            //            context.Response.StatusCode = 404;
+            //            await context.Response.WriteAsync("ModelDefinition.json not found");
+            //        }
+            //    }
+            //    else
+            //    {
+            //        await next();
+            //    }
+            //});            
+        }
+
+        internal static StaticFileMiddleware? BuildStaticFileMiddleware(RequestDelegate next, IWebHostEnvironment env, string basePath, ILoggerFactory logger)
+        {
+            var directoryPath = Path.Combine(env.ContentRootPath, "ModelDefinition");
+            var filePath = Path.Combine(directoryPath, "ModelDefinition.json");
+
+            var staticFileOptions = new StaticFileOptions
             {
-                if (context.Request.Path.Equals($"{basePath}/ModelDefinition"))
-                {
-                    if (File.Exists(filePath))
-                    {
-                        context.Response.ContentType = "application/json";
-                        await context.Response.SendFileAsync(filePath);
-                    }
-                    else
-                    {
-                        context.Response.StatusCode = 404;
-                        await context.Response.WriteAsync("ModelDefinition.json not found");
-                    }
-                }
-                else
-                {
-                    await next();
-                }
-            });            
+                RequestPath = string.IsNullOrEmpty(basePath) ? string.Empty : $"/ModelDefinition",
+                FileProvider = new PhysicalFileProvider(filePath),
+            };
+
+            return new StaticFileMiddleware(next, env, Options.Create(staticFileOptions), logger);
         }
     }
 }

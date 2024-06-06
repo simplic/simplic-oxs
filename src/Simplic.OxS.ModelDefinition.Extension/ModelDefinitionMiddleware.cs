@@ -26,7 +26,7 @@ namespace Simplic.OxS.ModelDefinition.Extension
             staticFileMiddleware = ModelDefinitionBuilder.BuildStaticFileMiddleware(next, env, basePath, loggerFactory);
         }
 
-        public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+        public async Task Invoke(HttpContext context, RequestDelegate next)
         {
             await staticFileMiddleware.Invoke(context);
         }

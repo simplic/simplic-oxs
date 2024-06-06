@@ -74,19 +74,5 @@ namespace Simplic.OxS.ModelDefinition.Extension
             //    }
             //});            
         }
-
-        internal static StaticFileMiddleware? BuildStaticFileMiddleware(RequestDelegate next, IWebHostEnvironment env, string basePath, ILoggerFactory logger)
-        {
-            var directoryPath = Path.Combine(env.ContentRootPath, "ModelDefinition");
-            var filePath = Path.Combine(directoryPath, "ModelDefinition.json");
-
-            var staticFileOptions = new StaticFileOptions
-            {
-                RequestPath = string.IsNullOrEmpty(basePath) ? string.Empty : $"/ModelDefinition",
-                FileProvider = new PhysicalFileProvider(filePath),
-            };
-
-            return new StaticFileMiddleware(next, env, Options.Create(staticFileOptions), logger);
-        }
     }
 }

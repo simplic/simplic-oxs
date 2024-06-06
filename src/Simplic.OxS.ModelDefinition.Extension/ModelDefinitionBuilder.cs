@@ -20,6 +20,7 @@ namespace Simplic.OxS.ModelDefinition.Extension
             var directoryPath = Path.Combine(env.ContentRootPath, "ModelDefinition");
             var filePath = Path.Combine(directoryPath, "ModelDefinition.json");
 
+            Console.Out.WriteLineAsync($"Builder filepath: {filePath}").GetAwaiter().GetResult();
             try
             {
                 var definitions = new List<ModelDefinition>();
@@ -27,6 +28,7 @@ namespace Simplic.OxS.ModelDefinition.Extension
                 foreach (var controller in controllers)
                 {
                     var definition = ModelDefinitionService.GenerateDefinitionForController(controller);
+                    Console.Out.WriteLineAsync($"Builder definition: {definition}").GetAwaiter().GetResult();
                     definitions.Add(definition);
                 }
 

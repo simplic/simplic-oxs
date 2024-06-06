@@ -26,13 +26,13 @@ namespace Simplic.OxS.Server.Controller
         /// <returns>Status code 200</returns>
         public async Task<ActionResult> Get()
         {
-            var directoryPath = System.IO.Path.Combine(env.ContentRootPath, "ModelDefinition");
-            var filePath = System.IO.Path.Combine(directoryPath, "ModelDefinition.json");
+            var filePath = System.IO.Path.Combine(env.ContentRootPath, "ModelDefinition", "ModelDefinition.json");
 
             await Console.Out.WriteLineAsync($"{filePath}");
 
-            if (!Directory.Exists(filePath))
+            if (!System.IO.File.Exists(filePath))
                 return NotFound();
+
             byte[] content;
 
             try
@@ -47,7 +47,6 @@ namespace Simplic.OxS.Server.Controller
 
             if (content != null)
                 return base.File(content, "application/json");
-
 
             return NotFound();
         }

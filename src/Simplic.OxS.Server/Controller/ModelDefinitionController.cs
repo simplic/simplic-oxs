@@ -32,8 +32,6 @@ namespace Simplic.OxS.Server.Controller
 
             if (!Directory.Exists(filePath))
                 return NotFound();
-
-
             byte[] content;
 
             try

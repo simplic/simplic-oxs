@@ -137,10 +137,8 @@ namespace Simplic.OxS.Server
 
             var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
             if (modelDefinitionBuilderConfig.Count != 0)
-            {
                 app.AddControllerDefinitions(env, basePath, modelDefinitionBuilderConfig);
-                app.UseMiddleware<ModelDefinitionMiddleware>(basePath);
-            }
+            
             app.UseHttpsRedirection();
 
             app.UseRouting();

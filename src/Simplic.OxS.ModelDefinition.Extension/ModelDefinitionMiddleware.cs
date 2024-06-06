@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.ModelDefinition.Extension
 {
-    public class ModelDefinitionMiddleware : IMiddleware
+    public class ModelDefinitionMiddleware 
     {
         private readonly StaticFileMiddleware staticFileMiddleware;
 

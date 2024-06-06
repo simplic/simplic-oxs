@@ -102,7 +102,7 @@ namespace Simplic.OxS.Server
         /// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         /// </summary>
         /// <param name="app">Application context</param>
-        /// <param name="env">Env context</param>
+        /// <param name="env">Env context</param> 
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             // Allow paths like /<service-name>-api/v1

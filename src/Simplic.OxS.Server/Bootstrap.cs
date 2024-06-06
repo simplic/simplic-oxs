@@ -152,7 +152,7 @@ namespace Simplic.OxS.Server
             app.UseMiddleware<PutJsonContextMiddleware>();
 
             app.UseEndpoints(endpoints =>
-            {
+            { 
                 endpoints.MapControllers();
 
                 MapHubs(endpoints);

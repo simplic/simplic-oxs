@@ -30,6 +30,8 @@ namespace Simplic.OxS.Server.Controller
             var directoryPath = System.IO.Path.Combine(env.ContentRootPath, "ModelDefinition");
             var filePath = System.IO.Path.Combine(directoryPath, "ModelDefinition.json");
 
+            await Console.Out.WriteLineAsync($"{filePath}");
+
             if (!Directory.Exists(filePath))
                 return NotFound();
 

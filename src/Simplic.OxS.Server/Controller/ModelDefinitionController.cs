@@ -24,7 +24,6 @@ namespace Simplic.OxS.Server.Controller
         /// Return status code 200
         /// </summary>
         /// <returns>Status code 200</returns>
-        [HttpGet("/")]
         public async Task<ActionResult> Get()
         {
             var directoryPath = System.IO.Path.Combine(env.ContentRootPath, "ModelDefinition");

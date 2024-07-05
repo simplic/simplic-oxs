@@ -15,6 +15,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             var getMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionGetOperationAttribute));
             var postMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPostOperationAttribute));
             var patchMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPatchOperationAttribute));
+            var putMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPutOperationAttribute));
             var deleteMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionDeleteOperationAttribute));
 
             if (getMethod is not null)
@@ -25,6 +26,9 @@ namespace Simplic.OxS.ModelDefinition.Service
 
             if (patchMethod is not null)
                 BuildPatch(modelDefinition, patchMethod);
+
+            if (putMethod is not null)
+                BuildPut(modelDefinition, putMethod);
 
             if (deleteMethod is not null)
                 BuildDelete(modelDefinition, deleteMethod);
@@ -95,6 +99,25 @@ namespace Simplic.OxS.ModelDefinition.Service
 
             BuildPropertiesOrReference(modelDefinition, patchAttribute.Request);
             BuildPropertiesOrReference(modelDefinition, patchAttribute.Response);
+        }
+
+        private static void BuildPut(ModelDefinition modelDefinition, MethodInfo putMethod)
+        {
+            var attribute = Attribute.GetCustomAttribute(putMethod, typeof(ModelDefinitionPutOperationAttribute));
+
+            if (attribute is not ModelDefinitionPutOperationAttribute putAttribute)
+                return;
+
+            modelDefinition.Operations.Update = new OperationDefinition
+            {
+                Endpoint = putAttribute.Endpoint,
+                RequestReference = GetReferenceName(putAttribute.Request),
+                ResponseReference = GetReferenceName(putAttribute.Response),
+                Type = "http-put"
+            };
+
+            BuildPropertiesOrReference(modelDefinition, putAttribute.Request);
+            BuildPropertiesOrReference(modelDefinition, putAttribute.Response);
         }
 
         private static void BuildDelete(ModelDefinition modelDefinition, MethodInfo deleteMethod)

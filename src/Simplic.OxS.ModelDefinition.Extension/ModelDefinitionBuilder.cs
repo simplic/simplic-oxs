@@ -17,7 +17,7 @@ namespace Simplic.OxS.ModelDefinition.Extension
         {
 
 
-            var directoryPath = Path.Combine(env.ContentRootPath, "ModelDefinition");
+            var directoryPath = Path.Combine(env.ContentRootPath, "ModelDefinition"); 
             var filePath = Path.Combine(directoryPath, "ModelDefinition.json");
 
             Console.Out.WriteLineAsync($"Builder filepath: {filePath}").GetAwaiter().GetResult();

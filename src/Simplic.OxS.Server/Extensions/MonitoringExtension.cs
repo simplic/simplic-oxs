@@ -5,6 +5,8 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Serilog;
+using Serilog.Events;
 using Simplic.OxS.Server.Settings;
 
 namespace Simplic.OxS.Server.Extensions;
@@ -60,7 +62,23 @@ internal static class MonitoringExtension
         {
             logging.ClearProviders();
 
-            logging.AddConsole();
+            logging.AddSerilog(options =>
+            {
+                // use properties from log context
+                options.Enrich.FromLogContext();
+
+                options.WriteTo.Console(
+                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u4}{CallerColored}] {Message:lj}{NewLine}{Exception}",
+                    theme: Themes.SerilogThemes.ConsoleTheme,
+                    restrictedToMinimumLevel: LogEventLevel.Debug
+                );
+
+                options.WriteTo.OpenTelemetry(o =>
+                {
+                    o.Endpoint = monitoringSettings.OtlpEndpoint;
+                    o.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
+                });
+            });
 
             logging.AddOpenTelemetry(options =>
             {

@@ -148,6 +148,7 @@ namespace Simplic.OxS.Server
 
             app.UseMiddleware<CorrelationIdMiddleware>();
             app.UseMiddleware<PutJsonContextMiddleware>();
+            app.UseMiddleware<ErrorLoggingMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

@@ -6,7 +6,7 @@ namespace Simplic.OxS.Server.Middleware;
 /// <summary>
 /// Middleware to log every unhandled exception.
 /// </summary>
-public class ErrorLoggingMiddleware(RequestDelegate next, ILogger logger)
+public class ErrorLoggingMiddleware(RequestDelegate next, ILogger<ErrorLoggingMiddleware> logger)
 {
     /// <summary>
     /// invokes the middleware and logs an exception if any unhandled is thrown.

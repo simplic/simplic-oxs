@@ -371,6 +371,12 @@ namespace Simplic.OxS.ModelDefinition.Service
                 referenceDefinition.SourceUrl = modelDefinition.SourceUrl;
             }
 
+            attribute = Attribute.GetCustomAttribute(type, typeof(SearchKeyAttribute));
+            if (attribute != null && attribute is SearchKeyAttribute searchKeyAttribute)
+            {
+                referenceDefinition.SeatchKey = searchKeyAttribute.SearchKey;
+            }
+
             modelDefinition.References.Add(referenceDefinition);
         }
 

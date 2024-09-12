@@ -13,5 +13,10 @@ namespace Simplic.OxS.ModelDefinition
         public OperationDefinition Operation { get; set; }
 
         public IList<PropertyDefinition> Properties { get; set; }
+
+        /// <summary>
+        /// Gets or sets the optional search key.
+        /// </summary>
+        public string? SeatchKey { get; set; }
     }
 }

@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 
-namespace Simplic.OxS.ModelDefinition.Extenstion.Abstractions
+/// <summary>
+/// Marks a internal property for the model definition.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
+public sealed class InternalPropertyAttribute : Attribute
 {
-    [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
-    public sealed class InternalPropertyAttribute : Attribute
-    {
-    }
 }

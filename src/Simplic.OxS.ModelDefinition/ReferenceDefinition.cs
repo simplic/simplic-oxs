@@ -17,6 +17,6 @@ namespace Simplic.OxS.ModelDefinition
         /// <summary>
         /// Gets or sets the optional search key.
         /// </summary>
-        public string? SeatchKey { get; set; }
+        public string? SearchKey { get; set; }
     }
 }

@@ -374,7 +374,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             attribute = Attribute.GetCustomAttribute(type, typeof(SearchKeyAttribute));
             if (attribute != null && attribute is SearchKeyAttribute searchKeyAttribute)
             {
-                referenceDefinition.SeatchKey = searchKeyAttribute.SearchKey;
+                referenceDefinition.SearchKey = searchKeyAttribute.SearchKey;
             }
 
             modelDefinition.References.Add(referenceDefinition);

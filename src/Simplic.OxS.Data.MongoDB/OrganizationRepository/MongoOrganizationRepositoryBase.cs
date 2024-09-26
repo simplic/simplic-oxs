@@ -4,9 +4,10 @@ using MongoDB.Driver;
 
 namespace Simplic.OxS.Data.MongoDB
 {
-    public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : MongoRepositoryBase<Guid, TDocument, TFilter>, IOrganizationRepository<Guid, TDocument, TFilter>
+    public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : MongoRepositoryBase<Guid, TDocument, TFilter>,
+        IOrganizationRepository<Guid, TDocument, TFilter>
         where TDocument : IOrganizationDocument<Guid>
-        where TFilter : IOrganizationFilter<Guid>, new() 
+        where TFilter : IOrganizationFilter<Guid>, new()
     {
         private readonly IMongoContext context;
         private readonly IRequestContext requestContext;
@@ -17,12 +18,12 @@ namespace Simplic.OxS.Data.MongoDB
             this.requestContext = requestContext;
         }
 
-        public override async Task<TDocument> GetAsync(Guid id)
+        public override async Task<TDocument?> GetAsync(Guid id)
         {
             return await GetAsync(id, false);
         }
 
-        public async Task<TDocument> GetAsync(Guid id, bool queryAllOrganizations)
+        public async Task<TDocument?> GetAsync(Guid id, bool queryAllOrganizations)
         {
             await Initialize();
 
@@ -44,19 +45,20 @@ namespace Simplic.OxS.Data.MongoDB
         /// <param name="sortField">Sort field</param>
         /// <param name="isAscending">Ascending or Descending sort</param>
         /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        public async override Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null)
+        public async override Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "",
+            bool isAscending = true, Collation? collation = null)
         {
             await Initialize();
 
             predicate.OrganizationId = predicate.OrganizationId.HasValue
-                 ? predicate.OrganizationId
-                 : predicate.QueryAllOrganizations
+                ? predicate.OrganizationId
+                : predicate.QueryAllOrganizations
                     ? null
                     : requestContext.OrganizationId 
                         // Using an empty guid to prevent reading data from all Organizations.
                         ?? Guid.Empty;
 
-            SortDefinition<TDocument> sort = null;
+            SortDefinition<TDocument>? sort = null;
             if (!string.IsNullOrWhiteSpace(sortField))
                 sort = isAscending
                     ? Builders<TDocument>.Sort.Ascending(sortField)
@@ -96,7 +98,7 @@ namespace Simplic.OxS.Data.MongoDB
                         ?? Guid.Empty;
 
             return (await Collection.FindAsync(BuildFilterQuery(filter)))
-                    .ToEnumerable();
+                .ToEnumerable();
         }
 
         private new FilterDefinition<TDocument> BuildFilterQuery(TFilter filter)
@@ -135,10 +137,11 @@ namespace Simplic.OxS.Data.MongoDB
         }
 
         /// <inheritdoc/>
-        public async Task<IExecutable<TDocument>> GetCollection()
-        {
-            return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId).AsExecutable();
-        }
+        public async Task<IExecutable<TDocument>> GetCollection() =>
+            context
+                .GetCollection<TDocument>(GetCollectionName())
+                .Find(x => x.OrganizationId == requestContext.OrganizationId)
+                .AsExecutable();
     }
 
     public abstract class MongoOrganizationRepositoryBase<TDocument> : MongoOrganizationRepositoryBase<TDocument, OrganizationFilterBase>

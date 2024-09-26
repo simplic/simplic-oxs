@@ -20,19 +20,14 @@ namespace Simplic.OxS.Data.MongoDB
             context.SetConfiguration(configurationKey);
         }
 
-        protected async Task Initialize()
+        /// <inheritdoc />
+        public void Dispose()
         {
-            if (Collection == null)
-            {
-                Collection = Context.GetCollection<TDocument>(GetCollectionName());
-            }
-
-            await Task.CompletedTask; // TODO change Initialize signature and all call sites to sync versions
+            Context?.Dispose();
         }
 
-        protected abstract string GetCollectionName();
-
-        public virtual async Task<TDocument> GetAsync(TId id)
+        /// <inheritdoc />
+        public virtual async Task<TDocument?> GetAsync(TId id)
         {
             await Initialize();
 
@@ -41,18 +36,60 @@ namespace Simplic.OxS.Data.MongoDB
             return data.SingleOrDefault();
         }
 
+        /// <inheritdoc />
         public virtual async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter)
         {
             await Initialize();
 
-            return (await Collection.FindAsync(BuildFilterQuery(filter)))
-                .ToEnumerable();
+            return (await Collection.FindAsync(BuildFilterQuery(filter))).ToEnumerable();
         }
 
-        public void Dispose()
+        /// <inheritdoc />
+        public virtual async Task<IEnumerable<TDocument>> FindAsync(
+            TFilter predicate,
+            int? skip,
+            int? limit,
+            string sortField = "",
+            bool isAscending = true,
+            Collation? collation = null
+        )
         {
-            Context?.Dispose();
+            await Initialize();
+
+            SortDefinition<TDocument>? sort = null;
+            if (!string.IsNullOrWhiteSpace(sortField))
+                sort = isAscending
+                    ? Builders<TDocument>.Sort.Ascending(sortField)
+                    : Builders<TDocument>.Sort.Descending(sortField);
+
+            var findOptions = new FindOptions();
+            if (collation != null)
+                findOptions.Collation = collation;
+
+            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
         }
+
+        /// <inheritdoc />
+        public virtual async Task<long> CountAsync(TFilter predicate, Collation? collation = null)
+        {
+            await Initialize();
+
+            var countOption = new CountOptions();
+
+            if (collation != null)
+                countOption.Collation = collation;
+
+            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption);
+        }
+
+        protected async Task Initialize()
+        {
+            Collection ??= Context.GetCollection<TDocument>(GetCollectionName());
+
+            await Task.CompletedTask; // TODO change Initialize signature and all call sites to sync versions
+        }
+
+        protected abstract string GetCollectionName();
 
         protected virtual IEnumerable<FilterDefinition<TDocument>> GetFilterQueries(TFilter filter)
         {
@@ -78,48 +115,6 @@ namespace Simplic.OxS.Data.MongoDB
             return filterQueries.Any()
                 ? builder.And(filterQueries)
                 : builder.Empty;
-        }
-
-        /// <summary>
-        /// Finds the documents matching the filter.
-        /// </summary>
-        /// <param name="predicate">The filter predicate</param>
-        /// <param name="skip">Number of skipped entities</param>
-        /// <param name="limit">Number of requested entities</param>
-        /// <param name="sortField">Sort field</param>
-        /// <param name="isAscending">Ascending or Descending sort</param>
-        /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        public virtual async Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null)
-        {
-            await Initialize();
-
-            SortDefinition<TDocument> sort = null;
-            if (!string.IsNullOrWhiteSpace(sortField))
-                sort = isAscending
-                    ? Builders<TDocument>.Sort.Ascending(sortField)
-                    : Builders<TDocument>.Sort.Descending(sortField);
-            var findOptions = new FindOptions();
-            if (collation != null)
-                findOptions.Collation = collation;
-            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
-        }
-
-        /// <summary>
-        /// Returns count of expected documents
-        /// </summary>
-        /// <param name="predicate">The filter predicate</param>
-        /// <param name="collation">Collation options</param>
-        /// <returns>Number of expected elements</returns>
-        public virtual async Task<long> CountAsync(TFilter predicate, Collation collation = null)
-        {
-            await Initialize();
-
-            var countOption = new CountOptions();
-
-            if (collation != null)
-                countOption.Collation = collation;
-
-            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption);
         }
     }
 }

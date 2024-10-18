@@ -1,6 +1,7 @@
 ﻿using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
 
 namespace Simplic.OxS.ModelDefinition.Service
 {
@@ -140,6 +141,34 @@ namespace Simplic.OxS.ModelDefinition.Service
                 && modelDefinition.Model.Equals(GetReferenceName(response)))
                 // Return since the type is alrady the model type.
                 return;
+
+            var attribute = Attribute.GetCustomAttribute(response, typeof(DataSourceAttribute));
+            if (attribute != null && attribute is DataSourceAttribute dataSourceAttribute)
+            {
+                var dataSource = new DataSource
+                {
+                    Endpoint = dataSourceAttribute.Endpoint,
+                    GqlEntryPoint = dataSourceAttribute.GqlEntryPoint
+                };
+                switch (dataSourceAttribute.Type)
+                {
+                    case Extenstion.Abstractions.DataSourceType.HttpGet:
+                        dataSource.Type = DataSourceType.HttpGet;
+                        break;
+
+                    case Extenstion.Abstractions.DataSourceType.GraphQL:
+                        dataSource.Type = DataSourceType.GraphQL;
+                        break;
+
+                    default:
+                        break;
+                }
+
+                if (!modelDefinition.DataSources.Any(x => x.Endpoint == dataSource.Endpoint &&
+                    x.Type == dataSource.Type && x.GqlEntryPoint == dataSource.GqlEntryPoint))
+                    modelDefinition.DataSources.Add(dataSource);
+            }
+
 
             if (modelDefinition.Model == null)
             {

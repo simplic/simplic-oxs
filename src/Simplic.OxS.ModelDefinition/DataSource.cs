@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.ModelDefinition
 {
-    public abstract class DataSource
+    public class DataSource
     {
         public DataSourceType Type { get; set; }
 
         public string Endpoint { get; set; }
+
+        public string? GqlEntryPoint { get; set; }
     }
 }

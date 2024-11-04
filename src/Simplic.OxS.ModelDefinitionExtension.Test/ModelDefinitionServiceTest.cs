@@ -122,6 +122,21 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
         }
 
 
+        [Fact]
+        public void GenerateDefinitionForController_WithAttributes_AddsDataSource()
+        {
+            // Arrange
+            var controllerType = typeof(TestController);
+
+            // Act
+            var modelDefinition = ModelDefinitionService.GenerateDefinitionForController(controllerType);
+
+
+            modelDefinition.DataSources.Should().HaveCount(1);
+            modelDefinition.DataSources.First().Type.Should().Be(ModelDefinition.DataSourceType.GraphQL);
+        }
+
+
         private class EmptyController
         {
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.ModelDefinitionExtension.Test.TestEnv
 {
+    [DataSource(DataSourceType.GraphQL, "endpoint", "Test")]
     internal class TestResponse
     {
         public int Id { get; set; }

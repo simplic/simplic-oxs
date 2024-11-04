@@ -363,3 +363,9 @@ MigrationBackup/
 FodyWeavers.xsd
 
 pat
+
+# Jetbrains
+.idea/
+
+# dotnet config
+.config/

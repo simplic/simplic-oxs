@@ -230,7 +230,8 @@ namespace Simplic.OxS.Server
         protected abstract void RegisterServices(IServiceCollection services);
 
         /// <summary>
-        /// Gets the current service name. This will not contains Simplic.OxS.
+        /// Gets the current service name.<br/>
+        /// This will not contain 'Simplic.OxS'.
         /// </summary>
         protected abstract string ServiceName { get; }
 

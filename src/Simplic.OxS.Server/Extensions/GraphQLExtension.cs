@@ -20,6 +20,9 @@ namespace Simplic.OxS.Server.Extensions
                         .AddAuthorization()
                         .AddQueryType<TQuery>();
 
+                        // Set TimeSpan representation to d.hh:mm:ss
+                        req.AddType(new TimeSpanType(TimeSpanFormat.DotNet));
+
             builder?.Invoke(req);
 
             req.AddMongoDbPagingProviders()

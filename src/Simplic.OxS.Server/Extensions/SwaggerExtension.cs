@@ -38,6 +38,15 @@ namespace Simplic.OxS.Server.Extensions
                     Scheme = "Bearer"
                 });
 
+                // Add API Key Authentication
+                c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+                {
+                    Name = Constants.HttpHeaderApiKey,
+                    Type = SecuritySchemeType.ApiKey,
+                    In = ParameterLocation.Header,
+                    Description = "API Key authentication. Example: 'x-api-key: {your-api-key}'"
+                });
+
                 var knownTypes = GetKnownTypes();
                 c.UseOneOfForPolymorphism();
                 c.SelectSubTypesUsing(baseType =>
@@ -91,6 +100,18 @@ namespace Simplic.OxS.Server.Extensions
 
                         },
                         new List<string>()
+                    },
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "ApiKey"
+                            },
+                            In = ParameterLocation.Header,
+                        },
+                        Array.Empty<string>()
                     }
                 };
 

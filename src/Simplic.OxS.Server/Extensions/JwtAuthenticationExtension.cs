@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Simplic.OxS.Server.Implementations;
+using Simplic.OxS.Server.Interface;
+using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Settings;
 using System.Text;
 
@@ -26,6 +29,8 @@ namespace Simplic.OxS.Server.Extensions
 
             if (authSettings != null)
             {
+                services.AddSingleton<IApiKeyValidator, ApiKeyValidator>(); // Register your API key validator service
+
                 return services.AddAuthentication(x =>
                 {
                     x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -56,7 +61,7 @@ namespace Simplic.OxS.Server.Extensions
                             return Task.CompletedTask;
                         }
                     };
-                });
+                }).AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>("ApiKey", options => { }); 
             }
 
             return null;

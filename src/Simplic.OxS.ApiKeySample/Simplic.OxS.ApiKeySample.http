@@ -1,0 +1,6 @@
+@Simplic.OxS.ApiKeySample_HostAddress = http://localhost:5124
+
+GET {{Simplic.OxS.ApiKeySample_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

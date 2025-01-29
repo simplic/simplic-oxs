@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Simplic.OxS.Server.Controller;
 using Simplic.OxS.Server.Extensions;
@@ -5,7 +6,7 @@ using Simplic.OxS.Server.Extensions;
 namespace Simplic.OxS.ApiKeySample.Controllers
 {
     [ApiController]
-    [ApiKeyOrJwtAuthorize]
+    [Authorize]
     [Route("[controller]")]
     public class ApiKeyTestController : OxSController
     {

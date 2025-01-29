@@ -16,6 +16,7 @@ using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
 using Simplic.OxS.ModelDefinition.Extension;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Simplic.OxS.Server
 {
@@ -63,11 +64,10 @@ namespace Simplic.OxS.Server
 
             services.AddAuthorization(options =>
             {
-                options.AddPolicy("ApiKeyOrJwt", policy =>
-                {
-                    policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey");
-                    policy.RequireAuthenticatedUser();
-                });
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey")
+                    .RequireAuthenticatedUser()
+                    .Build();
             });
 
             // Register custom services

@@ -13,6 +13,6 @@ internal class ApiKeyValidator : IApiKeyValidator
     {
         userId = Guid.NewGuid();
         organizationId = Guid.NewGuid();
-        return Task.FromResult(true);
+        return Task.FromResult(apiKey.Equals("x"));
     }
 }

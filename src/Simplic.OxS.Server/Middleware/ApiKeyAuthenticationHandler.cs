@@ -16,10 +16,13 @@ public class ApiKeyAuthenticationHandler(
 {
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Headers.ContainsKey(Constants.HttpHeaderApiKey))
+        if (!Request.Headers.TryGetValue(Constants.HttpHeaderApiKey, out var value))
             return AuthenticateResult.NoResult();
 
-        var apiKey = Request.Headers[Constants.HttpHeaderApiKey].ToString();
+        if (Request.Headers.Authorization.Count != 0)
+            return AuthenticateResult.Fail("Api keys are only allwed witout other authentication");
+
+        var apiKey = value.ToString();
 
         if (!(await apiKeyValidator.TryValidateApiKeyAsync(apiKey, out var userId, out var organizationId)))
             return AuthenticateResult.Fail("Invalid API Key");

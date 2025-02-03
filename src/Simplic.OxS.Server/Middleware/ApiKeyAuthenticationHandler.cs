@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Simplic.OxS.Identity.Extension.Abstraction;
 using Simplic.OxS.Server.Interface;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -24,13 +25,15 @@ public class ApiKeyAuthenticationHandler(
 
         var apiKey = value.ToString();
 
-        if (!(apiKeyValidator.TryValidateApiKey(apiKey, out var userId, out var organizationId)))
+        var result = await apiKeyValidator.ValidateKey(apiKey);
+
+        if (!result.Valid)
             return AuthenticateResult.Fail("Invalid API Key");
 
         var claims = new List<Claim>
         {
-            new Claim("Id", userId?.ToString() ?? ""),
-            new Claim("OId", organizationId?.ToString() ?? "")
+            new Claim("Id", result?.UserId?.ToString() ?? ""),
+            new Claim("OId", result?.OrganizationId?.ToString() ?? "")
         };
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);

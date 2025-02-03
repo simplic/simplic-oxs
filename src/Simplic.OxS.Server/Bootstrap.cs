@@ -15,6 +15,8 @@ using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Services;
 using Simplic.OxS.ModelDefinition.Extension;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Simplic.OxS.Server
 {
@@ -58,6 +60,15 @@ namespace Simplic.OxS.Server
             var authBuilder = services.AddJwtAuthentication(Configuration);
             if (authBuilder != null)
                 ConfigureAuthentication(authBuilder);
+
+
+            services.AddAuthorization(options =>
+            {
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey")
+                    .RequireAuthenticatedUser()
+                    .Build();
+            });
 
             // Register custom services
             RegisterServices(services);
@@ -138,7 +149,7 @@ namespace Simplic.OxS.Server
             var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
             if (modelDefinitionBuilderConfig.Count != 0)
                 app.AddControllerDefinitions(env, basePath, modelDefinitionBuilderConfig);
-            
+
             app.UseHttpsRedirection();
 
             app.UseRouting();

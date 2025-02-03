@@ -42,6 +42,13 @@ namespace Simplic.OxS.Server.Filter
                 requestContext.UserId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderUserIdKey);
                 requestContext.OrganizationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderOrganizationIdKey);
             }
+
+            var apiKey = executionContext.HttpContext.Request.Headers.FirstOrDefault(x => x.Key.Equals(Constants.HttpHeaderApiKey));
+            if(!apiKey.Equals(default(KeyValuePair<string, StringValues>)) && !string.IsNullOrEmpty(apiKey.Value))
+            {
+                requestContext.UserId = GetUserId(executionContext.HttpContext);
+                requestContext.OrganizationId = GetOrganizationId(executionContext.HttpContext);
+            }
         }
 
         /// <summary>

@@ -19,5 +19,10 @@
         /// Gets or sets the internal API key
         /// </summary>
         public string InternalApiKey { get; set; } = $"{Guid.NewGuid()}";
+
+        /// <summary>
+        /// Gets or sets the secret to hash api keys.
+        /// </summary>
+        public string ApiKeyHash { get; set; } = Guid.NewGuid().ToString();
     }
 }

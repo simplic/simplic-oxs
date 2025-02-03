@@ -24,7 +24,7 @@ public class ApiKeyAuthenticationHandler(
 
         var apiKey = value.ToString();
 
-        if (!(await apiKeyValidator.TryValidateApiKeyAsync(apiKey, out var userId, out var organizationId)))
+        if (!(apiKeyValidator.TryValidateApiKey(apiKey, out var userId, out var organizationId)))
             return AuthenticateResult.Fail("Invalid API Key");
 
         var claims = new List<Claim>

@@ -2,5 +2,5 @@
 
 public interface IApiKeyValidator
 {
-    Task<bool> TryValidateApiKeyAsync(string apiKey, out Guid? userId, out Guid? organizationId);
+    bool TryValidateApiKey(string apiKey, out Guid? userId, out Guid? organizationId);
 }

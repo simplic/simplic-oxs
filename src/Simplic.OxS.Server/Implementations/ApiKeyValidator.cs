@@ -1,4 +1,5 @@
-﻿using Simplic.OxS.Server.Interface;
+﻿using Microsoft.Extensions.Caching.Distributed;
+using Simplic.OxS.Server.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,12 +8,24 @@ using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server.Implementations;
 
-internal class ApiKeyValidator : IApiKeyValidator
+internal class ApiKeyValidator(IDistributedCache distributedCache) : IApiKeyValidator
 {
-    public Task<bool> TryValidateApiKeyAsync(string apiKey, out Guid? userId, out Guid? organizationId)
+    public bool TryValidateApiKey(string apiKey, out Guid? userId, out Guid? organizationId)
     {
-        userId = Guid.NewGuid();
-        organizationId = Guid.NewGuid();
-        return Task.FromResult(apiKey.Equals("x"));
+        var value = distributedCache.Get(apiKey);
+
+        if (value != null)
+        {
+
+            userId = Guid.NewGuid();
+            organizationId = Guid.NewGuid();
+            return apiKey.Equals("x");
+        }
+        else
+        {
+            userId = null;
+            organizationId = null;
+            return false;
+        }
     }
 }

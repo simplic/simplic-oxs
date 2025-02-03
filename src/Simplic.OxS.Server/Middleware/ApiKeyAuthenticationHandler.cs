@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Simplic.OxS.Identity.Extension.Abstraction;
-using Simplic.OxS.Server.Interface;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 

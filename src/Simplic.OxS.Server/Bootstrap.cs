@@ -57,7 +57,7 @@ namespace Simplic.OxS.Server
             services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
 
             // Add Jwt authentication and bind configuration
-            var authBuilder = services.AddJwtAuthentication(Configuration);
+            var authBuilder = services.AddAuthentication(Configuration);
             if (authBuilder != null)
                 ConfigureAuthentication(authBuilder);
 

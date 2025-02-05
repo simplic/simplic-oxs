@@ -30,9 +30,19 @@ namespace Simplic.OxS.Server.Extensions
                 services.UseApiKeyValidation();
                 return services.AddAuthentication(x =>
                 {
-                    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    x.DefaultAuthenticateScheme = "MultipleAuth";
                     x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                }).AddJwtBearer(x =>
+                })
+                    .AddPolicyScheme("MultipleAuth", "Multiple Auth Schemes", options =>
+                {
+                    options.ForwardDefaultSelector = context =>
+                    {
+                        if (context.Request.Headers.ContainsKey("Authorization")) return JwtBearerDefaults.AuthenticationScheme;
+                        if (context.Request.Headers.ContainsKey(Constants.HttpHeaderApiKey)) return "ApiKey";
+                        return JwtBearerDefaults.AuthenticationScheme;
+                    };
+                })
+                .AddJwtBearer(x =>
                 {
                     x.RequireHttpsMetadata = false;
                     x.SaveToken = true;

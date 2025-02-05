@@ -5,8 +5,11 @@ using Simplic.OxS.Identity.Extension.Abstraction;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 
-namespace Simplic.OxS.Server.Middleware;
+namespace Simplic.OxS.Server.Handler;
 
+/// <summary>
+/// Authentication handler to authenticate with api keys.
+/// </summary>
 public class ApiKeyAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
@@ -14,6 +17,10 @@ public class ApiKeyAuthenticationHandler(
         IApiKeyValidator apiKeyValidator) :
     AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
+    /// <summary>
+    /// Handles the authentication.
+    /// </summary>
+    /// <returns></returns>
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue(Constants.HttpHeaderApiKey, out var value))

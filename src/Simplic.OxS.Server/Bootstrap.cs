@@ -68,6 +68,11 @@ namespace Simplic.OxS.Server
                     .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey")
                     .RequireAuthenticatedUser()
                     .Build();
+
+                // New policy explicitly forbidding API Key authentication
+                options.AddPolicy("JwtOnly", policy =>
+                    policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme) // Only allow JWT
+                          .RequireAuthenticatedUser());
             });
 
             // Register custom services

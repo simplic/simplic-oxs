@@ -381,7 +381,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             var referenceDefinition = new ReferenceDefinition
             {
                 Model = GetReferenceName(type),
-                Tilte = type.Name,
+                Title = type.Name,
                 Properties = BuildProperties(type, modelDefinition)
             };
 

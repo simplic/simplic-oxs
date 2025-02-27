@@ -6,9 +6,9 @@
 public class ReferenceDefinition
 {
     /// <summary>
-    /// Gets or sets the tilte.
+    /// Gets or sets the title.
     /// </summary>
-    public string Tilte { get; set; }
+    public string Title { get; set; }
 
     /// <summary>
     /// Gets or sets the model.

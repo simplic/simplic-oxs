@@ -108,7 +108,7 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.FileName)) && p.Format == "file-extension");
             requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.NestedObject)) && p.Type == "$NestedObject");
             requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.NestedObjects)) && p.ArrayType == "$NestedObject");
-            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Status)) && p.EnumType == "System.Int32");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Status)) && p.EnumType == "int");
 
             // Verify properties in TestResponse
             var responseProperties = modelDefinition.Properties;
@@ -118,7 +118,7 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Quantity)) && p.MinValue == "1" && p.MaxValue == "200");
             responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.NestedObject)) && p.Type == "$NestedObject");
             responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.NestedObjects)) && p.ArrayType == "$NestedObject");
-            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Status)) && p.EnumType == "System.Int32");
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Status)) && p.EnumType == "int");
         }
 
 

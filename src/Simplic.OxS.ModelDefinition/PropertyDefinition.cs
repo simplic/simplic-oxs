@@ -66,6 +66,12 @@ public class PropertyDefinition
     public string? ArrayType { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the array requires an id and is patchable per object (true) or the array is 
+    /// taken as it is (false).
+    /// </summary>
+    public bool? PatchableArray { get; set; }
+
+    /// <summary>
     /// Gets or sets in case of a reference type which 
     /// </summary>
     public string? ReferenceId { get; set; }

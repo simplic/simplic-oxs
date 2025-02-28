@@ -1,7 +1,6 @@
 ﻿using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations;
-using System.Security.Cryptography;
 
 namespace Simplic.OxS.ModelDefinition.Service
 {
@@ -264,10 +263,13 @@ namespace Simplic.OxS.ModelDefinition.Service
                         if (arrayType.IsSimpleType())
                         {
                             propertyDefinition.ArrayType = arrayType.ToString();
+                            propertyDefinition.PatchableArray = false;
                         }
                         else
                         {
                             propertyDefinition.ArrayType = GetReferenceName(arrayType);
+                            propertyDefinition.PatchableArray = FindInterfaceByName(arrayType, "IItemId");
+
                             AddRefereceDefinition(modelDefinition, arrayType);
                         }
                     }
@@ -419,6 +421,17 @@ namespace Simplic.OxS.ModelDefinition.Service
                 .FirstOrDefault(p => p.GetCustomAttribute<ReferenceProperyAttribute>() != null);
 
             return property?.Name;
+        }
+
+        static bool FindInterfaceByName(Type type, string interfaceName)
+        {
+            while (type != null)
+            {
+                if (type.GetInterfaces().Any(i => i.Name == interfaceName))
+                    return true;
+                type = type.BaseType; // Move up the inheritance chain
+            }
+            return false;
         }
 
         private static string GetReferenceName(Type type) => $"${type.Name}";

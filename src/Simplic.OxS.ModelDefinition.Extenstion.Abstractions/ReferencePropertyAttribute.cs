@@ -5,6 +5,6 @@
 /// Like the ID or primary key.
 /// </summary>
 [AttributeUsage(AttributeTargets.Property)]
-public class ReferenceProperyAttribute : Attribute
+public class ReferencePropertyAttribute : Attribute
 {
 }

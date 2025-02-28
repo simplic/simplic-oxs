@@ -21,6 +21,11 @@ public class ReferenceDefinition
     public string SourceUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the name of the property that is used to reference the object.
+    /// </summary>
+    public string ReferencePropertyName { get; set; }
+
+    /// <summary>
     /// Gets or sets the operation.
     /// </summary>
     public OperationDefinition Operation { get; set; }

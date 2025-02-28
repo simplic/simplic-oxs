@@ -191,7 +191,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             {
                 var propertyDefinition = new PropertyDefinition
                 {
-                    Name = property.Name,
+                    Name = ToCamelCase(property.Name),
                     Description = "", //https://learn.microsoft.com/en-us/archive/msdn-magazine/2019/october/csharp-accessing-xml-documentation-via-reflection
                     Nullable = Nullable.GetUnderlyingType(property.PropertyType) != null,
                 };
@@ -423,7 +423,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             return property?.Name;
         }
 
-        static bool FindInterfaceByName(Type type, string interfaceName)
+        private static bool FindInterfaceByName(Type type, string interfaceName)
         {
             while (type != null)
             {
@@ -435,6 +435,14 @@ namespace Simplic.OxS.ModelDefinition.Service
         }
 
         private static string GetReferenceName(Type type) => $"${type.Name}";
+
+        private static string ToCamelCase(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            return char.ToLower(input[0]) + input.Substring(1);
+        }
 
         #endregion
     }

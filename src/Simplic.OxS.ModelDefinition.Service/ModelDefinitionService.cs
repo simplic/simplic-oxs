@@ -387,7 +387,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 Model = GetReferenceName(type),
                 Title = type.Name,
                 Properties = BuildProperties(type, modelDefinition),
-                ReferencePropertyName = GetReferenceProperyName(type),
+                ReferencePropertyName = GetReferencePropertyName(type),
             };
 
             var attribute = Attribute.GetCustomAttribute(type, typeof(SourceAttribute));
@@ -417,10 +417,10 @@ namespace Simplic.OxS.ModelDefinition.Service
         /// <summary>
         ///  Gets the name of the reference property.
         /// </summary>
-        private static string? GetReferenceProperyName(Type type)
+        private static string? GetReferencePropertyName(Type type)
         {
             PropertyInfo? property = type.GetProperties()
-                .FirstOrDefault(p => p.GetCustomAttribute<ReferenceProperyAttribute>() != null);
+                .FirstOrDefault(p => p.GetCustomAttribute<ReferencePropertyAttribute>() != null);
 
             return property?.Name;
         }

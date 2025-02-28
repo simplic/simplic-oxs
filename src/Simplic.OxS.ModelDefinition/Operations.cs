@@ -1,16 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace Simplic.OxS.ModelDefinition;
 
-namespace Simplic.OxS.ModelDefinition
+/// <summary>
+/// Represents all operations for a model definition.
+/// </summary>
+public class Operations
 {
-    public class Operations
-    {
-        public OperationDefinition Create { get; set; }
-        public OperationDefinition Update { get; set; }
-        public OperationDefinition Delete { get; set; }
-        public OperationDefinition Get { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets the create definition if available.
+    /// </summary>
+    public OperationDefinition? Create { get; set; }
+
+    /// <summary>
+    /// Gets or sets the update definition if available.
+    /// </summary>
+    public OperationDefinition? Update { get; set; }
+
+    /// <summary>
+    /// Gets or sets the delete definition if available.
+    /// </summary>
+    public OperationDefinition? Delete { get; set; }
+
+    /// <summary>
+    /// Gets or sets the get definition if available.
+    /// </summary>
+    public OperationDefinition? Get { get; set; }
 }

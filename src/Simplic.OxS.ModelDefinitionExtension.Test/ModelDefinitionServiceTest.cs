@@ -99,26 +99,26 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             // Assert
             // Verify properties in TestRequest
             var requestProperties = modelDefinition.References.First(x => x.Model == "$TestRequest").Properties;
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.Id));
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.Name) && p.Required);
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.Description) && p.MaxValue == "50");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.Age) && p.MinValue == "0" && p.MaxValue == "100");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.PhoneNumber) && p.Format == "phone-number");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.Email) && p.Format == "email");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.FileName) && p.Format == "file-extension");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.NestedObject) && p.Type == "$NestedObject");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.NestedObjects) && p.ArrayType == "$NestedObject");
-            requestProperties.Should().ContainSingle(p => p.Name == nameof(TestRequest.Status) && p.EnumType == "System.Int32");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Id)));
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Name)) && p.Required);
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Description)) && p.MaxValue == "50");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Age)) && p.MinValue == "0" && p.MaxValue == "100");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.PhoneNumber)) && p.Format == "phone-number");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Email)) && p.Format == "email");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.FileName)) && p.Format == "file-extension");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.NestedObject)) && p.Type == "$NestedObject");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.NestedObjects)) && p.ArrayType == "$NestedObject");
+            requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Status)) && p.EnumType == "int");
 
             // Verify properties in TestResponse
             var responseProperties = modelDefinition.Properties;
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.Id));
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.Name) && p.Required);
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.Description) && p.MaxValue == "100");
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.Quantity) && p.MinValue == "1" && p.MaxValue == "200");
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.NestedObject) && p.Type == "$NestedObject");
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.NestedObjects) && p.ArrayType == "$NestedObject");
-            responseProperties.Should().ContainSingle(p => p.Name == nameof(TestResponse.Status) && p.EnumType == "System.Int32");
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Id)));
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Name)) && p.Required);
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Description)) && p.MaxValue == "100");
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Quantity)) && p.MinValue == "1" && p.MaxValue == "200");
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.NestedObject)) && p.Type == "$NestedObject");
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.NestedObjects)) && p.ArrayType == "$NestedObject");
+            responseProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestResponse.Status)) && p.EnumType == "int");
         }
 
 
@@ -140,6 +140,14 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
         private class EmptyController
         {
 
+        }
+
+        private static string ToCamelCase(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            return char.ToLower(input[0]) + input.Substring(1);
         }
     }
 }

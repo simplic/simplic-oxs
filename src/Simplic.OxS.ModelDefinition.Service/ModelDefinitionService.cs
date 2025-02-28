@@ -1,7 +1,7 @@
 ﻿using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations;
-using System.Security.Cryptography;
+using System;
 
 namespace Simplic.OxS.ModelDefinition.Service
 {
@@ -192,7 +192,7 @@ namespace Simplic.OxS.ModelDefinition.Service
             {
                 var propertyDefinition = new PropertyDefinition
                 {
-                    Name = property.Name,
+                    Name = ToCamelCase(property.Name),
                     Description = "", //https://learn.microsoft.com/en-us/archive/msdn-magazine/2019/october/csharp-accessing-xml-documentation-via-reflection
                     Nullable = Nullable.GetUnderlyingType(property.PropertyType) != null,
                 };
@@ -233,7 +233,8 @@ namespace Simplic.OxS.ModelDefinition.Service
                 {
                     (propertyDefinition.MinValue, propertyDefinition.MaxValue) = GetMinAndMaxValue(property);
 
-                    propertyDefinition.Type = Nullable.GetUnderlyingType(property.PropertyType)?.Name ?? property.PropertyType.Name;
+                    var underlyingType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+                    propertyDefinition.Type = GetFriendlyTypeName(underlyingType);
 
                     propertyDefinition.Format = GetFormat(property);
                 }
@@ -263,11 +264,14 @@ namespace Simplic.OxS.ModelDefinition.Service
                     {
                         if (arrayType.IsSimpleType())
                         {
-                            propertyDefinition.ArrayType = arrayType.ToString();
+                            propertyDefinition.ArrayType = GetFriendlyTypeName(arrayType);
+                            propertyDefinition.PatchableArray = false;
                         }
                         else
                         {
                             propertyDefinition.ArrayType = GetReferenceName(arrayType);
+                            propertyDefinition.PatchableArray = FindInterfaceByName(arrayType, "IItemId");
+
                             AddRefereceDefinition(modelDefinition, arrayType);
                         }
                     }
@@ -275,7 +279,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 else if (property.PropertyType.IsEnum)
                 {
                     propertyDefinition.Type = property.PropertyType.Name;
-                    propertyDefinition.EnumType = Enum.GetUnderlyingType(property.PropertyType)?.ToString();
+                    propertyDefinition.EnumType = GetFriendlyTypeName(Enum.GetUnderlyingType(property.PropertyType));
                     propertyDefinition.EnumItems = GetEnumItems(property.GetType());
                 }
                 else
@@ -381,8 +385,9 @@ namespace Simplic.OxS.ModelDefinition.Service
             var referenceDefinition = new ReferenceDefinition
             {
                 Model = GetReferenceName(type),
-                Tilte = type.Name,
-                Properties = BuildProperties(type, modelDefinition)
+                Title = type.Name,
+                Properties = BuildProperties(type, modelDefinition),
+                ReferencePropertyName = GetReferenceProperyName(type),
             };
 
             var attribute = Attribute.GetCustomAttribute(type, typeof(SourceAttribute));
@@ -409,7 +414,52 @@ namespace Simplic.OxS.ModelDefinition.Service
             modelDefinition.References.Add(referenceDefinition);
         }
 
+        /// <summary>
+        ///  Gets the name of the reference property.
+        /// </summary>
+        private static string? GetReferenceProperyName(Type type)
+        {
+            PropertyInfo? property = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<ReferenceProperyAttribute>() != null);
+
+            return property?.Name;
+        }
+
+        private static bool FindInterfaceByName(Type type, string interfaceName)
+        {
+            while (type != null)
+            {
+                if (type.GetInterfaces().Any(i => i.Name == interfaceName))
+                    return true;
+                type = type.BaseType; // Move up the inheritance chain
+            }
+            return false;
+        }
+
         private static string GetReferenceName(Type type) => $"${type.Name}";
+
+        private static string ToCamelCase(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            return char.ToLower(input[0]) + input.Substring(1);
+        }
+        private static string GetFriendlyTypeName(Type type)
+        {
+            return type switch
+            {
+                { } t when t == typeof(byte) => "byte",
+                { } t when t == typeof(sbyte) => "sbyte",
+                { } t when t == typeof(short) => "short",
+                { } t when t == typeof(ushort) => "ushort",
+                { } t when t == typeof(int) => "int",
+                { } t when t == typeof(uint) => "uint",
+                { } t when t == typeof(long) => "long",
+                { } t when t == typeof(ulong) => "ulong",
+                _ => type.Name // Fallback (e.g., "Int32" instead of "int")
+            };
+        }
 
         #endregion
     }

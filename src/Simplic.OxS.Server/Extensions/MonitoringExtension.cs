@@ -78,6 +78,11 @@ internal static class MonitoringExtension
                     o.Endpoint = monitoringSettings.OtlpEndpoint;
                     o.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
                 });
+
+                if (!string.IsNullOrWhiteSpace(monitoringSettings.SeqEndpoint))
+                {
+                    options.WriteTo.Seq(monitoringSettings.SeqEndpoint);
+                }
             });
 
             logging.AddOpenTelemetry(options =>

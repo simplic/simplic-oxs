@@ -298,7 +298,7 @@ namespace Simplic.OxS.InternalClient
         {
             var builder = new StringBuilder();
 
-            builder.Append($"{Scheme}://{host}/{service}-api/v1/internal");
+            builder.Append($"{Scheme}://{host}/{service}-api/{ApiVersion}/internal");
 
             if (!string.IsNullOrWhiteSpace(controller))
                 builder.Append($"/{controller}");
@@ -316,6 +316,8 @@ namespace Simplic.OxS.InternalClient
         /// Gets or sets the internal request schema. Should be http by default to ensure only internal calls.
         /// </summary>
         public string Scheme { get; set; } = "http";
+
+        public virtual string ApiVersion { get; set; } = "v1";
     }
 }
 

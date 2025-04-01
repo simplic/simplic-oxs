@@ -317,6 +317,10 @@ namespace Simplic.OxS.InternalClient
         /// </summary>
         public string Scheme { get; set; } = "http";
 
+        /// <summary>
+        /// Getsor sets the api version used in the client.
+        /// Set to v1 by default.
+        /// </summary>
         public virtual string ApiVersion { get; set; } = "v1";
     }
 }

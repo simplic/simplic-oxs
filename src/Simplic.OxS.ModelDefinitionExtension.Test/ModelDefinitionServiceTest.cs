@@ -36,7 +36,7 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             modelDefinition.Operations.Create.Endpoint.Should().Be("/test/post");
             modelDefinition.Operations.Create.RequestReference.Should().Be("$TestRequest");
             modelDefinition.Operations.Create.ResponseReference.Should().Be("$TestResponse");
-            modelDefinition.Operations.Create.Type.Should().Be("http-post");
+            modelDefinition.Operations.Create.Type.Should().Be("http.post");
         }
 
         [Fact]

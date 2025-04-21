@@ -49,12 +49,15 @@ namespace Simplic.OxS.Server
 
             // Add Redis caching
             services.AddRedisCaching(Configuration, out string connection);
-
+            
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);
 
             // Add RabbitMq context and bind configuration
             services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
+
+            // Add Grpc Server
+            services.AddGrpcServer();
 
             // Add Jwt authentication and bind configuration
             var authBuilder = services.AddAuthentication(Configuration);
@@ -187,6 +190,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="builder">Builder instance</param>
         protected virtual void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+
+        /// <summary>
+        /// Method for mapping grpc services
+        /// </summary>
+        /// <param name="builder">Builder instance</param>
+        protected virtual void MapGrpcServices(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
 
         /// <summary>
         /// Get api information for the current service

@@ -39,7 +39,7 @@ internal class RemoveServiceInvoker(IDistributedCache distributedCache, IRequest
         // functionName: simplic.ox.routing.calculate
 
         if (string.IsNullOrWhiteSpace(functionName))
-            throw new Exception("No function name passed in IIntegration.Call");
+            throw new Exception("No function name passed for remove service call.");
 
         var uri = await GetFunctionUriAsync(functionName, defaultTargetUri);
 
@@ -47,54 +47,11 @@ internal class RemoveServiceInvoker(IDistributedCache distributedCache, IRequest
         {
             if (protocol == "http.post")
             {
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Add(Constants.HttpHeaderOrganizationIdKey, requestContext.OrganizationId.Value.ToString());
-                httpClient.DefaultRequestHeaders.Add(Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString());
-
-                string json = JsonSerializer.Serialize(parameter);
-
-                var response = await httpClient.PostAsync(new Uri(url), new StringContent(json, Encoding.UTF8, "application/json"));
-
-                if (response.IsSuccessStatusCode)
-                    return await response.Content.ReadFromJsonAsync<T>();
-                else
-                    throw new Exception($"Could not call internal function: {await response.Content.ReadAsStringAsync()}");
+                return await RemoteHttpCall<T, P>(requestContext, parameter, url);
             }
             else if (protocol == "grpc")
             {
-                var splittedUrl = url.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-                if (splittedUrl.Length != 3)
-                    throw new Exception("Grpc url must consists of 3 parts <address>\\<service>\\method");
-
-                var address = splittedUrl[0];
-                var serviceName = splittedUrl[1];
-                var methodName = splittedUrl[2];
-
-                using var channel = GrpcChannel.ForAddress(address);
-                var invoker = channel.CreateCallInvoker();
-
-                // 2.  Build marshallers & a Method description on the fly
-                var method = new Method<P, T>(
-                    MethodType.Unary,
-                    serviceName,
-                    methodName,
-                    CreateMarshaller<P>(),
-                    CreateMarshaller<T>()
-                );
-
-                // Add call metadata for passing organization-id and user-id
-                var headers = new Metadata
-                {
-                    { Constants.HttpHeaderOrganizationIdKey, requestContext.OrganizationId.Value.ToString() },
-                    { Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString() }
-                };
-
-                var options = new CallOptions(headers);
-
-                // 4.  Fire the RPC and await the protobuf reply
-                return await invoker
-                    .AsyncUnaryCall(method, host: null, options, parameter)
-                    .ResponseAsync.ConfigureAwait(false);
+                return await RemoteGrpcCall<T, P>(requestContext, parameter, url);
             }
             else
             {
@@ -103,6 +60,63 @@ internal class RemoveServiceInvoker(IDistributedCache distributedCache, IRequest
         }
 
         return default(T);
+    }
+
+    private static async Task<T?> RemoteGrpcCall<T, P>(IRequestContext requestContext, P parameter, string? url)
+        where T : class, IMessage<T>, new()
+        where P : class, IMessage<P>, new()
+    {
+        var splittedUrl = url.Split("::", StringSplitOptions.RemoveEmptyEntries);
+        if (splittedUrl.Length != 3)
+            throw new Exception("Grpc url must consists of 3 parts <address>::<service>::method");
+
+        var address = splittedUrl[0];
+        var serviceName = splittedUrl[1];
+        var methodName = splittedUrl[2];
+        GrpcChannel channel = GrpcChannel.ForAddress(address);
+        var invoker = channel.CreateCallInvoker();
+
+        // 2.  Build marshallers & a Method description on the fly
+        var method = new Method<P, T>(
+            MethodType.Unary,
+            serviceName,
+            methodName,
+            CreateMarshaller<P>(),
+            CreateMarshaller<T>()
+        );
+
+        // Add call metadata for passing organization-id and user-id
+        var headers = new Metadata
+                {
+                    { Constants.HttpHeaderOrganizationIdKey, requestContext.OrganizationId.Value.ToString() },
+                    { Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString() }
+                };
+
+        var options = new CallOptions(headers);
+
+        // 4.  Fire the RPC and await the protobuf reply
+        return await invoker
+            .AsyncUnaryCall(method, host: null, options, parameter)
+            .ResponseAsync.ConfigureAwait(false);
+    }
+
+    private static async Task<T?> RemoteHttpCall<T, P>(IRequestContext requestContext, P parameter, string? url)
+        where T : class, IMessage<T>, new()
+        where P : class, IMessage<P>, new()
+    {
+
+        using var httpClient = new HttpClient();
+        httpClient.DefaultRequestHeaders.Add(Constants.HttpHeaderOrganizationIdKey, requestContext.OrganizationId.Value.ToString());
+        httpClient.DefaultRequestHeaders.Add(Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString());
+
+        string json = JsonSerializer.Serialize(parameter);
+
+        var response = await httpClient.PostAsync(new Uri(url), new StringContent(json, Encoding.UTF8, "application/json"));
+
+        if (response.IsSuccessStatusCode)
+            return await response.Content.ReadFromJsonAsync<T>();
+        else
+            throw new Exception($"Could not call internal function: {await response.Content.ReadAsStringAsync()}");
     }
 
     /// <inheritdoc />

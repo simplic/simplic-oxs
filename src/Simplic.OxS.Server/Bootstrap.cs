@@ -93,11 +93,11 @@ namespace Simplic.OxS.Server
             services.AddScoped<IInternalClient, InternalClientBase>();
 
             // Register web-api controller. Must be executed before creating swagger configuration
-            services.AddControllers(o =>
+            MvcBuilder(services.AddControllers(o =>
             {
                 o.Filters.Add<RequestContextActionFilter>();
                 o.Filters.Add<ValidationActionFilter>();
-            });
+            }));
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 
@@ -175,6 +175,12 @@ namespace Simplic.OxS.Server
                 MapEndpoints(endpoints);
             });
         }
+
+        /// <summary>
+        /// Will be called after controllers are created
+        /// </summary>
+        /// <param name="builder"><see cref="IMvcBuilder"/> instance</param>
+        protected virtual void MvcBuilder(IMvcBuilder builder) { }
 
         /// <summary>
         /// Method for SignalR hub registration

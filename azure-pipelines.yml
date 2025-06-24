@@ -78,6 +78,10 @@ steps:
       packDirectory: '$(Build.ArtifactStagingDirectory)'
 
   - script: |
+          dotnet nuget add source https://pkgs.dev.azure.com/simplic-cloud/_packaging/simplic-cloud/nuget/v3/index.json --name simplic-cloud --username az --password $(System.AccessToken) --store-password-in-clear-text  
+    displayName: 'Authenticate Azure Artifacts feed (custom dotnet)'
+
+  - script: |
           for pkg in $(Build.ArtifactStagingDirectory)/**/*.nupkg; do
             if [[ "$pkg" != *".symbols.nupkg" ]]; then
               echo "Pushing $pkg..."

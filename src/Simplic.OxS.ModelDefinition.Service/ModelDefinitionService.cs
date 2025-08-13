@@ -76,7 +76,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 Endpoint = postAttribute.Endpoint,
                 RequestReference = GetReferenceName(postAttribute.Request),
                 ResponseReference = GetReferenceName(postAttribute.Response),
-                Type = "http-post"
+                Type = "http.post"
             };
 
             BuildPropertiesOrReference(modelDefinition, postAttribute.Request);

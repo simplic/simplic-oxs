@@ -23,6 +23,8 @@ namespace Simplic.OxS.MessageBroker
 
             rabbitMQConfigurator.Host(rabbitMQSettings.Host, host =>
             {
+                host.Heartbeat(20);
+                
                 host.Username(rabbitMQSettings.UserName);
                 host.Password(rabbitMQSettings.Password);
             });

@@ -10,7 +10,7 @@ namespace Simplic.OxS.Server.Extensions
     /// </summary>
     internal static class RabbitMqExtension
     {
-        /// <summary>
+        /// <summary> 
         /// Add rabbitmq/masstransit
         /// </summary>
         /// <param name="services">Service collection</param>

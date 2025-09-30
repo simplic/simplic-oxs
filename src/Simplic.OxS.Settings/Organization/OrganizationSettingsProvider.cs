@@ -76,11 +76,13 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                 definition.ValueType.Name);
 
 
+        var value = DeserializeValue(result.SerializedValue, definition.ValueType);
+
         return new OrganizationSettingResult(
             definition.InternalName,
             definition.DisplayName,
             definition.DisplayKey,
-            result.SerializedValue,
+            value,
             definition.DefaultValue,
             definition.ValueType.Name);
     }

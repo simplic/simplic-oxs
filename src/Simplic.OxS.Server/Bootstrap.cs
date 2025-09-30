@@ -17,6 +17,7 @@ using Simplic.OxS.Server.Services;
 using Simplic.OxS.ModelDefinition.Extension;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Simplic.OxS.Settings.Organization;
 
 namespace Simplic.OxS.Server
 {
@@ -74,6 +75,13 @@ namespace Simplic.OxS.Server
                     policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme) // Only allow JWT
                           .RequireAuthenticatedUser());
             });
+
+            // Add organization settings if configured
+            var settingsConfig = ConfigureOrganizationSettings();
+            if (settingsConfig != null)
+            {
+                services.AddOrganizationSettingsWithMongo(settingsConfig);
+            }
 
             // Register custom services
             RegisterServices(services);
@@ -244,6 +252,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns></returns>
         protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
+
+        /// <summary>
+        /// Method for configuring organization settings. Return null to disable settings.
+        /// </summary>
+        /// <returns>Settings configuration action or null</returns>
+        protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
 
         /// <summary>
         /// Will be called for registering custom services.

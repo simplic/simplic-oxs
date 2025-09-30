@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -38,6 +38,8 @@
     <ProjectReference Include="..\Simplic.OxS.InternalClient\Simplic.OxS.InternalClient.csproj" />
     <ProjectReference Include="..\Simplic.OxS.MessageBroker\Simplic.OxS.MessageBroker.csproj" />
     <ProjectReference Include="..\Simplic.OxS.ModelDefinition.Extension\Simplic.OxS.ModelDefinition.Extension.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Settings\Simplic.OxS.Settings.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Settings.MongoDB\Simplic.OxS.Settings.Repository.csproj" />
     <ProjectReference Include="..\Simplic.OxS\Simplic.OxS.csproj" />
   </ItemGroup>
   

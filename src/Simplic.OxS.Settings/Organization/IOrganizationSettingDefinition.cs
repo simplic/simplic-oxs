@@ -1,0 +1,32 @@
+namespace Simplic.OxS.Settings.Organization;
+
+/// <summary>
+/// Represents a setting definition without type information
+/// </summary>
+public interface IOrganizationSettingDefinition
+{
+    /// <summary>
+    /// Internal name used for storage and API access
+    /// </summary>
+    string InternalName { get; }
+    
+    /// <summary>
+    /// Display key for localization
+    /// </summary>
+    string DisplayKey { get; }
+    
+    /// <summary>
+    /// Human-readable display name
+    /// </summary>
+    string DisplayName { get; }
+    
+    /// <summary>
+    /// The .NET type of the setting value
+    /// </summary>
+    Type ValueType { get; }
+    
+    /// <summary>
+    /// Default value if no organization override exists
+    /// </summary>
+    object? DefaultValue { get; }
+}

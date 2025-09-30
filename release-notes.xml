@@ -19,4 +19,7 @@
   <ChangeSet>
     <Change type="bug">Fixes a bug where Update and Delete using Data.ITransactions do not successfully add the commands to the data transaction in MongoRepositoryBase.</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="feature">Add Organization settings as optional configuration for each microservice to organization needs.</Change>
+  </ChangeSet>
 </ReleaseNotes>

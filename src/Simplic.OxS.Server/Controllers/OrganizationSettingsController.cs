@@ -96,6 +96,9 @@ public class OrganizationSettingsController : OxSController
         if (request?.Value == null)
             return BadRequest("Value is required");
 
+        if (!requestContext.OrganizationId.HasValue || requestContext.OrganizationId == Guid.Empty)
+            return BadRequest("Organization context is required");
+
         try
         {
             await settingsProvider.SetAsync(

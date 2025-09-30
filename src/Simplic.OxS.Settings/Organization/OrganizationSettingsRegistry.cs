@@ -5,7 +5,7 @@ namespace Simplic.OxS.Settings.Organization;
 /// </summary>
 public class OrganizationSettingsRegistry
 {
-    private readonly Dictionary<string, IOrganizationSettingDefinition> _definitions = new();
+    private readonly Dictionary<string, IOrganizationSettingDefinition> definitions = new();
 
     /// <summary>
     /// Add a setting definition to the registry
@@ -16,11 +16,10 @@ public class OrganizationSettingsRegistry
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        if (_definitions.ContainsKey(definition.InternalName))
+        if (definitions.ContainsKey(definition.InternalName))
             throw new InvalidOperationException($"Setting '{definition.InternalName}' is already registered.");
 
-        _definitions[definition.InternalName] = definition;
-
+        definitions[definition.InternalName] = definition;
     }
 
     /// <summary>
@@ -30,7 +29,7 @@ public class OrganizationSettingsRegistry
     {
         get
         {
-            return _definitions.Values.ToList().AsReadOnly();
+            return definitions.Values.ToList().AsReadOnly();
         }
     }
 
@@ -42,6 +41,6 @@ public class OrganizationSettingsRegistry
     /// <returns>True if found</returns>
     public bool TryGet(string internalName, out IOrganizationSettingDefinition? definition)
     {
-        return _definitions.TryGetValue(internalName, out definition);
+        return definitions.TryGetValue(internalName, out definition);
     }
 }

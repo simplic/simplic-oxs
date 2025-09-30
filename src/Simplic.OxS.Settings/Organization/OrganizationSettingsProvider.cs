@@ -19,7 +19,6 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     private readonly ILogger<OrganizationSettingsProvider> logger;
     private readonly IRequestContext requestContext;
 
-
     /// <summary>
     /// Initialize provider
     /// </summary>
@@ -74,7 +73,6 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                 definition.DefaultValue,
                 definition.DefaultValue,
                 definition.ValueType.Name);
-
 
         var value = DeserializeValue(result.SerializedValue, definition.ValueType);
 

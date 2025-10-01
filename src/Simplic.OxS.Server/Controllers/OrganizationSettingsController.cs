@@ -27,7 +27,6 @@ public class OrganizationSettingsController : OxSController
     /// <param name="settingsProvider">Settings provider service</param>
     /// <param name="requestContext">Request context</param>
     /// <param name="registry">Settings registry</param>
-    /// <param name="jsonOptions">JSON serializer options</param>
     public OrganizationSettingsController(
         IOrganizationSettingsProvider settingsProvider,
         IRequestContext requestContext,

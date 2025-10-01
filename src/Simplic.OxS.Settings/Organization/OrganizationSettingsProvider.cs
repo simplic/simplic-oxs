@@ -15,7 +15,6 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
 {
     private readonly OrganizationSettingsRegistry registry;
     private readonly IOrganizationSettingRepository repository;
-    private readonly JsonSerializerOptions jsonOptions;
     private readonly ILogger<OrganizationSettingsProvider> logger;
     private readonly IRequestContext requestContext;
 
@@ -25,13 +24,11 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     public OrganizationSettingsProvider(
         OrganizationSettingsRegistry registry,
         IOrganizationSettingRepository repository,
-        JsonSerializerOptions jsonOptions,
         ILogger<OrganizationSettingsProvider> logger,
         IRequestContext requestContext)
     {
         this.registry = registry;
         this.repository = repository;
-        this.jsonOptions = jsonOptions;
         this.logger = logger;
         this.requestContext = requestContext;
     }
@@ -223,7 +220,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
 
     private string SerializeValue(object value)
     {
-        return JsonSerializer.Serialize(value, jsonOptions);
+        return JsonSerializer.Serialize(value);
     }
 
     private object? DeserializeValue(string? json, Type type)
@@ -231,7 +228,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
         if (string.IsNullOrEmpty(json))
             return null;
 
-        return JsonSerializer.Deserialize(json, type, jsonOptions);
+        return JsonSerializer.Deserialize(json, type);
     }
 
     private static bool AreValuesEqual(object? current, object? newValue)

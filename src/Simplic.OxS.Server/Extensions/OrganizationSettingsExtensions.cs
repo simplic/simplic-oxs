@@ -27,17 +27,6 @@ public static class OrganizationSettingsExtensions
         // Register MongoDB repository implementation
         services.AddScoped<IOrganizationSettingRepository, OrganizationSettingRepository>();
 
-        // Register JSON serializer options for settings (if not already registered)
-        services.TryAddSingleton(provider =>
-        {
-            return new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-            };
-        });
-
         // Register service name for cache scoping
         services.AddSingleton(new OrganizationSettingsConfiguration { ServiceName = serviceName });
 

@@ -37,8 +37,156 @@ The following .NET types are supported for setting values:
 - `decimal`, `double`, `float`
 - `Guid`
 - `DateTime`, `DateOnly`, `TimeOnly`
-- `Enum` types
+- `Enum` types (with rich display support)
 - Nullable versions of all above types
+
+## Enhanced Options Support
+
+The settings system provides rich support for options-based settings with display names and descriptions:
+
+### Enum Settings with Rich Display
+
+Use `EnumOrganizationSettingDefinition<TEnum>` for enum-based settings with enhanced UI support:
+
+```csharp
+public enum NotificationPriority
+{
+    [DisplayName("Low Priority")]
+    [Description("Non-urgent notifications, delivered in batches")]
+    Low = 1,
+
+    [DisplayName("Normal Priority")]
+    [Description("Standard notifications, delivered promptly")]
+    Normal = 2,
+
+    [DisplayName("High Priority")]
+    [Description("Important notifications, delivered immediately")]
+    High = 3,
+
+    [DisplayName("Critical")]
+    [Description("Critical alerts, delivered immediately with escalation")]
+    Critical = 4
+}
+
+public class NotificationPrioritySetting : EnumOrganizationSettingDefinition<NotificationPriority>
+{
+    public NotificationPrioritySetting() : base(
+        internalName: "notifications.priority",
+        displayKey: "settings.notifications.priority",
+        displayName: "Default Notification Priority",
+        defaultValue: NotificationPriority.Normal)
+    {
+    }
+}
+```
+
+### Choice Settings with Custom Options
+
+Use `ChoiceOrganizationSettingDefinition` for string-based settings with predefined options:
+
+```csharp
+public class ThemeSetting : ChoiceOrganizationSettingDefinition
+{
+    public ThemeSetting() : base(
+        internalName: "ui.theme",
+        displayKey: "settings.ui.theme",
+        displayName: "User Interface Theme",
+        options: new[]
+        {
+            new SettingOption("light", "Light Theme", "settings.ui.theme.light"),
+            new SettingOption("dark", "Dark Theme", "settings.ui.theme.dark"),
+            new SettingOption("auto", "Auto", "settings.ui.theme.auto"),
+            new SettingOption("high-contrast", "High Contrast", "settings.ui.theme.high_contrast")
+        },
+        defaultValue: "light")
+    {
+    }
+}
+```
+
+### Mixed Settings Example
+
+You can combine different setting types in your service:
+
+```csharp
+public class EmailSettings : ChoiceOrganizationSettingDefinition
+{
+    public EmailSettings() : base(
+        internalName: "email.provider",
+        displayKey: "settings.email.provider",
+        displayName: "Email Provider",
+        options: new[]
+        {
+            new SettingOption("smtp", "SMTP", "settings.email.provider.smtp"),
+            new SettingOption("sendgrid", "SendGrid", "settings.email.provider.sendgrid"),
+            new SettingOption("ses", "Amazon SES", "settings.email.provider.ses"),
+            new SettingOption("disabled", "Disabled", "settings.email.provider.disabled")
+        },
+        defaultValue: "smtp")
+    {
+    }
+}
+```
+
+### Localization Support
+
+The displayKey pattern enables proper internationalization:
+
+```csharp
+// The enum will automatically generate displayKeys like:
+// settings.notifications.priority.low
+// settings.notifications.priority.normal  
+// settings.notifications.priority.high
+// settings.notifications.priority.critical
+
+public class NotificationPrioritySetting : EnumOrganizationSettingDefinition<NotificationPriority>
+{
+    public NotificationPrioritySetting() : base(
+        internalName: "notifications.priority",
+        displayKey: "settings.notifications.priority",
+        displayName: "Default Notification Priority",
+        defaultValue: NotificationPriority.Normal)
+    {
+    }
+}
+```
+
+### Default Value Handling
+
+The default value is managed at the setting level, not on individual options:
+
+```csharp
+// For choice settings, explicitly specify which option is the default
+public class LogLevelSetting : ChoiceOrganizationSettingDefinition
+{
+    public LogLevelSetting() : base(
+        internalName: "logging.level",
+        displayKey: "settings.logging.level",
+        displayName: "Log Level",
+        options: new[]
+        {
+            new SettingOption("debug", "Debug", "settings.logging.level.debug"),
+            new SettingOption("info", "Information", "settings.logging.level.info"),
+            new SettingOption("warn", "Warning", "settings.logging.level.warn"),
+            new SettingOption("error", "Error", "settings.logging.level.error")
+        },
+        defaultValue: "info") // Explicitly set default
+    {
+    }
+}
+
+// For enum settings, the default is set in the base constructor
+public class SecurityLevelSetting : EnumOrganizationSettingDefinition<SecurityLevel>
+{
+    public SecurityLevelSetting() : base(
+        internalName: "security.level",
+        displayKey: "settings.security.level", 
+        displayName: "Security Level",
+        defaultValue: SecurityLevel.Medium) // Default handled here
+    {
+    }
+}
+```
 
 ## Creating Setting Definitions
 
@@ -377,7 +525,7 @@ try
 catch (SettingNotFoundException)
 {
     // Log warning and return fallback value
-    logger.LogWarning("Setting not found, using fallback");
+    logger.LogWarning("Setting not found, using fallback value");
     return "fallback-value";
 }
 ```

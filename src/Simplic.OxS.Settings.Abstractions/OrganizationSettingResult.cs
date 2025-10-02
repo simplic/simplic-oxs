@@ -14,7 +14,8 @@ public class OrganizationSettingResult
         string displayKey,
         object? value,
         object? defaultValue,
-        string valueTypeName)
+        string valueTypeName,
+        IReadOnlyList<SettingOption>? options = null)
     {
         InternalName = internalName;
         DisplayName = displayName;
@@ -22,6 +23,7 @@ public class OrganizationSettingResult
         Value = value;
         DefaultValue = defaultValue;
         ValueTypeName = valueTypeName;
+        Options = options;
     }
 
     /// <summary>
@@ -53,6 +55,16 @@ public class OrganizationSettingResult
     /// Name of the value type
     /// </summary>
     public string ValueTypeName { get; }
+
+    /// <summary>
+    /// Available options for this setting (null if no predefined options)
+    /// </summary>
+    public IReadOnlyList<SettingOption>? Options { get; }
+
+    /// <summary>
+    /// Whether this setting has predefined options
+    /// </summary>
+    public bool HasOptions => Options != null && Options.Count > 0;
 }
 
 /// <summary>
@@ -69,13 +81,15 @@ public class OrganizationSettingResult<T>
         string displayName,
         string displayKey,
         T? value,
-        T? defaultValue)
+        T? defaultValue,
+        IReadOnlyList<SettingOption>? options = null)
     {
         InternalName = internalName;
         DisplayName = displayName;
         DisplayKey = displayKey;
         Value = value;
         DefaultValue = defaultValue;
+        Options = options;
     }
 
     /// <summary>
@@ -102,4 +116,14 @@ public class OrganizationSettingResult<T>
     /// Default value from definition
     /// </summary>
     public T? DefaultValue { get; }
+
+    /// <summary>
+    /// Available options for this setting (null if no predefined options)
+    /// </summary>
+    public IReadOnlyList<SettingOption>? Options { get; }
+
+    /// <summary>
+    /// Whether this setting has predefined options
+    /// </summary>
+    public bool HasOptions => Options != null && Options.Count > 0;
 }

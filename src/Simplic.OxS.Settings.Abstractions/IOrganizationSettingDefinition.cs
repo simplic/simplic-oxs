@@ -1,4 +1,4 @@
-namespace Simplic.OxS.Settings.Organization;
+namespace Simplic.OxS.Settings.Abstractions;
 
 /// <summary>
 /// Represents a setting definition without type information

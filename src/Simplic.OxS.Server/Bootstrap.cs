@@ -17,7 +17,7 @@ using Simplic.OxS.Server.Services;
 using Simplic.OxS.ModelDefinition.Extension;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Simplic.OxS.Settings.Organization;
+using Simplic.OxS.Settings.Abstractions;
 
 namespace Simplic.OxS.Server
 {
@@ -80,7 +80,7 @@ namespace Simplic.OxS.Server
             var settingsConfig = ConfigureOrganizationSettings();
             if (settingsConfig != null)
             {
-                services.AddOrganizationSettingsWithMongo(settingsConfig);
+                services.AddOrganizationSettingsWithMongo(settingsConfig, ServiceName);
             }
 
             // Register custom services

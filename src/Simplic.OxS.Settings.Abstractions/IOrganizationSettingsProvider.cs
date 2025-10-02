@@ -1,6 +1,4 @@
-using Simplic.OxS.Settings.Organization.Dto;
-
-namespace Simplic.OxS.Settings.Organization;
+namespace Simplic.OxS.Settings.Abstractions;
 
 /// <summary>
 /// Service interface for managing organization settings

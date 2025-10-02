@@ -1,4 +1,4 @@
-namespace Simplic.OxS.Settings.Organization;
+namespace Simplic.OxS.Settings.Abstractions;
 
 /// <summary>
 /// Builder interface for configuring organization settings

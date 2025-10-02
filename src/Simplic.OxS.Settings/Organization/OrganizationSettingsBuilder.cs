@@ -1,3 +1,5 @@
+using Simplic.OxS.Settings.Abstractions;
+
 namespace Simplic.OxS.Settings.Organization;
 
 /// <summary>

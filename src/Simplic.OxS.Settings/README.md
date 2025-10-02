@@ -4,17 +4,28 @@ This guide explains how to add new organization-specific settings to your Simpli
 
 ## Overview
 
-The organization settings system allows you to define configuration values that can be customized per organization. Settings are stored in MongoDB and cached for performance.
+The organization settings system allows you to define configuration values that can be customized per organization. Settings are stored in MongoDB with distributed Redis caching for improved performance.
 
 ## Table of Contents
 
+- [Features](#features)
 - [Supported Types](#supported-types)
 - [Creating Setting Definitions](#creating-setting-definitions)
 - [Registering Settings](#registering-settings)
 - [Using Settings in Your Service](#using-settings-in-your-service)
 - [API Usage](#api-usage)
+- [Caching](#caching)
 - [Best Practices](#best-practices)
 - [Examples](#examples)
+
+## Features
+
+- **Type-safe Settings**: Strongly typed setting definitions with validation
+- **MongoDB Storage**: Persistent storage with organization-scoped settings
+- **Distributed Caching**: Redis-based caching for improved performance
+- **REST API**: Built-in HTTP endpoints for settings management
+- **Declarative Registration**: Clean, explicit setting registration in Bootstrap
+- **Default Values**: Fallback to defaults when no organization override exists
 
 ## Supported Types
 
@@ -192,6 +203,57 @@ Content-Type: application/json
 }
 ```
 
+## Caching
+
+The organization settings system includes built-in distributed caching for optimal performance:
+
+### Cache Strategy
+
+- **Individual Settings**: Cached for 15 minutes per organization
+- **All Settings**: Cached for 5 minutes per organization  
+- **Cache Keys**: Scoped by organization ID to prevent cross-organization data leaks
+- **Cache Invalidation**: Automatic invalidation on setting updates
+
+### Cache Behavior
+
+1. **Read Operations**:
+   - Check Redis cache first
+   - Fall back to MongoDB on cache miss
+   - Store result in cache for future requests
+
+2. **Write Operations**:
+   - Update MongoDB
+   - Invalidate both individual and bulk caches
+   - Next read will refresh cache from database
+
+### Cache Keys Format
+
+Cache keys are scoped by service name and organization ID to prevent conflicts in shared Redis instances:
+
+- Individual setting: `org_setting:{serviceName}:{organizationId}:{internalName}`
+- All settings: `org_settings_all:{serviceName}:{organizationId}`
+
+**Example cache keys:**
+- `org_setting:UserManagement:12345678-1234-1234-1234-123456789012:notification.enabled`
+- `org_settings_all:PaymentService:12345678-1234-1234-1234-123456789012`
+
+This scoping ensures that:
+- Different microservices can share the same Redis instance without conflicts
+- Organizations are isolated from each other
+- Service-specific settings don't interfere with each other
+
+### Performance Benefits
+
+- **Reduced Database Load**: Frequently accessed settings served from cache
+- **Improved Response Times**: Redis reads are significantly faster than MongoDB
+- **Scalability**: Cache reduces database pressure during high traffic
+
+### Failure Resilience
+
+- Cache failures are logged but don't break functionality
+- Automatic fallback to database when cache is unavailable
+- Settings system remains operational even if Redis is down
+
 ## Best Practices
 
 ### 1. Naming Conventions
@@ -218,6 +280,12 @@ Content-Type: application/json
 - Prefer enums over strings for predefined values
 - Use appropriate numeric types (don't use `decimal` for counts)
 - Consider nullable types if the setting can be "unset"
+
+### 6. Caching Considerations
+- Settings are cached automatically - no manual cache management needed
+- Cache invalidation is handled on updates
+- Consider cache duration when planning setting update frequency
+- Monitor Redis health for optimal performance
 
 ## Examples
 

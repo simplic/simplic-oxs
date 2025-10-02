@@ -9,14 +9,19 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
 		<PackageReference Include="System.Text.Json" Version="8.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\Simplic.OxS.Data\Simplic.OxS.Data.csproj" />
 		<ProjectReference Include="..\Simplic.OxS\Simplic.OxS.csproj" />
+		<ProjectReference Include="..\Simplic.OxS.Settings.Abstractions\Simplic.OxS.Settings.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Organization\Dto\" />
 	</ItemGroup>
 
 </Project>

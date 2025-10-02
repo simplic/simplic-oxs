@@ -54,7 +54,8 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
             result.DisplayName,
             result.DisplayKey,
             (T?)result.Value,
-            (T?)result.DefaultValue);
+            (T?)result.DefaultValue,
+            result.Options);
     }
 
     /// <inheritdoc/>
@@ -77,13 +78,17 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                     logger.LogDebug("Retrieved setting {InternalName} from cache for organization {OrganizationId} in service {ServiceName}", 
                         internalName, requestContext.OrganizationId, serviceName);
                     
+                    // Properly materialize the cached value to the correct type
+                    var materializedValue = MaterializeCachedValue(cachedResult.Value, definition.ValueType);
+                    
                     return new OrganizationSettingResult(
                         definition.InternalName,
                         definition.DisplayName,
                         definition.DisplayKey,
-                        cachedResult.Value,
+                        materializedValue,
                         definition.DefaultValue,
-                        definition.ValueType.Name);
+                        definition.ValueType.Name,
+                        GetOptionsFromDefinition(definition));
                 }
             }
         }
@@ -117,7 +122,8 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
             definition.DisplayKey,
             effectiveValue,
             definition.DefaultValue,
-            definition.ValueType.Name);
+            definition.ValueType.Name,
+            GetOptionsFromDefinition(definition));
     }
 
     /// <inheritdoc/>
@@ -165,7 +171,8 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                         definition.DisplayKey,
                         effectiveValue,
                         definition.DefaultValue,
-                        definition.ValueType.Name);
+                        definition.ValueType.Name,
+                        GetOptionsFromDefinition(definition));
                 })
                 .ToList();
 
@@ -267,6 +274,74 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     }
 
     /// <summary>
+    /// Materialize cached value from JsonElement to proper type
+    /// </summary>
+    private object? MaterializeCachedValue(object? cachedValue, Type expectedType)
+    {
+        if (cachedValue == null)
+            return null;
+
+        // If it's already the correct type, return as-is
+        if (cachedValue.GetType() == expectedType)
+            return cachedValue;
+
+        // Handle JsonElement conversion (this happens when deserializing from cache)
+        if (cachedValue is JsonElement jsonElement)
+        {
+            return DeserializeJsonElement(jsonElement, expectedType);
+        }
+
+        // Try to convert other types
+        try
+        {
+            return Convert.ChangeType(cachedValue, expectedType);
+        }
+        catch
+        {
+            // If conversion fails, try JSON serialization round-trip
+            var json = JsonSerializer.Serialize(cachedValue);
+            return JsonSerializer.Deserialize(json, expectedType);
+        }
+    }
+
+    /// <summary>
+    /// Deserialize JsonElement to the specified type
+    /// </summary>
+    private object? DeserializeJsonElement(JsonElement jsonElement, Type expectedType)
+    {
+        if (jsonElement.ValueKind == JsonValueKind.Null)
+            return null;
+
+        // Handle nullable types
+        var actualType = Nullable.GetUnderlyingType(expectedType) ?? expectedType;
+
+        try
+        {
+            return actualType switch
+            {
+                Type t when t == typeof(bool) => jsonElement.GetBoolean(),
+                Type t when t == typeof(int) => jsonElement.GetInt32(),
+                Type t when t == typeof(long) => jsonElement.GetInt64(),
+                Type t when t == typeof(decimal) => jsonElement.GetDecimal(),
+                Type t when t == typeof(double) => jsonElement.GetDouble(),
+                Type t when t == typeof(float) => jsonElement.GetSingle(),
+                Type t when t == typeof(string) => jsonElement.GetString(),
+                Type t when t == typeof(Guid) => jsonElement.GetGuid(),
+                Type t when t == typeof(DateTime) => jsonElement.GetDateTime(),
+                Type t when t == typeof(DateOnly) => DateOnly.FromDateTime(jsonElement.GetDateTime()),
+                Type t when t == typeof(TimeOnly) => TimeOnly.FromTimeSpan(jsonElement.GetDateTime().TimeOfDay),
+                Type t when t.IsEnum => Enum.Parse(actualType, jsonElement.GetString() ?? string.Empty),
+                _ => JsonSerializer.Deserialize(jsonElement.GetRawText(), expectedType)
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to deserialize cached JsonElement to type {Type}, falling back to raw JSON deserialization", expectedType.Name);
+            return JsonSerializer.Deserialize(jsonElement.GetRawText(), expectedType);
+        }
+    }
+
+    /// <summary>
     /// Cache a setting value
     /// </summary>
     private async Task CacheSettingValueAsync(string cacheKey, object? value, TimeSpan duration)
@@ -331,6 +406,14 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
         {
             logger.LogWarning(ex, "Failed to invalidate cache for setting {InternalName}", internalName);
         }
+    }
+
+    /// <summary>
+    /// Get options from setting definition if it supports options
+    /// </summary>
+    private static IReadOnlyList<SettingOption>? GetOptionsFromDefinition(IOrganizationSettingDefinition definition)
+    {
+        return definition is ISettingWithOptions optionsDef ? optionsDef.Options : null;
     }
 
     private TDefinition GetOrCreateDefinition<TDefinition>()

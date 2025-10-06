@@ -21,7 +21,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Examples\" />
 	  <Folder Include="Organization\Dto\" />
 	</ItemGroup>
 

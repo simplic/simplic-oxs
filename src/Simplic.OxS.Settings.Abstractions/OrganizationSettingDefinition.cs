@@ -1,4 +1,6 @@
-namespace Simplic.OxS.Settings.Organization;
+using System;
+
+namespace Simplic.OxS.Settings.Abstractions;
 
 /// <summary>
 /// Base class for typed organization setting definitions
@@ -15,17 +17,17 @@ public abstract class OrganizationSettingDefinition<T> : IOrganizationSettingDef
     /// <param name="defaultValue">Default value</param>
     protected OrganizationSettingDefinition(
         string internalName,
-        string displayKey, 
+        string displayKey,
         string displayName,
         T? defaultValue)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(internalName);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        
+
         if (!IsSupportedType(typeof(T)))
             throw new NotSupportedException($"Type {typeof(T).Name} is not a supported setting value type.");
-            
+
         InternalName = internalName;
         DisplayKey = displayKey;
         DisplayName = displayName;
@@ -34,16 +36,16 @@ public abstract class OrganizationSettingDefinition<T> : IOrganizationSettingDef
 
     /// <inheritdoc/>
     public string InternalName { get; }
-    
+
     /// <inheritdoc/>
     public string DisplayKey { get; }
-    
+
     /// <inheritdoc/>
     public string DisplayName { get; }
-    
+
     /// <inheritdoc/>
     public Type ValueType => typeof(T);
-    
+
     /// <inheritdoc/>
     public object? DefaultValue { get; }
 
@@ -56,10 +58,10 @@ public abstract class OrganizationSettingDefinition<T> : IOrganizationSettingDef
     {
         // Handle nullable types
         var actualType = Nullable.GetUnderlyingType(type) ?? type;
-        
-        if (actualType.IsEnum) 
+
+        if (actualType.IsEnum)
             return true;
-            
+
         return actualType == typeof(string) ||
                actualType == typeof(bool) ||
                actualType == typeof(int) ||

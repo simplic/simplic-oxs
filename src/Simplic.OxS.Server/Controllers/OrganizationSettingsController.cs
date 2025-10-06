@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Simplic.OxS.Server.Controller;
+using Simplic.OxS.Settings.Abstractions;
 using Simplic.OxS.Settings.Organization;
-using Simplic.OxS.Settings.Organization.Dto;
 using Simplic.OxS.Settings.Organization.Exceptions;
 using System.Net;
 using Microsoft.AspNetCore.Authorization;

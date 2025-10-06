@@ -128,24 +128,119 @@ public class EmailSettings : ChoiceOrganizationSettingDefinition
 }
 ```
 
+### Custom Display Keys and Names for Enum Options
+
+Use the `SettingDisplayKey` and `SettingDisplayName` attributes to specify custom localization keys and display names for enum values:
+
+```csharp
+public enum SecurityLevel
+{
+    [SettingDisplayName("Basic Protection")]
+    [SettingDisplayKey("security.levels.basic")]
+    Basic = 1,
+
+    [SettingDisplayName("Standard Protection")]
+    [SettingDisplayKey("security.levels.standard")]
+    Standard = 2,
+
+    [SettingDisplayName("Enhanced Protection")]
+    [SettingDisplayKey("security.levels.enhanced")]
+    Enhanced = 3,
+
+    [SettingDisplayName("Maximum Protection")]
+    [SettingDisplayKey("security.levels.maximum")]
+    Maximum = 4
+}
+
+public class SecurityLevelSetting : EnumOrganizationSettingDefinition<SecurityLevel>
+{
+    public SecurityLevelSetting() : base(
+        internalName: "security.level",
+        displayKey: "settings.security.level",
+        displayName: "Security Level",
+        defaultValue: SecurityLevel.Standard)
+    {
+    }
+}
+```
+
+### Attribute Priority Order
+
+The system uses the following priority order for determining display names:
+
+1. **`SettingDisplayName`** attribute (highest priority)
+2. **`Description`** attribute (fallback)
+3. **Formatted enum name** (final fallback - replaces underscores with spaces)
+
+```csharp
+public enum NotificationFrequency
+{
+    [SettingDisplayName("Never Send Notifications")]     // Uses SettingDisplayName
+    [SettingDisplayKey("notifications.frequency.disabled")]
+    Never = 0,
+
+    [Description("Send Daily Notifications")]           // Uses Description  
+    // Auto-generates key: settings.notifications.frequency.daily
+    Daily = 1,
+
+    [SettingDisplayKey("notifications.frequency.weekly")] // Uses formatted name "Weekly"
+    Weekly = 2,
+
+    // No attributes - uses formatted name "Monthly" and auto-generated key
+    Monthly = 3
+}
+```
+
+**Key Benefits of Dedicated Attributes:**
+- **Clear Separation**: Display names and localization keys have dedicated attributes
+- **Flexible Fallbacks**: Multiple fallback options for display names
+- **Better IntelliSense**: Specific attributes provide clearer intent
+- **Organized Localization**: Group related keys (e.g., all security levels under `security.levels.*`)
+- **Meaningful Names**: Use descriptive keys like `security.levels.maximum` instead of `settings.security.level.maximum`
+- **Flexibility**: Mix custom and auto-generated keys/names as needed
+- **Consistency**: Maintain consistent naming conventions across your application
+
+### Mixed Approach Examples
+
+You can mix different attribute combinations based on your needs:
+
+```csharp
+public enum UserPermission
+{
+    [SettingDisplayName("Read Only Access")]
+    [SettingDisplayKey("permissions.read")]
+    ReadOnly = 1,
+
+    [Description("Read and Write Access")]              // Uses Description
+    [SettingDisplayKey("permissions.write")]           // Custom key
+    ReadWrite = 2,
+
+    [SettingDisplayName("Administrative Access")]      // Custom name
+    // Auto-generates key: settings.user.permission.admin
+    Admin = 3,
+
+    // Completely auto-generated: "Full Control" and auto-generated key
+    FullControl = 4
+}
+```
+
 ### Localization Support
 
 The displayKey pattern enables proper internationalization:
 
 ```csharp
-// The enum will automatically generate displayKeys like:
-// settings.notifications.priority.low
-// settings.notifications.priority.normal  
-// settings.notifications.priority.high
-// settings.notifications.priority.critical
+// The enum will generate displayKeys:
+// - security.levels.basic (custom from attribute)
+// - security.levels.standard (custom from attribute)
+// - settings.security.level.enhanced (auto-generated)
 
-public class NotificationPrioritySetting : EnumOrganizationSettingDefinition<NotificationPriority>
+public class SecurityLevelSetting : EnumOrganizationSettingDefinition<SecurityLevel>
 {
-    public NotificationPrioritySetting() : base(
-        internalName: "notifications.priority",
-        displayKey: "settings.notifications.priority",
-        displayName: "Default Notification Priority",
-        defaultValue: NotificationPriority.Normal)
+    public SecurityLevelSetting() : base(
+        internalName: "security.level",
+        displayKey: "settings.security.level",
+        displayName: "Security Level",
+        defaultValue: SecurityLevel.Standard)
     {
     }
 }

@@ -63,8 +63,7 @@ public abstract class EnumOrganizationSettingDefinition<TEnum> : OrganizationSet
         {
             var fieldInfo = enumType.GetField(enumValue.ToString());
             var displayName = GetDisplayName(fieldInfo, enumValue.ToString());
-            var optionDisplayKey = $"{baseDisplayKey}.{enumValue.ToString().ToLowerInvariant()}";
-
+            var optionDisplayKey = GetDisplayKey(fieldInfo, baseDisplayKey, enumValue.ToString());
 
             options.Add(new SettingOption(enumValue, displayName, optionDisplayKey));
         }
@@ -73,11 +72,31 @@ public abstract class EnumOrganizationSettingDefinition<TEnum> : OrganizationSet
     }
 
     /// <summary>
-    /// Get display name from DisplayName attribute or enum name
+    /// Get display name from SettingDisplayName or Description attribute or enum name
+    /// Priority: SettingDisplayName > Description > formatted enum name
     /// </summary>
     private static string GetDisplayName(FieldInfo? fieldInfo, string fallback)
     {
-        var displayNameAttr = fieldInfo?.GetCustomAttribute<DisplayNameAttribute>();
-        return displayNameAttr?.DisplayName ?? fallback.Replace("_", " ");
+        // First, try SettingDisplayName attribute (highest priority)
+        var displayNameAttr = fieldInfo?.GetCustomAttribute<SettingDisplayNameAttribute>();
+        if (!string.IsNullOrEmpty(displayNameAttr?.DisplayName))
+            return displayNameAttr.DisplayName;
+
+        // Fallback to Description attribute
+        var descriptionAttr = fieldInfo?.GetCustomAttribute<DescriptionAttribute>();
+        if (!string.IsNullOrEmpty(descriptionAttr?.Description))
+            return descriptionAttr.Description;
+
+        // Final fallback to formatted enum name
+        return fallback.Replace("_", " ");
+    }
+
+    /// <summary>
+    /// Get display key from SettingDisplayKey attribute or generate from base key
+    /// </summary>
+    private static string GetDisplayKey(FieldInfo? fieldInfo, string baseDisplayKey, string enumName)
+    {
+        var displayKeyAttr = fieldInfo?.GetCustomAttribute<SettingDisplayKeyAttribute>();
+        return displayKeyAttr?.DisplayKey ?? $"{baseDisplayKey}.{enumName.ToLowerInvariant()}";
     }
 }

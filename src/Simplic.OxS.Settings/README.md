@@ -49,80 +49,80 @@ The settings system provides rich support for options-based settings with displa
 Use `EnumOrganizationSettingDefinition<TEnum>` for enum-based settings with enhanced UI support:
 
 ```csharp
-public enum NotificationPriority
+public enum ShipmentSequenceNumberDates
 {
-    [DisplayName("Low Priority")]
-    [Description("Non-urgent notifications, delivered in batches")]
-    Low = 1,
+    [SettingDisplayName("Loading Date")]
+    [SettingDisplayKey("logistics.settings.shipmentSequenceNumberDate.loadingDate.displayKey")]
+    LoadingDate = 0,
 
-    [DisplayName("Normal Priority")]
-    [Description("Standard notifications, delivered promptly")]
-    Normal = 2,
+    [SettingDisplayName("Delivery Date")]
+    [SettingDisplayKey("logistics.settings.shipmentSequenceNumberDate.deliveryDate.displayKey")]
+    DeliveryDate = 1,
 
-    [DisplayName("High Priority")]
-    [Description("Important notifications, delivered immediately")]
-    High = 3,
-
-    [DisplayName("Critical")]
-    [Description("Critical alerts, delivered immediately with escalation")]
-    Critical = 4
+    [SettingDisplayName("Order Date")]
+    [SettingDisplayKey("logistics.settings.shipmentSequenceNumberDate.orderDate.displayKey")]
+    OrderDate = 2
 }
 
-public class NotificationPrioritySetting : EnumOrganizationSettingDefinition<NotificationPriority>
+public class ShipmentSequenceNumberDateSetting : EnumOrganizationSettingDefinition<ShipmentSequenceNumberDates>
 {
-    public NotificationPrioritySetting() : base(
-        internalName: "notifications.priority",
-        displayKey: "settings.notifications.priority",
-        displayName: "Default Notification Priority",
-        defaultValue: NotificationPriority.Normal)
+    public ShipmentSequenceNumberDateSetting() : base(
+        internalName: "shipment-sequence-number-date",
+        displayKey: "logistics.settings.shipmentSequenceNumberDate.displayKey",
+        displayName: "Shipment Sequence Number Date",
+        defaultValue: ShipmentSequenceNumberDates.LoadingDate)
     {
     }
 }
 ```
 
-### Choice Settings with Custom Options
+### Choice Settings with Predefined Options
 
 Use `ChoiceOrganizationSettingDefinition` for string-based settings with predefined options:
 
 ```csharp
-public class ThemeSetting : ChoiceOrganizationSettingDefinition
+public class PreferredCarrierSetting : ChoiceOrganizationSettingDefinition
 {
-    public ThemeSetting() : base(
-        internalName: "ui.theme",
-        displayKey: "settings.ui.theme",
-        displayName: "User Interface Theme",
+    public PreferredCarrierSetting() : base(
+        internalName: "preferred-carrier",
+        displayKey: "logistics.settings.preferredCarrier.displayKey",
+        displayName: "Preferred shipping carrier",
         options: new[]
         {
-            new SettingOption("light", "Light Theme", "settings.ui.theme.light"),
-            new SettingOption("dark", "Dark Theme", "settings.ui.theme.dark"),
-            new SettingOption("auto", "Auto", "settings.ui.theme.auto"),
-            new SettingOption("high-contrast", "High Contrast", "settings.ui.theme.high_contrast")
+            new SettingOption("dhl", "DHL Express", "logistics.settings.preferredCarrier.dhl.displayKey"),
+            new SettingOption("fedex", "FedEx", "logistics.settings.preferredCarrier.fedex.displayKey"),
+            new SettingOption("ups", "UPS", "logistics.settings.preferredCarrier.ups.displayKey"),
+            new SettingOption("custom", "Custom Carrier", "logistics.settings.preferredCarrier.custom.displayKey")
         },
-        defaultValue: "light")
+        defaultValue: "dhl")
     {
     }
 }
 ```
 
-### Mixed Settings Example
+### Simple Value Settings
 
-You can combine different setting types in your service:
+For basic settings without options, use the base class:
 
 ```csharp
-public class EmailSettings : ChoiceOrganizationSettingDefinition
+public class ShipmentNumberUniqueSetting : OrganizationSettingDefinition<bool>
 {
-    public EmailSettings() : base(
-        internalName: "email.provider",
-        displayKey: "settings.email.provider",
-        displayName: "Email Provider",
-        options: new[]
-        {
-            new SettingOption("smtp", "SMTP", "settings.email.provider.smtp"),
-            new SettingOption("sendgrid", "SendGrid", "settings.email.provider.sendgrid"),
-            new SettingOption("ses", "Amazon SES", "settings.email.provider.ses"),
-            new SettingOption("disabled", "Disabled", "settings.email.provider.disabled")
-        },
-        defaultValue: "smtp")
+    public ShipmentNumberUniqueSetting() : base(
+        internalName: "shipment-number-unique",
+        displayKey: "logistics.settings.shipmentNumberUnique.displayKey",
+        displayName: "Shipment number should be unique",
+        defaultValue: false)
+    {
+    }
+}
+
+public class MaxPackageWeightSetting : OrganizationSettingDefinition<decimal>
+{
+    public MaxPackageWeightSetting() : base(
+        internalName: "max-package-weight-kg",
+        displayKey: "logistics.settings.maxPackageWeight.displayKey",
+        displayName: "Maximum package weight (kg)",
+        defaultValue: 30.0m)
     {
     }
 }
@@ -130,37 +130,26 @@ public class EmailSettings : ChoiceOrganizationSettingDefinition
 
 ### Custom Display Keys and Names for Enum Options
 
-Use the `SettingDisplayKey` and `SettingDisplayName` attributes to specify custom localization keys and display names for enum values:
+Use the `SettingDisplayKey` and `SettingDisplayName` attributes to specify custom localization keys and display names:
 
 ```csharp
-public enum SecurityLevel
+public enum CostCalculationMethod
 {
-    [SettingDisplayName("Basic Protection")]
-    [SettingDisplayKey("security.levels.basic")]
-    Basic = 1,
+    [SettingDisplayName("Weight Based")]
+    [SettingDisplayKey("logistics.settings.costCalculation.weightBased.displayKey")]
+    WeightBased = 0,
 
-    [SettingDisplayName("Standard Protection")]
-    [SettingDisplayKey("security.levels.standard")]
-    Standard = 2,
+    [SettingDisplayName("Volume Based")]
+    [SettingDisplayKey("logistics.settings.costCalculation.volumeBased.displayKey")]
+    VolumeBased = 1,
 
-    [SettingDisplayName("Enhanced Protection")]
-    [SettingDisplayKey("security.levels.enhanced")]
-    Enhanced = 3,
+    [SettingDisplayName("Distance Based")]
+    [SettingDisplayKey("logistics.settings.costCalculation.distanceBased.displayKey")]
+    DistanceBased = 2,
 
-    [SettingDisplayName("Maximum Protection")]
-    [SettingDisplayKey("security.levels.maximum")]
-    Maximum = 4
-}
-
-public class SecurityLevelSetting : EnumOrganizationSettingDefinition<SecurityLevel>
-{
-    public SecurityLevelSetting() : base(
-        internalName: "security.level",
-        displayKey: "settings.security.level",
-        displayName: "Security Level",
-        defaultValue: SecurityLevel.Standard)
-    {
-    }
+    [SettingDisplayName("Hybrid Calculation")]
+    [SettingDisplayKey("logistics.settings.costCalculation.hybrid.displayKey")]
+    Hybrid = 3
 }
 ```
 
@@ -172,175 +161,26 @@ The system uses the following priority order for determining display names:
 2. **`Description`** attribute (fallback)
 3. **Formatted enum name** (final fallback - replaces underscores with spaces)
 
-```csharp
-public enum NotificationFrequency
-{
-    [SettingDisplayName("Never Send Notifications")]     // Uses SettingDisplayName
-    [SettingDisplayKey("notifications.frequency.disabled")]
-    Never = 0,
-
-    [Description("Send Daily Notifications")]           // Uses Description  
-    // Auto-generates key: settings.notifications.frequency.daily
-    Daily = 1,
-
-    [SettingDisplayKey("notifications.frequency.weekly")] // Uses formatted name "Weekly"
-    Weekly = 2,
-
-    // No attributes - uses formatted name "Monthly" and auto-generated key
-    Monthly = 3
-}
-```
-
-**Key Benefits of Dedicated Attributes:**
-- **Clear Separation**: Display names and localization keys have dedicated attributes
-- **Flexible Fallbacks**: Multiple fallback options for display names
-- **Better IntelliSense**: Specific attributes provide clearer intent
-- **Organized Localization**: Group related keys (e.g., all security levels under `security.levels.*`)
-- **Meaningful Names**: Use descriptive keys like `security.levels.maximum` instead of `settings.security.level.maximum`
-- **Flexibility**: Mix custom and auto-generated keys/names as needed
-- **Consistency**: Maintain consistent naming conventions across your application
-
 ### Mixed Approach Examples
 
 You can mix different attribute combinations based on your needs:
 
 ```csharp
-public enum UserPermission
+public enum NotificationTrigger
 {
-    [SettingDisplayName("Read Only Access")]
-    [SettingDisplayKey("permissions.read")]
-    ReadOnly = 1,
+    [SettingDisplayName("Status Changes")]
+    [SettingDisplayKey("logistics.settings.notificationTrigger.statusChanges.displayKey")]
+    StatusChanges = 0,
 
-    [Description("Read and Write Access")]              // Uses Description
-    [SettingDisplayKey("permissions.write")]           // Custom key
-    ReadWrite = 2,
+    [Description("Delays Only")]              // Uses Description fallback
+    [SettingDisplayKey("logistics.settings.notificationTrigger.delaysOnly.displayKey")]
+    DelaysOnly = 1,
 
-    [SettingDisplayName("Administrative Access")]      // Custom name
-    // Auto-generates key: settings.user.permission.admin
-    Admin = 3,
+    [SettingDisplayName("All Events")]       // Custom name, auto-generated key
+    AllEvents = 2,
 
-    // Completely auto-generated: "Full Control" and auto-generated key
-    FullControl = 4
-}
-```
-
-### Localization Support
-
-The displayKey pattern enables proper internationalization:
-
-```csharp
-// The enum will generate displayKeys:
-// - security.levels.basic (custom from attribute)
-// - security.levels.standard (custom from attribute)
-// - settings.security.level.enhanced (auto-generated)
-
-public class SecurityLevelSetting : EnumOrganizationSettingDefinition<SecurityLevel>
-{
-    public SecurityLevelSetting() : base(
-        internalName: "security.level",
-        displayKey: "settings.security.level",
-        displayName: "Security Level",
-        defaultValue: SecurityLevel.Standard)
-    {
-    }
-}
-```
-
-### Default Value Handling
-
-The default value is managed at the setting level, not on individual options:
-
-```csharp
-// For choice settings, explicitly specify which option is the default
-public class LogLevelSetting : ChoiceOrganizationSettingDefinition
-{
-    public LogLevelSetting() : base(
-        internalName: "logging.level",
-        displayKey: "settings.logging.level",
-        displayName: "Log Level",
-        options: new[]
-        {
-            new SettingOption("debug", "Debug", "settings.logging.level.debug"),
-            new SettingOption("info", "Information", "settings.logging.level.info"),
-            new SettingOption("warn", "Warning", "settings.logging.level.warn"),
-            new SettingOption("error", "Error", "settings.logging.level.error")
-        },
-        defaultValue: "info") // Explicitly set default
-    {
-    }
-}
-
-// For enum settings, the default is set in the base constructor
-public class SecurityLevelSetting : EnumOrganizationSettingDefinition<SecurityLevel>
-{
-    public SecurityLevelSetting() : base(
-        internalName: "security.level",
-        displayKey: "settings.security.level", 
-        displayName: "Security Level",
-        defaultValue: SecurityLevel.Medium) // Default handled here
-    {
-    }
-}
-```
-
-## Creating Setting Definitions
-
-### Step 1: Create a Setting Definition Class
-
-Create a class that inherits from `OrganizationSettingDefinition<T>`:
-
-```csharp
-using Simplic.OxS.Settings.Organization;
-
-public class NotificationEnabledSetting : OrganizationSettingDefinition<bool>
-{
-    public NotificationEnabledSetting() : base(
-        internalName: "notification.enabled",
-        displayKey: "settings.notification.enabled",
-        displayName: "Enable Notifications",
-        defaultValue: true)
-    {
-    }
-}
-```
-
-### Step 2: Define Constructor Parameters
-
-- **internalName**: Unique identifier for storage and API access (use dot notation for grouping)
-- **displayKey**: Localization key for UI display
-- **displayName**: Human-readable name for development/debugging
-- **defaultValue**: Value used when no organization override exists
-
-### Step 3: Complex Setting Example
-
-```csharp
-public enum NotificationMethod
-{
-    Email,
-    SMS,
-    Push
-}
-
-public class NotificationMethodSetting : OrganizationSettingDefinition<NotificationMethod>
-{
-    public NotificationMethodSetting() : base(
-        internalName: "notification.method",
-        displayKey: "settings.notification.method",
-        displayName: "Notification Method",
-        defaultValue: NotificationMethod.Email)
-    {
-    }
-}
-
-public class EmailTemplateSetting : OrganizationSettingDefinition<string>
-{
-    public EmailTemplateSetting() : base(
-        internalName: "email.template.welcome",
-        displayKey: "settings.email.template.welcome",
-        displayName: "Welcome Email Template",
-        defaultValue: "default-welcome-template")
-    {
-    }
+    // Completely auto-generated: "Disabled" and auto-generated key
+    Disabled = 3
 }
 ```
 
@@ -358,10 +198,13 @@ public class MyServiceBootstrap : Bootstrap
     protected override Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings()
     {
         return builder => builder
-            .AddSetting<NotificationEnabledSetting>()
-            .AddSetting<NotificationMethodSetting>()
-            .AddSetting<EmailTemplateSetting>()
-            .AddSetting(new CustomSetting("custom.value", "Custom Setting", 42));
+            .AddSetting<ShipmentNumberUniqueSetting>()
+            .AddSetting<ShipmentSequenceNumberSetting>()
+            .AddSetting<ShipmentSequenceNumberDateSetting>()
+            .AddSetting<PreferredCarrierSetting>()
+            .AddSetting<MaxPackageWeightSetting>()
+            .AddSetting<CostCalculationMethodSetting>()
+            .AddSetting<NotificationTriggerSetting>();
     }
 }
 ```

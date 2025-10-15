@@ -55,7 +55,10 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
             result.DisplayKey,
             (T?)result.Value,
             (T?)result.DefaultValue,
-            result.Options);
+            result.Options,
+            result.GroupKey,
+            result.GroupDisplayKey,
+            result.GroupDisplayName);
     }
 
     /// <inheritdoc/>
@@ -88,7 +91,10 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                         materializedValue,
                         definition.DefaultValue,
                         definition.ValueType.Name,
-                        GetOptionsFromDefinition(definition));
+                        GetOptionsFromDefinition(definition),
+                        definition.GroupKey,
+                        definition.GroupDisplayKey,
+                        definition.GroupDisplayName);
                 }
             }
         }
@@ -123,7 +129,10 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
             effectiveValue,
             definition.DefaultValue,
             definition.ValueType.Name,
-            GetOptionsFromDefinition(definition));
+            GetOptionsFromDefinition(definition),
+            definition.GroupKey,
+            definition.GroupDisplayKey,
+            definition.GroupDisplayName);
     }
 
     /// <inheritdoc/>
@@ -172,7 +181,10 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                         effectiveValue,
                         definition.DefaultValue,
                         definition.ValueType.Name,
-                        GetOptionsFromDefinition(definition));
+                        GetOptionsFromDefinition(definition),
+                        definition.GroupKey,
+                        definition.GroupDisplayKey,
+                        definition.GroupDisplayName);
                 })
                 .ToList();
 

@@ -70,7 +70,10 @@ public class ShipmentSequenceNumberDateSetting : EnumOrganizationSettingDefiniti
         internalName: "shipment-sequence-number-date",
         displayKey: "logistics.settings.shipmentSequenceNumberDate.displayKey",
         displayName: "Shipment Sequence Number Date",
-        defaultValue: ShipmentSequenceNumberDates.LoadingDate)
+        defaultValue: ShipmentSequenceNumberDates.LoadingDate,
+        groupKey: "shipment",
+        groupDisplayKey: "logistics.settings.groups.shipment.displayKey",
+        groupDisplayName: "Shipment Settings")
     {
     }
 }
@@ -94,15 +97,18 @@ public class PreferredCarrierSetting : ChoiceOrganizationSettingDefinition
             new SettingOption("ups", "UPS", "logistics.settings.preferredCarrier.ups.displayKey"),
             new SettingOption("custom", "Custom Carrier", "logistics.settings.preferredCarrier.custom.displayKey")
         },
-        defaultValue: "dhl")
+        defaultValue: "dhl",
+        groupKey: "carrier",
+        groupDisplayKey: "logistics.settings.groups.carrier.displayKey",
+        groupDisplayName: "Carrier Settings")
     {
     }
 }
 ```
 
-### Simple Value Settings
+### Simple Value Settings with Groups
 
-For basic settings without options, use the base class:
+For basic settings without options, use the base class with group organization:
 
 ```csharp
 public class ShipmentNumberUniqueSetting : OrganizationSettingDefinition<bool>
@@ -111,7 +117,10 @@ public class ShipmentNumberUniqueSetting : OrganizationSettingDefinition<bool>
         internalName: "shipment-number-unique",
         displayKey: "logistics.settings.shipmentNumberUnique.displayKey",
         displayName: "Shipment number should be unique",
-        defaultValue: false)
+        defaultValue: false,
+        groupKey: "shipment",
+        groupDisplayKey: "logistics.settings.groups.shipment.displayKey",
+        groupDisplayName: "Shipment Settings")
     {
     }
 }
@@ -122,11 +131,59 @@ public class MaxPackageWeightSetting : OrganizationSettingDefinition<decimal>
         internalName: "max-package-weight-kg",
         displayKey: "logistics.settings.maxPackageWeight.displayKey",
         displayName: "Maximum package weight (kg)",
-        defaultValue: 30.0m)
+        defaultValue: 30.0m,
+        groupKey: "carrier",
+        groupDisplayKey: "logistics.settings.groups.carrier.displayKey",
+        groupDisplayName: "Carrier Settings")
     {
     }
 }
 ```
+
+## Group Organization
+
+Settings can be organized into logical groups to improve user experience and management:
+
+### Group Parameters
+
+- **`groupKey`**: A short identifier for the group (e.g., "shipment", "carrier", "pricing")
+- **`groupDisplayKey`**: Localization key for the group name
+- **`groupDisplayName`**: Human-readable group name (fallback if localization not available)
+
+### Group Best Practices
+
+1. **Consistent Keys**: Use the same `groupKey` for related settings
+2. **Logical Grouping**: Group settings by feature area or workflow
+3. **Reasonable Size**: Keep groups to 5-10 settings for optimal UX
+4. **Clear Naming**: Use descriptive but concise group names
+
+### Example Group Structure
+
+```csharp
+// All shipment-related settings use the same group
+groupKey: "shipment"
+groupDisplayKey: "logistics.settings.groups.shipment.displayKey"  
+groupDisplayName: "Shipment Settings"
+
+// All carrier-related settings use the same group
+groupKey: "carrier"
+groupDisplayKey: "logistics.settings.groups.carrier.displayKey"
+groupDisplayName: "Carrier Settings"
+
+// All pricing-related settings use the same group  
+groupKey: "pricing"
+groupDisplayKey: "logistics.settings.groups.pricing.displayKey"
+groupDisplayName: "Pricing Settings"
+```
+
+### Frontend Benefits
+
+Groups enable sophisticated UI organization:
+
+- **Tabbed Interface**: Each group becomes a tab
+- **Accordion Sections**: Collapsible groups for better navigation
+- **Search & Filter**: Filter settings by group
+- **Progressive Disclosure**: Show/hide groups based on user needs
 
 ### Custom Display Keys and Names for Enum Options
 
@@ -197,14 +254,21 @@ public class MyServiceBootstrap : Bootstrap
 
     protected override Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings()
     {
-        return builder => builder
-            .AddSetting<ShipmentNumberUniqueSetting>()
-            .AddSetting<ShipmentSequenceNumberSetting>()
-            .AddSetting<ShipmentSequenceNumberDateSetting>()
-            .AddSetting<PreferredCarrierSetting>()
-            .AddSetting<MaxPackageWeightSetting>()
-            .AddSetting<CostCalculationMethodSetting>()
-            .AddSetting<NotificationTriggerSetting>();
+    return builder => builder
+        // Shipment Settings Group
+        .AddSetting<ShipmentNumberUniqueSetting>()
+        .AddSetting<ShipmentSequenceNumberSetting>()
+        .AddSetting<ShipmentSequenceNumberDateSetting>()
+        
+        // Carrier Settings Group
+        .AddSetting<PreferredCarrierSetting>()
+        .AddSetting<MaxPackageWeightSetting>()
+        
+        // Pricing Settings Group
+        .AddSetting<CostCalculationMethodSetting>()
+        
+        // Notification Settings Group
+        .AddSetting<NotificationTriggerSetting>();
     }
 }
 ```

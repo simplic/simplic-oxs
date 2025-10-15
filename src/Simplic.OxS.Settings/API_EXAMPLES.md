@@ -4,19 +4,22 @@
 
 When you call `GET /OrganizationSettings`, the response includes rich option information following the established naming patterns:
 
-### Boolean Setting Response
+### Grouped Settings Response
 ```json
-{
-  "internalName": "shipment-number-unique",
-  "displayName": "Shipment number should be unique",
-  "displayKey": "logistics.settings.shipmentNumberUnique.displayKey",
-  "value": true,
-  "defaultValue": false,
-  "valueTypeName": "Boolean",
-  "options": null,
-  "hasOptions": false
-}
-```
+[
+  {
+    "internalName": "shipment-number-unique",
+    "displayName": "Shipment number should be unique",
+    "displayKey": "logistics.settings.shipmentNumberUnique.displayKey",
+    "value": true,
+    "defaultValue": false,
+    "valueTypeName": "Boolean",
+    "options": null,
+    "hasOptions": false,
+    "groupKey": "shipment",
+    "groupDisplayKey": "logistics.settings.groups.shipment.displayKey",
+    "groupDisplayName": "Shipment Settings"
+  },
 
 ### String Setting Response
 ```json

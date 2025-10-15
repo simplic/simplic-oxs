@@ -21,5 +21,7 @@
   </ChangeSet>
   <ChangeSet>
     <Change type="feature">Add Organization settings as optional configuration for each microservice to organization needs.</Change>
+    <Change type="feature">Add group organization support to settings with groupKey, groupDisplayKey, and groupDisplayName properties for better UI organization and management.</Change>
+    <Change type="enhancement">Update OrganizationSettingResult classes to include group information in API responses for frontend organization capabilities.</Change>
   </ChangeSet>
 </ReleaseNotes>

@@ -15,7 +15,10 @@ public class OrganizationSettingResult
         object? value,
         object? defaultValue,
         string valueTypeName,
-        IReadOnlyList<SettingOption>? options = null)
+        IReadOnlyList<SettingOption>? options = null,
+        string? groupKey = null,
+        string? groupDisplayKey = null,
+        string? groupDisplayName = null)
     {
         InternalName = internalName;
         DisplayName = displayName;
@@ -24,6 +27,9 @@ public class OrganizationSettingResult
         DefaultValue = defaultValue;
         ValueTypeName = valueTypeName;
         Options = options;
+        GroupKey = groupKey;
+        GroupDisplayKey = groupDisplayKey;
+        GroupDisplayName = groupDisplayName;
     }
 
     /// <summary>
@@ -65,6 +71,21 @@ public class OrganizationSettingResult
     /// Whether this setting has predefined options
     /// </summary>
     public bool HasOptions => Options != null && Options.Count > 0;
+
+    /// <summary>
+    /// Group key for organizing related settings
+    /// </summary>
+    public string? GroupKey { get; }
+    
+    /// <summary>
+    /// Display key for group localization
+    /// </summary>
+    public string? GroupDisplayKey { get; }
+    
+    /// <summary>
+    /// Human-readable group display name
+    /// </summary>
+    public string? GroupDisplayName { get; }
 }
 
 /// <summary>
@@ -82,7 +103,10 @@ public class OrganizationSettingResult<T>
         string displayKey,
         T? value,
         T? defaultValue,
-        IReadOnlyList<SettingOption>? options = null)
+        IReadOnlyList<SettingOption>? options = null,
+        string? groupKey = null,
+        string? groupDisplayKey = null,
+        string? groupDisplayName = null)
     {
         InternalName = internalName;
         DisplayName = displayName;
@@ -90,6 +114,9 @@ public class OrganizationSettingResult<T>
         Value = value;
         DefaultValue = defaultValue;
         Options = options;
+        GroupKey = groupKey;
+        GroupDisplayKey = groupDisplayKey;
+        GroupDisplayName = groupDisplayName;
     }
 
     /// <summary>
@@ -126,4 +153,19 @@ public class OrganizationSettingResult<T>
     /// Whether this setting has predefined options
     /// </summary>
     public bool HasOptions => Options != null && Options.Count > 0;
+
+    /// <summary>
+    /// Group key for organizing related settings
+    /// </summary>
+    public string? GroupKey { get; }
+    
+    /// <summary>
+    /// Display key for group localization
+    /// </summary>
+    public string? GroupDisplayKey { get; }
+    
+    /// <summary>
+    /// Human-readable group display name
+    /// </summary>
+    public string? GroupDisplayName { get; }
 }

@@ -21,6 +21,7 @@ When you call `GET /OrganizationSettings`, the response includes rich option inf
     "groupDisplayName": "Shipment Settings"
   }
 ]
+```
 
 ### String Setting Response
 ```json

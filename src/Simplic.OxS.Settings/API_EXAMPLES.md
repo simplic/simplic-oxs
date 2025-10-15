@@ -19,7 +19,8 @@ When you call `GET /OrganizationSettings`, the response includes rich option inf
     "groupKey": "shipment",
     "groupDisplayKey": "logistics.settings.groups.shipment.displayKey",
     "groupDisplayName": "Shipment Settings"
-  },
+  }
+]
 
 ### String Setting Response
 ```json

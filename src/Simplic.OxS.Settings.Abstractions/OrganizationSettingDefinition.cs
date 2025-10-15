@@ -15,11 +15,17 @@ public abstract class OrganizationSettingDefinition<T> : IOrganizationSettingDef
     /// <param name="displayKey">Display key for localization</param>
     /// <param name="displayName">Human-readable name</param>
     /// <param name="defaultValue">Default value</param>
+    /// <param name="groupKey">Optional group key for organizing related settings</param>
+    /// <param name="groupDisplayKey">Optional group display key for localization</param>
+    /// <param name="groupDisplayName">Optional human-readable group name</param>
     protected OrganizationSettingDefinition(
         string internalName,
         string displayKey,
         string displayName,
-        T? defaultValue)
+        T? defaultValue,
+        string? groupKey = null,
+        string? groupDisplayKey = null,
+        string? groupDisplayName = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(internalName);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayKey);
@@ -32,6 +38,9 @@ public abstract class OrganizationSettingDefinition<T> : IOrganizationSettingDef
         DisplayKey = displayKey;
         DisplayName = displayName;
         DefaultValue = defaultValue;
+        GroupKey = groupKey;
+        GroupDisplayKey = groupDisplayKey;
+        GroupDisplayName = groupDisplayName;
     }
 
     /// <inheritdoc/>
@@ -48,6 +57,15 @@ public abstract class OrganizationSettingDefinition<T> : IOrganizationSettingDef
 
     /// <inheritdoc/>
     public object? DefaultValue { get; }
+
+    /// <inheritdoc/>
+    public string? GroupKey { get; }
+
+    /// <inheritdoc/>
+    public string? GroupDisplayKey { get; }
+
+    /// <inheritdoc/>
+    public string? GroupDisplayName { get; }
 
     /// <summary>
     /// Check if the type is supported for settings

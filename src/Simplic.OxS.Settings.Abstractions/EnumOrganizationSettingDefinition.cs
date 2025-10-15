@@ -19,12 +19,18 @@ public abstract class EnumOrganizationSettingDefinition<TEnum> : OrganizationSet
     /// <param name="displayKey">Display key for localization</param>
     /// <param name="displayName">Human-readable name</param>
     /// <param name="defaultValue">Default enum value</param>
+    /// <param name="groupKey">Optional group key for organizing related settings</param>
+    /// <param name="groupDisplayKey">Optional group display key for localization</param>
+    /// <param name="groupDisplayName">Optional human-readable group name</param>
     protected EnumOrganizationSettingDefinition(
         string internalName,
         string displayKey,
         string displayName,
-        TEnum defaultValue) 
-        : base(internalName, displayKey, displayName, defaultValue)
+        TEnum defaultValue,
+        string? groupKey = null,
+        string? groupDisplayKey = null,
+        string? groupDisplayName = null) 
+        : base(internalName, displayKey, displayName, defaultValue, groupKey, groupDisplayKey, groupDisplayName)
     {
         _options = BuildOptionsFromEnum(displayKey);
     }
@@ -37,13 +43,19 @@ public abstract class EnumOrganizationSettingDefinition<TEnum> : OrganizationSet
     /// <param name="displayName">Human-readable name</param>
     /// <param name="defaultValue">Default enum value</param>
     /// <param name="customOptions">Custom options with display names and keys</param>
+    /// <param name="groupKey">Optional group key for organizing related settings</param>
+    /// <param name="groupDisplayKey">Optional group display key for localization</param>
+    /// <param name="groupDisplayName">Optional human-readable group name</param>
     protected EnumOrganizationSettingDefinition(
         string internalName,
         string displayKey,
         string displayName,
         TEnum defaultValue,
-        IReadOnlyList<SettingOption> customOptions)
-        : base(internalName, displayKey, displayName, defaultValue)
+        IReadOnlyList<SettingOption> customOptions,
+        string? groupKey = null,
+        string? groupDisplayKey = null,
+        string? groupDisplayName = null)
+        : base(internalName, displayKey, displayName, defaultValue, groupKey, groupDisplayKey, groupDisplayName)
     {
         _options = customOptions;
     }

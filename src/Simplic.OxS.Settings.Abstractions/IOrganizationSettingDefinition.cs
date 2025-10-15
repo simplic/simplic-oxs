@@ -29,4 +29,19 @@ public interface IOrganizationSettingDefinition
     /// Default value if no organization override exists
     /// </summary>
     object? DefaultValue { get; }
+    
+    /// <summary>
+    /// Group key for organizing related settings
+    /// </summary>
+    string? GroupKey { get; }
+    
+    /// <summary>
+    /// Display key for group localization
+    /// </summary>
+    string? GroupDisplayKey { get; }
+    
+    /// <summary>
+    /// Human-readable group display name
+    /// </summary>
+    string? GroupDisplayName { get; }
 }

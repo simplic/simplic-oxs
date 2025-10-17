@@ -33,6 +33,21 @@ public class OrganizationSettingResult
     }
 
     /// <summary>
+    /// Initialize setting result (backward compatibility constructor)
+    /// </summary>
+    public OrganizationSettingResult(
+        string internalName,
+        string displayName,
+        string displayKey,
+        object? value,
+        object? defaultValue,
+        string valueTypeName,
+        IReadOnlyList<SettingOption>? options)
+        : this(internalName, displayName, displayKey, value, defaultValue, valueTypeName, options, null, null, null)
+    {
+    }
+
+    /// <summary>
     /// Internal name for storage and API access
     /// </summary>
     public string InternalName { get; }

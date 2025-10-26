@@ -1,5 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
@@ -10,13 +12,12 @@ using Microsoft.OpenApi.Models;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
+using Simplic.OxS.ModelDefinition.Extension;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
+using Simplic.OxS.Server.Service;
 using Simplic.OxS.Server.Services;
-using Simplic.OxS.ModelDefinition.Extension;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Simplic.OxS.Settings.Abstractions;
 
 namespace Simplic.OxS.Server
@@ -50,7 +51,7 @@ namespace Simplic.OxS.Server
 
             // Add Redis caching
             services.AddRedisCaching(Configuration, out string connection);
-            
+
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);
 
@@ -102,6 +103,18 @@ namespace Simplic.OxS.Server
             services.AddScoped<RequestContextActionFilter>();
             services.AddScoped<ValidationActionFilter>();
             services.AddScoped<IInternalClient, InternalClientBase>();
+            services.AddSingleton<ServiceDefinitionService>((x) =>
+            {
+                var f = new ServiceDefinitionService
+                {
+                    ServiceName = ServiceName,
+                    Version = ApiVersion
+                };
+
+                f.Fill();
+
+                return f;
+            });
 
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>

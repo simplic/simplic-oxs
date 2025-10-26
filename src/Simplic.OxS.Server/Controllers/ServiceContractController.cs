@@ -91,16 +91,23 @@ public class ServiceContractController : OxSController
         if (!serviceDefinitionService.ServiceObject.Contract.RequiredEndpointContracts.Any(x => x.Name == endpoint.ContractName))
             return BadRequest("The given contract is not required by this service.");
 
+        var contracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
+        {
+            Name = endpoint.ContractName,
+            OrganizationId = requestContext.OrganizationId.Value,
+            IsDeleted = false
+        })).FirstOrDefault();
+
         var contract = new EndpointContract
         {
-            Id = Guid.NewGuid(),
+            Id = contracts?.Id ?? Guid.NewGuid(),
             IsDeleted = false,
             OrganizationId = requestContext.OrganizationId.Value,
             Name = endpoint.ContractName,
             Endpoint = endpoint.Endpoint
         };
 
-        await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Name = endpoint.ContractName }, contract);
+        await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract);
         await endpointContractRepository.CommitAsync();
 
         return Ok();

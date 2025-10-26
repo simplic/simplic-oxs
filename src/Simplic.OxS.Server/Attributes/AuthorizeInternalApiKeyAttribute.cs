@@ -12,7 +12,7 @@ namespace Simplic.OxS.Server
     public class AuthorizeInternalApiKeyAttribute : Attribute, IAsyncActionFilter
     {
         /// <summary>
-        /// Will be executed by the asp.net core runtime for filtering user access.
+        /// Will be executed by the asp.net core runtime for filtering user access. 
         /// </summary>
         /// <param name="context">Current request context</param>
         /// <param name="next">Next request step</param>

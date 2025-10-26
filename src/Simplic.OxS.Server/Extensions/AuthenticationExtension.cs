@@ -10,7 +10,7 @@ using Simplic.OxS.Server.Handler;
 namespace Simplic.OxS.Server.Extensions;
 
 /// <summary>
-/// Extension method for adding authorization and authentication
+/// Extension method for adding authorization and authentication 
 /// </summary>
 internal static class AuthenticationExtension
 {

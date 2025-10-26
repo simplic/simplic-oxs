@@ -13,7 +13,7 @@ namespace Simplic.OxS.MessageBroker.Filter
         /// <summary>
         /// Create filter instance
         /// </summary>
-        /// <param name="requestContext">Injected request context</param>
+        /// <param name="requestContext">Injected request context</param> 
         public ConsumeContextFilter(IRequestContext requestContext)
         {
             this.requestContext = requestContext;

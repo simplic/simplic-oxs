@@ -77,12 +77,16 @@ steps:
       versioningScheme: 'off'
       packDirectory: '$(Build.ArtifactStagingDirectory)'
 
-  - task: NuGetCommand@2
-    displayName: 'Publish nuget packages'
+  - script: |
+          dotnet nuget add source https://pkgs.dev.azure.com/simplic-cloud/_packaging/simplic-cloud/nuget/v3/index.json --name simplic-cloud --username az --password $(System.AccessToken) --store-password-in-clear-text  
+    displayName: 'Authenticate Azure Artifacts feed (custom dotnet)'
+
+  - script: |
+          for pkg in $(Build.ArtifactStagingDirectory)/**/*.nupkg; do
+            if [[ "$pkg" != *".symbols.nupkg" ]]; then
+              echo "Pushing $pkg..."
+              dotnet nuget push "$pkg" --source simplic-cloud --api-key AzureDevOps --skip-duplicate
+            fi
+          done
+    displayName: 'Push NuGet packages manually with --skip-duplicate'
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
-    inputs:
-      command: 'push'
-      packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
-      nuGetFeedType: 'internal'
-      publishVstsFeed: 'f7087ef5-bf6f-48b2-8b8b-5e513f4a7a9e'
-      allowPackageConflicts: true

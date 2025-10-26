@@ -17,11 +17,12 @@ using Simplic.OxS.Server.Services;
 using Simplic.OxS.ModelDefinition.Extension;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Simplic.OxS.Settings.Abstractions;
 
 namespace Simplic.OxS.Server
 {
     /// <summary>
-    /// Base class for implementing a Simplic.OxS microservice 
+    /// Base class for implementing a Simplic.OxS microservice
     /// </summary>
     public abstract class Bootstrap
     {
@@ -78,6 +79,13 @@ namespace Simplic.OxS.Server
                           .RequireAuthenticatedUser());
             });
 
+            // Add organization settings if configured
+            var settingsConfig = ConfigureOrganizationSettings();
+            if (settingsConfig != null)
+            {
+                services.AddOrganizationSettingsWithMongo(settingsConfig, ServiceName);
+            }
+
             // Register custom services
             RegisterServices(services);
 
@@ -96,11 +104,11 @@ namespace Simplic.OxS.Server
             services.AddScoped<IInternalClient, InternalClientBase>();
 
             // Register web-api controller. Must be executed before creating swagger configuration
-            services.AddControllers(o =>
+            MvcBuilder(services.AddControllers(o =>
             {
                 o.Filters.Add<RequestContextActionFilter>();
                 o.Filters.Add<ValidationActionFilter>();
-            });
+            }));
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 
@@ -180,6 +188,12 @@ namespace Simplic.OxS.Server
         }
 
         /// <summary>
+        /// Will be called after controllers are created
+        /// </summary>
+        /// <param name="builder"><see cref="IMvcBuilder"/> instance</param>
+        protected virtual void MvcBuilder(IMvcBuilder builder) { }
+
+        /// <summary>
         /// Method for SignalR hub registration
         /// </summary>
         /// <param name="builder">Builder instance</param>
@@ -247,6 +261,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns></returns>
         protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
+
+        /// <summary>
+        /// Method for configuring organization settings. Return null to disable settings.
+        /// </summary>
+        /// <returns>Settings configuration action or null</returns>
+        protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
 
         /// <summary>
         /// Will be called for registering custom services.

@@ -7,4 +7,9 @@
     <Version>1.0.125.1026</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.Data.MongoDB\Simplic.OxS.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.ServiceDefinition\Simplic.OxS.ServiceDefinition.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -19,14 +19,16 @@ namespace Simplic.OxS.Server.Controllers;
 public class ServiceContractController : OxSController
 {
     private ServiceDefinitionService serviceDefinitionService;
+    private IEndpointContractRepository endpointContractRepository;
 
     /// <summary>
     /// Create controller instance
     /// </summary>
     /// <param name="serviceDefinitionService">Service definition service</param>
-    public ServiceContractController(ServiceDefinitionService serviceDefinitionService)
+    public ServiceContractController(ServiceDefinitionService serviceDefinitionService, IEndpointContractRepository endpointContractRepository)
     {
         this.serviceDefinitionService = serviceDefinitionService;
+        this.endpointContractRepository = endpointContractRepository;
     }
 
     /// <summary>
@@ -39,9 +41,7 @@ public class ServiceContractController : OxSController
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> GetServiceContracts()
     {
-        var contracts = new List<EndpointContract>();
-
-        return Ok(contracts);
+        return Ok(await endpointContractRepository.GetAllAsync());
     }
 
     /// <summary>
@@ -62,7 +62,10 @@ public class ServiceContractController : OxSController
         if (requiredParameter == null)
             return BadRequest($"Count not find required contract with name: `{contractName}`");
 
-        var contracts = new List<EndpointContract>();
+        var contracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter { Name = contractName, IsDeleted = false })).ToList();
+
+        if (!contracts.Any())
+            return NotFound($"Could not find contract: {contractName}");
 
         return Ok(contracts);
     }
@@ -82,7 +85,16 @@ public class ServiceContractController : OxSController
         if (!serviceDefinitionService.ServiceObject.Contract.RequiredEndpointContracts.Any(x => x.Name == endpoint.ContractName))
             return BadRequest("The given contract is not required by this service.");
 
-        return Ok();
+        var contract = new EndpointContract
+        {
+             Name = endpoint.ContractName,
+             Endpoint = endpoint.Endpoint
+        };
+
+        await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Name = endpoint.ContractName }, contract);
+        await endpointContractRepository.CommitAsync();
+
+        return Ok(contract);
     }
 }
 

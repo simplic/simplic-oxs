@@ -18,6 +18,8 @@ using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.Server.Services;
+using Simplic.OxS.ServiceDefinition;
+using Simplic.OxS.ServiceDefinition.Repository;
 using Simplic.OxS.Settings.Abstractions;
 
 namespace Simplic.OxS.Server
@@ -103,6 +105,7 @@ namespace Simplic.OxS.Server
             services.AddScoped<RequestContextActionFilter>();
             services.AddScoped<ValidationActionFilter>();
             services.AddScoped<IInternalClient, InternalClientBase>();
+            services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
             services.AddSingleton<ServiceDefinitionService>((x) =>
             {
                 var f = new ServiceDefinitionService

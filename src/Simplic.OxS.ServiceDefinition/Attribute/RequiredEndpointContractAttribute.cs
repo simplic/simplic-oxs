@@ -13,7 +13,7 @@ public class RequiredEndpointContractAttribute : Attribute
     /// </summary>
     /// <param name="contractName">The name of the required endpoint contract. Cannot be null or empty.</param>
     /// <param name="endpoint">Endpoint path</param>
-    public RequiredEndpointContractAttribute([NotNull] string contractName, [NotNull] string endpoint)
+    public RequiredEndpointContractAttribute([NotNull] string contractName)
     {
         ContractName = contractName;
     }

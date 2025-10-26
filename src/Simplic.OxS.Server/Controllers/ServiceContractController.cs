@@ -114,8 +114,7 @@ public class SetEndpointContractRequest
     /// <summary>
     /// Gets or sets the endpoint URL used to connect to the target service.
     /// [grpc] 
-    /// [http-get] 
-    /// [http-post] 
+    /// [http.post] 
     /// </summary>
     /// <remarks>The endpoint must be a valid, non-null string. This property is required and cannot be
     /// set to null. Ensure that the endpoint is accessible and properly formatted to avoid connection errors.</remarks>

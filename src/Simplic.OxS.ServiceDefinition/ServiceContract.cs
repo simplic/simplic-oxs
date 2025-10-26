@@ -8,10 +8,10 @@ public class ServiceContract
     /// <summary>
     /// Gets or sets a list of provided endpoint contracts
     /// </summary>
-    public IList<EndpointContract> EndpointContracts { get; set; } = [];
+    public IList<EndpointContractDefinition> EndpointContracts { get; set; } = [];
 
     /// <summary>
     /// Gets or sets a list of provided endpoint contracts
     /// </summary>
-    public IList<EndpointContract> RequiredEndpointContracts { get; set; } = [];
+    public IList<EndpointContractDefinition> RequiredEndpointContracts { get; set; } = [];
 }

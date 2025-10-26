@@ -1,13 +1,12 @@
 ﻿namespace Simplic.OxS.ServiceDefinition;
 
 /// <summary>
-/// Represents the definition of an endpoint contract.
+/// Represents an endpoint contract
 /// </summary>
 public class EndpointContract
 {
     /// <summary>
-    /// Gets or sets the name of the contract. Names must be globally unique.
-    /// E.g. geo.resolve-geolocation
+    /// Gets or sets the contract name
     /// </summary>
     public string Name { get; set; }
 }

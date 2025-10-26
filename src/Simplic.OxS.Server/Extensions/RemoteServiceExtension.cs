@@ -22,13 +22,13 @@ public static class RemoteServiceExtension
     /// <returns>Service collection</returns>
     public static IServiceCollection AddRemoteService(this IServiceCollection services)
     {
-        services.AddTransient<IRemoveServiceInvoker, RemoveServiceInvoker>();
+        services.AddTransient<IRemoteServiceInvoker, RemoteServiceInvoker>();
 
         return services;
     }
 }
 
-internal class RemoveServiceInvoker(IDistributedCache distributedCache, IRequestContext requestContext) : IRemoveServiceInvoker
+internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
     public async Task<T?> Call<T, P>([NotNull] string functionName, P parameter, string? defaultTargetUri)
@@ -62,7 +62,7 @@ internal class RemoveServiceInvoker(IDistributedCache distributedCache, IRequest
         return default(T);
     }
 
-    private static async Task<T?> RemoteGrpcCall<T, P>(IRequestContext requestContext, P parameter, string? url)
+    private static async Task<T?> RemoteGrpcCall<T, P>(IRequestContext requestContext, P parameter, [NotNull] string url)
         where T : class, IMessage<T>, new()
         where P : class, IMessage<P>, new()
     {

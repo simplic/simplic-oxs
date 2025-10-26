@@ -6,7 +6,7 @@ namespace Simplic.OxS
     /// <summary>
     /// Interface for calling external integrations in the same or another microservice
     /// </summary>
-    public interface IRemoveServiceInvoker
+    public interface IRemoteServiceInvoker
     {
         /// <summary>
         /// Call external function

@@ -18,16 +18,17 @@ namespace Simplic.OxS.Server.Controllers;
 [Route("[Controller]")]
 public class ServiceContractController : OxSController
 {
-    private ServiceDefinitionService serviceDefinitionService;
-    private IEndpointContractRepository endpointContractRepository;
-
+    private readonly ServiceDefinitionService serviceDefinitionService;
+    private readonly IEndpointContractRepository endpointContractRepository;
+    private readonly IRequestContext requestContext;
     /// <summary>
     /// Create controller instance
     /// </summary>
     /// <param name="serviceDefinitionService">Service definition service</param>
-    public ServiceContractController(ServiceDefinitionService serviceDefinitionService, IEndpointContractRepository endpointContractRepository)
+    public ServiceContractController(ServiceDefinitionService serviceDefinitionService, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext)
     {
         this.serviceDefinitionService = serviceDefinitionService;
+        this.requestContext = requestContext;
         this.endpointContractRepository = endpointContractRepository;
     }
 
@@ -62,7 +63,12 @@ public class ServiceContractController : OxSController
         if (requiredParameter == null)
             return BadRequest($"Count not find required contract with name: `{contractName}`");
 
-        var contracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter { Name = contractName, IsDeleted = false })).ToList();
+        var contracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
+        {
+            Name = contractName,
+            OrganizationId = requestContext.OrganizationId.Value,
+            IsDeleted = false
+        })).ToList();
 
         if (!contracts.Any())
             return NotFound($"Could not find contract: {contractName}");
@@ -87,14 +93,17 @@ public class ServiceContractController : OxSController
 
         var contract = new EndpointContract
         {
-             Name = endpoint.ContractName,
-             Endpoint = endpoint.Endpoint
+            Id = Guid.NewGuid(),
+            IsDeleted = false,
+            OrganizationId = requestContext.OrganizationId.Value,
+            Name = endpoint.ContractName,
+            Endpoint = endpoint.Endpoint
         };
 
         await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Name = endpoint.ContractName }, contract);
         await endpointContractRepository.CommitAsync();
 
-        return Ok(contract);
+        return Ok();
     }
 }
 

@@ -12,13 +12,20 @@ public class EndpointContractAttribute : Attribute
     /// Initializes a new instance of the ProvidedEndpointContractAttribute class with the specified contract name.
     /// </summary>
     /// <param name="contractName">The name of the required endpoint contract. Cannot be null or empty.</param>
-    public EndpointContractAttribute([NotNull] string contractName)
+    /// <param name="endpoint">Endpoint path</param>
+    public EndpointContractAttribute([NotNull] string contractName, [NotNull] string endpoint)
     {
         ContractName = contractName;
+        Endpoint = endpoint;
     }
 
     /// <summary>
     /// Gets or sets the endpoint contract name.
     /// </summary>
     public string ContractName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the endpoint path
+    /// </summary>
+    public string Endpoint { get; set; }
 }

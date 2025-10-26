@@ -36,11 +36,11 @@ public class ServiceDefinitionService
             .SelectMany(a => GetAllRequiredContractNames(a))
             .Distinct();
 
-        foreach (var contractName in allContracts)
-            serviceDefinition.Contract.EndpointContracts.Add(new EndpointContractDefinition { Name = contractName });
+        foreach (var attr in allContracts)
+            serviceDefinition.Contract.EndpointContracts.Add(new EndpointContractDefinition { Name = attr.ContractName, Endpoint = attr.Endpoint });
 
         foreach (var contractName in allRequiredContracts)
-            serviceDefinition.Contract.RequiredEndpointContracts.Add(new EndpointContractDefinition { Name = contractName });
+            serviceDefinition.Contract.RequiredEndpointContracts.Add(new RequiredEndpointContractDefinition { Name = contractName });
 
         // Cache service definition
         ServiceObject = serviceDefinition;
@@ -61,13 +61,12 @@ public class ServiceDefinitionService
     /// </summary>
     public ServiceObject ServiceObject { get; set; }
 
-    private static IEnumerable<string> GetAllContractNames(Assembly assembly)
+    private static IEnumerable<EndpointContractAttribute> GetAllContractNames(Assembly assembly)
     {
         return assembly
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
             .SelectMany(t => t.GetCustomAttributes<EndpointContractAttribute>())
-            .Select(attr => attr.ContractName)
             .Distinct();
     }
 

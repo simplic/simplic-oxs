@@ -12,7 +12,8 @@ public class RequiredEndpointContractAttribute : Attribute
     /// Initializes a new instance of the RequiredEndpointContractAttribute class with the specified contract name.
     /// </summary>
     /// <param name="contractName">The name of the required endpoint contract. Cannot be null or empty.</param>
-    public RequiredEndpointContractAttribute([NotNull] string contractName)
+    /// <param name="endpoint">Endpoint path</param>
+    public RequiredEndpointContractAttribute([NotNull] string contractName, [NotNull] string endpoint)
     {
         ContractName = contractName;
     }

@@ -77,7 +77,7 @@ public class ServiceContractController : OxSController
     [ProducesResponseType((int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> RegisterService(SetEndpointContractRequest endpoint)
+    public async Task<IActionResult> SetEndpointContract(SetEndpointContractRequest endpoint)
     {
         if (!ModelState.IsValid)
             return BadRequest();
@@ -113,6 +113,10 @@ public class SetEndpointContractRequest
 
     /// <summary>
     /// Gets or sets the endpoint URL used to connect to the target service.
+    /// [grpc] 
+    /// [flow] 
+    /// [http-get] 
+    /// [http-post] 
     /// </summary>
     /// <remarks>The endpoint must be a valid, non-null string. This property is required and cannot be
     /// set to null. Ensure that the endpoint is accessible and properly formatted to avoid connection errors.</remarks>

@@ -13,5 +13,5 @@ public class ServiceContract
     /// <summary>
     /// Gets or sets a list of provided endpoint contracts
     /// </summary>
-    public IList<EndpointContractDefinition> RequiredEndpointContracts { get; set; } = [];
+    public IList<RequiredEndpointContractDefinition> RequiredEndpointContracts { get; set; } = [];
 }

@@ -37,10 +37,10 @@ public class ServiceDefinitionService
             .Distinct();
 
         foreach (var contractName in allContracts)
-            ServiceObject.Contract.EndpointContracts.Add(new EndpointContract { Name = contractName });
+            serviceDefinition.Contract.EndpointContracts.Add(new EndpointContract { Name = contractName });
 
         foreach (var contractName in allRequiredContracts)
-            ServiceObject.Contract.RequiredEndpointContracts.Add(new EndpointContract { Name = contractName });
+            serviceDefinition.Contract.RequiredEndpointContracts.Add(new EndpointContract { Name = contractName });
 
         // Cache service definition
         ServiceObject = serviceDefinition;

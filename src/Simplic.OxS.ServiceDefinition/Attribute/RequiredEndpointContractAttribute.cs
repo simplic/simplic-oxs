@@ -1,0 +1,24 @@
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Simplic.OxS.ServiceDefinition;
+
+/// <summary>
+/// Attribute to register a required contract endpoint
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+public class RequiredEndpointContractAttribute : Attribute
+{
+    /// <summary>
+    /// Initializes a new instance of the RequiredEndpointContractAttribute class with the specified contract name.
+    /// </summary>
+    /// <param name="contractName">The name of the required endpoint contract. Cannot be null or empty.</param>
+    public RequiredEndpointContractAttribute([NotNull] string contractName)
+    {
+        ContractName = contractName;
+    }
+
+    /// <summary>
+    /// Gets or sets the endpoint contract name.
+    /// </summary>
+    public string ContractName { get; set; }
+}

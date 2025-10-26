@@ -114,7 +114,6 @@ public class SetEndpointContractRequest
     /// <summary>
     /// Gets or sets the endpoint URL used to connect to the target service.
     /// [grpc] 
-    /// [flow] 
     /// [http-get] 
     /// [http-post] 
     /// </summary>

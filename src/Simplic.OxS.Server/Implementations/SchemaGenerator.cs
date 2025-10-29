@@ -25,7 +25,7 @@ public static class SchemaGenerator
             SingleType = "object",
             Properties = new Dictionary<string, JsonSchema>()
         };
-
+         
         // parameters
         var parametersSchema = BuildParametersSchema(method, visited, nullCtx);
 

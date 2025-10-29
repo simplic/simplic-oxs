@@ -1,4 +1,5 @@
-﻿using Simplic.OxS.ServiceDefinition;
+﻿using Microsoft.AspNetCore.Mvc.TagHelpers;
+using Simplic.OxS.ServiceDefinition;
 using System.Reflection;
 
 namespace Simplic.OxS.Server.Service;
@@ -37,7 +38,7 @@ public class ServiceDefinitionService
             .Distinct();
 
         foreach (var attr in allContracts)
-            serviceDefinition.Contract.EndpointContracts.Add(new EndpointContractDefinition { Name = attr.ContractName, Endpoint = attr.Endpoint });
+            serviceDefinition.Contract.EndpointContracts.Add(new EndpointContractDefinition { Name = attr.Attribute.ContractName, Endpoint = attr.Attribute.Endpoint, Schema = attr.Schema });
 
         foreach (var contractName in allRequiredContracts)
             serviceDefinition.Contract.RequiredEndpointContracts.Add(new RequiredEndpointContractDefinition { Name = contractName });
@@ -61,13 +62,17 @@ public class ServiceDefinitionService
     /// </summary>
     public ServiceObject ServiceObject { get; set; }
 
-    private static IEnumerable<EndpointContractAttribute> GetAllContractNames(Assembly assembly)
+    record _ContractResult (EndpointContractAttribute Attribute, JsonSchema Schema);
+
+    private static IEnumerable<_ContractResult> GetAllContractNames(Assembly assembly)
     {
         return assembly
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
-            .SelectMany(t => t.GetCustomAttributes<EndpointContractAttribute>())
-            .Distinct();
+            .SelectMany(type => type.GetMethods(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+            .SelectMany(method => method.GetCustomAttributes<EndpointContractAttribute>(),
+                (method, attribute) => new _ContractResult(attribute, SchemaGenerator.GenerateMethodJsonSchema(method)));
     }
 
     private static IEnumerable<string> GetAllRequiredContractNames(Assembly assembly)
@@ -75,8 +80,11 @@ public class ServiceDefinitionService
         return assembly
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
-            .SelectMany(t => t.GetCustomAttributes<RequiredEndpointContractAttribute>())
-            .Select(attr => attr.ContractName)
+            .SelectMany(t =>
+                t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+                .SelectMany(m => m.GetCustomAttributes<RequiredEndpointContractAttribute>())
+                .Select(attr => attr.ContractName)
+            )
             .Distinct();
     }
 }

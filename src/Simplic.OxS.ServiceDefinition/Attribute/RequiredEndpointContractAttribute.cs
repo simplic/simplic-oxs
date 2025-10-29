@@ -5,7 +5,7 @@ namespace Simplic.OxS.ServiceDefinition;
 /// <summary>
 /// Attribute to register a required contract endpoint
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 public class RequiredEndpointContractAttribute : Attribute
 {
     /// <summary>

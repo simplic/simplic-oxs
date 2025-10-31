@@ -6,6 +6,11 @@
 public class ServiceContract
 {
     /// <summary>
+    /// Gets or sets the provider name. E.g. when for the same purpose multiple providers exists
+    /// </summary>
+    public string ProviderName { get; set; }
+
+    /// <summary>
     /// Gets or sets a list of provided endpoint contracts
     /// </summary>
     public IList<EndpointContractDefinition> EndpointContracts { get; set; } = [];

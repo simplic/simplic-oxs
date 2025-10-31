@@ -16,6 +16,9 @@ public class EndpointContractRepository(IMongoContext context, IRequestContext r
         if (filter.Name is not null)
             yield return Builders<EndpointContract>.Filter.Eq(s => s.Name, filter.Name);
 
+        if (filter.ProviderName is not null)
+            yield return Builders<EndpointContract>.Filter.Eq(s => s.ProviderName, filter.ProviderName);
+
         foreach (var definition in base.GetFilterQueries(filter))
             yield return definition;
     }

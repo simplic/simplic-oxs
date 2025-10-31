@@ -13,10 +13,12 @@ public class EndpointContractAttribute : Attribute
     /// </summary>
     /// <param name="contractName">The name of the required endpoint contract. Cannot be null or empty.</param>
     /// <param name="endpoint">Endpoint path</param>
-    public EndpointContractAttribute([NotNull] string contractName, [NotNull] string endpoint)
+    /// <param name="providerName">Provider name</param>
+    public EndpointContractAttribute([NotNull] string contractName, [NotNull] string endpoint, [NotNull] string providerName)
     {
         ContractName = contractName;
         Endpoint = endpoint;
+        ProviderName = providerName;
     }
 
     /// <summary>
@@ -28,4 +30,9 @@ public class EndpointContractAttribute : Attribute
     /// Gets or sets the endpoint path
     /// </summary>
     public string Endpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider name
+    /// </summary>
+    public string ProviderName { get; set; }
 }

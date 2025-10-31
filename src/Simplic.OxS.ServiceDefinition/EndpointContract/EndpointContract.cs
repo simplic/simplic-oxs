@@ -16,4 +16,9 @@ public class EndpointContract : OrganizationDocumentBase
     /// Gets or sets the endpoint
     /// </summary>
     public string Endpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider name
+    /// </summary>
+    public string ProviderName { get; set; }
 }

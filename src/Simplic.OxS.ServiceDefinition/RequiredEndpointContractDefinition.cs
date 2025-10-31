@@ -10,4 +10,9 @@ public class RequiredEndpointContractDefinition
     /// E.g. geo.resolve-geolocation
     /// </summary>
     public string Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets whetther multiple registrations are allowed
+    /// </summary>
+    public bool AllowMultiple { get; set; }
 }

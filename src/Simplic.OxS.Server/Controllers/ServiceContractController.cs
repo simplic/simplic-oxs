@@ -56,9 +56,10 @@ public class ServiceContractController : OxSController
     public async Task<IActionResult> GetServiceContract([NotNull][Required] string contractName)
     {
         if (string.IsNullOrWhiteSpace(contractName))
-            return BadRequest("ContactName must be set");
+            return BadRequest("ContractName must be set");
 
-        var requiredParameter = serviceDefinitionService.ServiceObject.Contract.RequiredEndpointContracts.FirstOrDefault(x => x.Name == contractName);
+        var requiredParameter = serviceDefinitionService.ServiceObject.Contracts.SelectMany(x => x.RequiredEndpointContracts)
+                                                                                .FirstOrDefault(x => x.Name == contractName);
 
         if (requiredParameter == null)
             return BadRequest($"Count not find required contract with name: `{contractName}`");
@@ -88,27 +89,36 @@ public class ServiceContractController : OxSController
         if (!ModelState.IsValid)
             return BadRequest();
 
-        if (!serviceDefinitionService.ServiceObject.Contract.RequiredEndpointContracts.Any(x => x.Name == endpoint.ContractName))
+        var requiredContracts = serviceDefinitionService.ServiceObject.Contracts.SelectMany(x => x.RequiredEndpointContracts)
+                                                                                .Where(x => x.Name == endpoint.ContractName)
+                                                                                .ToList();
+
+        if (requiredContracts.Count == 0)
             return BadRequest("The given contract is not required by this service.");
 
-        var contracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
+        foreach (var requiredContract in requiredContracts)
         {
-            Name = endpoint.ContractName,
-            OrganizationId = requestContext.OrganizationId.Value,
-            IsDeleted = false
-        })).FirstOrDefault();
+            var contracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
+            {
+                Name = endpoint.ContractName,
+                ProviderName = requiredContract.AllowMultiple ? endpoint.ProviderName : null,
+                OrganizationId = requestContext.OrganizationId.Value,
+                IsDeleted = false
+            })).FirstOrDefault();
 
-        var contract = new EndpointContract
-        {
-            Id = contracts?.Id ?? Guid.NewGuid(),
-            IsDeleted = false,
-            OrganizationId = requestContext.OrganizationId.Value,
-            Name = endpoint.ContractName,
-            Endpoint = endpoint.Endpoint
-        };
+            var contract = new EndpointContract
+            {
+                Id = contracts?.Id ?? Guid.NewGuid(),
+                IsDeleted = false,
+                ProviderName = endpoint.ProviderName,
+                OrganizationId = requestContext.OrganizationId.Value,
+                Name = endpoint.ContractName,
+                Endpoint = endpoint.Endpoint
+            };
 
-        await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract);
-        await endpointContractRepository.CommitAsync();
+            await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract);
+            await endpointContractRepository.CommitAsync();
+        }
 
         return Ok();
     }
@@ -138,4 +148,9 @@ public class SetEndpointContractRequest
     [MinLength(5)]
     [NotNull]
     public string Endpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider name
+    /// </summary>
+    public string ProviderName { get; set; }
 }

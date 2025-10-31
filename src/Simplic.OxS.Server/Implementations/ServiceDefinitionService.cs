@@ -37,11 +37,42 @@ public class ServiceDefinitionService
             .SelectMany(a => GetAllRequiredContractNames(a))
             .Distinct();
 
-        foreach (var attr in allContracts)
-            serviceDefinition.Contract.EndpointContracts.Add(new EndpointContractDefinition { Name = attr.Attribute.ContractName, Endpoint = attr.Attribute.Endpoint, Schema = attr.Schema });
+        foreach (var providerGroup in allContracts.GroupBy(x => x.Attribute.ProviderName))
+        {
+            var contract = new ServiceContract
+            {
+                ProviderName = providerGroup.Key,
+                EndpointContracts = providerGroup.Select(x => new EndpointContractDefinition
+                {
+                    Name = x.Attribute.ContractName,
+                    Endpoint = x.Attribute.Endpoint,
+                    Schema = x.Schema
+                }).ToList()
+            };
 
-        foreach (var contractName in allRequiredContracts)
-            serviceDefinition.Contract.RequiredEndpointContracts.Add(new RequiredEndpointContractDefinition { Name = contractName });
+            serviceDefinition.Contracts.Add(contract);
+        }
+
+        foreach (var providerGroup in allRequiredContracts.GroupBy(x => x.Attribute.ProviderName))
+        {
+            ServiceContract contract = serviceDefinition.Contracts.FirstOrDefault(x => x.ProviderName == providerGroup.Key);
+
+            if (contract == null)
+            {
+                contract = new ServiceContract
+                {
+                    ProviderName = providerGroup.Key
+                };
+
+                serviceDefinition.Contracts.Add(contract);
+            }
+
+            contract.RequiredEndpointContracts = providerGroup.Select(x => new RequiredEndpointContractDefinition
+            {
+                Name = x.Attribute.ContractName,
+                AllowMultiple = x.AllowMultiple
+            }).ToList();
+        }
 
         // Cache service definition
         ServiceObject = serviceDefinition;
@@ -62,7 +93,7 @@ public class ServiceDefinitionService
     /// </summary>
     public ServiceObject ServiceObject { get; set; }
 
-    record _ContractResult (EndpointContractAttribute Attribute, JsonSchema Schema);
+    record _ContractResult(EndpointContractAttribute Attribute, JsonSchema Schema, bool AllowMultiple);
 
     private static IEnumerable<_ContractResult> GetAllContractNames(Assembly assembly)
     {
@@ -72,19 +103,17 @@ public class ServiceDefinitionService
             .SelectMany(type => type.GetMethods(
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
             .SelectMany(method => method.GetCustomAttributes<EndpointContractAttribute>(),
-                (method, attribute) => new _ContractResult(attribute, SchemaGenerator.GenerateMethodJsonSchema(method)));
+                (method, attribute) => new _ContractResult(attribute, SchemaGenerator.GenerateMethodJsonSchema(method), false));
     }
 
-    private static IEnumerable<string> GetAllRequiredContractNames(Assembly assembly)
+    private static IEnumerable<_ContractResult> GetAllRequiredContractNames(Assembly assembly)
     {
         return assembly
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
-            .SelectMany(t =>
-                t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-                .SelectMany(m => m.GetCustomAttributes<RequiredEndpointContractAttribute>())
-                .Select(attr => attr.ContractName)
-            )
-            .Distinct();
+            .SelectMany(type => type.GetMethods(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+            .SelectMany(method => method.GetCustomAttributes<RequiredEndpointContractAttribute>(),
+                (method, attribute) => new _ContractResult(new EndpointContractAttribute(attribute.ContractName, "", attribute.ProviderName), SchemaGenerator.GenerateMethodJsonSchema(method), attribute.AllowMultiple));
     }
 }

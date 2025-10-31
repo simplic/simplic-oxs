@@ -11,4 +11,9 @@ public class EndpointContractFilter : OrganizationFilterBase
     /// Gets or sets the internal name of the contract.
     /// </summary>
     public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider name
+    /// </summary>
+    public string ProviderName { get; set; }
 }

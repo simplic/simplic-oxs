@@ -3,7 +3,7 @@
     /// <summary>
     /// Defines a list of provided actions for a specific resource
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = true)]
     public class ResourceActionsAttribute : Attribute
     {
         public ResourceActionsAttribute(string name, string[] actions)

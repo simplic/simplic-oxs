@@ -1,4 +1,7 @@
 ﻿using MongoDB.Driver;
+using Simplic.OxS.Security;
+using System.Net.NetworkInformation;
+using System.Runtime.CompilerServices;
 
 namespace Simplic.OxS.Data.MongoDB
 {
@@ -6,6 +9,11 @@ namespace Simplic.OxS.Data.MongoDB
         where TDocument : IDocument<TId>
         where TFilter : IFilter<TId>, new()
     {
+        /// <summary>
+        /// Field for caching resource urn.
+        /// </summary>
+        private static string? _resourceUrn = null;
+
         protected readonly IMongoContext Context;
         protected IMongoCollection<TDocument> Collection;
 
@@ -120,6 +128,32 @@ namespace Simplic.OxS.Data.MongoDB
                 countOption.Collation = collation;
 
             return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption);
+        }
+
+        /// <inheritdoc />
+        public string? ResourceUrn
+        {
+            get
+            {
+                if (_resourceUrn == "")
+                    return null;
+
+                if (_resourceUrn == null)
+                {
+                    var attr = (ResourceActionsAttribute?)Attribute.GetCustomAttribute(
+                        GetType(), typeof(ResourceActionsAttribute));
+
+                    if (attr == null)
+                    {
+                        _resourceUrn = "";
+                        return null;
+                    }
+
+                    _resourceUrn = attr.Name;
+                }
+
+                return _resourceUrn;
+            }
         }
     }
 }

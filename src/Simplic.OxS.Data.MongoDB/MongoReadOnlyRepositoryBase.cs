@@ -1,4 +1,6 @@
-﻿using MongoDB.Driver;
+﻿using MongoDB.Bson;
+using MongoDB.Driver;
+using Simplic.OxS.Data.Security;
 using Simplic.OxS.Security;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
@@ -16,15 +18,18 @@ namespace Simplic.OxS.Data.MongoDB
 
         protected readonly IMongoContext Context;
         protected IMongoCollection<TDocument> Collection;
+        protected INoSqlPolicyService? noSqlPolicyService;
 
-        protected MongoReadOnlyRepositoryBase(IMongoContext context)
+        protected MongoReadOnlyRepositoryBase(IMongoContext context, INoSqlPolicyService? noSqlPolicyService = null)
         {
             Context = context;
+            this.noSqlPolicyService = noSqlPolicyService;
         }
 
-        protected MongoReadOnlyRepositoryBase(IMongoContext context, string configurationKey)
+        protected MongoReadOnlyRepositoryBase(IMongoContext context, string configurationKey, INoSqlPolicyService? noSqlPolicyService = null)
         {
             Context = context;
+            this.noSqlPolicyService = noSqlPolicyService;
             context.SetConfiguration(configurationKey);
         }
 
@@ -53,7 +58,7 @@ namespace Simplic.OxS.Data.MongoDB
         {
             await Initialize();
 
-            return (await Collection.FindAsync(BuildFilterQuery(filter)))
+            return (await Collection.FindAsync(BuildFilterQuery(filter, "read")))
                 .ToEnumerable();
         }
 
@@ -67,7 +72,7 @@ namespace Simplic.OxS.Data.MongoDB
             return new List<FilterDefinition<TDocument>>();
         }
 
-        protected FilterDefinition<TDocument> BuildFilterQuery(TFilter filter)
+        protected FilterDefinition<TDocument> BuildFilterQuery(TFilter filter, string action)
         {
             var filterQueries = GetFilterQueries(filter).ToList();
             var builder = Builders<TDocument>.Filter;
@@ -76,12 +81,14 @@ namespace Simplic.OxS.Data.MongoDB
             // https://stackoverflow.com/a/864860/4315106
             var isIdHasValue = !EqualityComparer<TId>.Default.Equals(filter.Id, default);
             if (isIdHasValue)
-            {
                 filterQueries.Add(builder.Eq(d => d.Id, filter.Id));
-            }
 
             if (filter.IsDeleted != null)
                 filterQueries.Add(builder.Eq(d => d.IsDeleted, filter.IsDeleted));
+
+            var policyFilter = GetPolicyFilter(action);
+            if (policyFilter != null)
+                filterQueries.Add(policyFilter);
 
             return filterQueries.Any()
                 ? builder.And(filterQueries)
@@ -109,7 +116,8 @@ namespace Simplic.OxS.Data.MongoDB
             var findOptions = new FindOptions();
             if (collation != null)
                 findOptions.Collation = collation;
-            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
+
+            return Collection.Find(BuildFilterQuery(predicate, "read"), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
         }
 
         /// <summary>
@@ -127,7 +135,28 @@ namespace Simplic.OxS.Data.MongoDB
             if (collation != null)
                 countOption.Collation = collation;
 
-            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption);
+            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate, "read"), countOption);
+        }
+
+        /// <summary>
+        /// Get policy filter for the current resource urn and action
+        /// </summary>
+        /// <param name="action">Action to get the filter for. e.g. read, create, update, delete.
+        /// Passing the ResourceUrn is NOT required/allowed.
+        /// </param>
+        /// <returns>BsonDocument filter generated from policy rules</returns>
+        protected BsonDocument? GetPolicyFilter(string action)
+        {
+            // Add filter for security layer
+            if (noSqlPolicyService != null && !string.IsNullOrWhiteSpace(ResourceUrn))
+            {
+                var securityFilter = noSqlPolicyService.GetRulesAsFilter($"{ResourceUrn}:{action}");
+
+                if (securityFilter != null)
+                    return securityFilter;
+            }
+
+            return null;
         }
 
         /// <inheritdoc />

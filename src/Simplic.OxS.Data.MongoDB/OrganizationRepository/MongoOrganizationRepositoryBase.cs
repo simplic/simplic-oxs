@@ -1,3 +1,4 @@
+using Amazon.Runtime.Internal;
 using HotChocolate;
 using HotChocolate.Data;
 using MongoDB.Driver;
@@ -13,7 +14,7 @@ public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : Mong
     private readonly IRequestContext requestContext;
     private readonly INoSqlPolicyService? noSqlPolicyService;
 
-    protected MongoOrganizationRepositoryBase(IMongoContext context, IRequestContext requestContext, INoSqlPolicyService? noSqlPolicyService = null) : base(context)
+    protected MongoOrganizationRepositoryBase(IMongoContext context, IRequestContext requestContext, INoSqlPolicyService? noSqlPolicyService = null) : base(context, noSqlPolicyService)
     {
         this.context = context;
         this.requestContext = requestContext;

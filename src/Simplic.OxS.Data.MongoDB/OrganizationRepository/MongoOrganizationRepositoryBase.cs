@@ -128,7 +128,7 @@ public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : Mong
         // Add filter for security layer
         if (noSqlPolicyService != null && !string.IsNullOrWhiteSpace(ResourceUrn))
         {
-            var securityFilter = noSqlPolicyService.GetQuery($"{ResourceUrn}:read");
+            var securityFilter = noSqlPolicyService.GetRulesAsFilter($"{ResourceUrn}:read");
 
             if (securityFilter != null)
                 filterQueries.Add(securityFilter);
@@ -151,7 +151,7 @@ public abstract class MongoOrganizationRepositoryBase<TDocument, TFilter> : Mong
         // Add filter for security layer
         if (noSqlPolicyService != null && !string.IsNullOrWhiteSpace(ResourceUrn))
         {
-            var securityFilter = noSqlPolicyService.GetQuery($"{ResourceUrn}:read");
+            var securityFilter = noSqlPolicyService.GetRulesAsFilter($"{ResourceUrn}:read");
 
             if (securityFilter != null)
                 filterQueries.Add(securityFilter);

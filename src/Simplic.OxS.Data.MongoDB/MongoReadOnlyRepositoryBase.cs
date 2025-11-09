@@ -57,10 +57,10 @@ namespace Simplic.OxS.Data.MongoDB
                 .ToEnumerable();
         }
 
-        public void Dispose()
-        {
-            Context?.Dispose();
-        }
+        /// <summary>
+        /// Dispose current repository and mongodb context
+        /// </summary>
+        public void Dispose() => Context?.Dispose();
 
         protected virtual IEnumerable<FilterDefinition<TDocument>> GetFilterQueries(TFilter filter)
         {
@@ -140,15 +140,18 @@ namespace Simplic.OxS.Data.MongoDB
 
                 if (_resourceUrn == null)
                 {
-                    var attr = (ResourceActionsAttribute?)Attribute.GetCustomAttribute(
-                        GetType(), typeof(ResourceActionsAttribute));
+                    var attr = (ResourceActionsAttribute?)Attribute.GetCustomAttributes(
+                        GetType(), typeof(ResourceActionsAttribute))?.FirstOrDefault();
 
                     if (attr == null)
                     {
+                        // Set to an empty string, so taht the attribute is not checked for each request
+                        // That means caching the not existing of the attribute
                         _resourceUrn = "";
                         return null;
                     }
 
+                    // Cache resource urn
                     _resourceUrn = attr.Name;
                 }
 

@@ -13,7 +13,7 @@ namespace Simplic.OxS.Server.Extensions
         /// </summary>
         /// <param name="services"></param>
         /// <returns></returns>
-        public static IServiceCollection UseGraphQL<TQuery>(this IServiceCollection services, Action<IRequestExecutorBuilder> builder = null) where TQuery : class
+        public static IServiceCollection UseGraphQL<TQuery>(this IServiceCollection services, Action<IRequestExecutorBuilder>? builder = null) where TQuery : class
         {
             var req = services.AddGraphQLServer()
                         .AddHttpRequestInterceptor<HttpRequestInterceptor>()
@@ -31,6 +31,31 @@ namespace Simplic.OxS.Server.Extensions
                 .AddMongoDbSorting();
 
             return services;
+        }
+
+        /// <summary>
+        /// Configure GraphQL services with enhanced documentation support
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        /// <param name="queryType">GraphQL query type</param>
+        /// <param name="builder">Optional configuration builder</param>
+        /// <returns>Service collection</returns>
+        public static IServiceCollection AddGraphQLWithDocumentation(this IServiceCollection services, Type queryType, Action<IRequestExecutorBuilder>? builder = null)
+        {
+            var req = services.AddGraphQLServer()
+     .AddHttpRequestInterceptor<HttpRequestInterceptor>()
+   .AddAuthorization()
+  .AddQueryType(queryType)
+                .AddType(new TimeSpanType(TimeSpanFormat.DotNet));
+
+            builder?.Invoke(req);
+
+          req.AddMongoDbPagingProviders()
+          .AddMongoDbProjections()
+     .AddMongoDbFiltering()
+            .AddMongoDbSorting();
+
+  return services;
         }
     }
 }

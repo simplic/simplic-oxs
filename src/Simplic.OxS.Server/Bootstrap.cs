@@ -68,19 +68,18 @@ namespace Simplic.OxS.Server
             if (authBuilder != null)
                 ConfigureAuthentication(authBuilder);
 
-
             services.AddAuthorization(options =>
-            {
-                options.DefaultPolicy = new AuthorizationPolicyBuilder()
-                    .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey")
-                    .RequireAuthenticatedUser()
-                    .Build();
+        {
+            options.DefaultPolicy = new AuthorizationPolicyBuilder()
+           .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "ApiKey")
+      .RequireAuthenticatedUser()
+      .Build();
 
-                // New policy explicitly forbidding API Key authentication
-                options.AddPolicy("JwtOnly", policy =>
-                    policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme) // Only allow JWT
-                          .RequireAuthenticatedUser());
-            });
+            // New policy explicitly forbidding API Key authentication
+            options.AddPolicy("JwtOnly", policy =>
+     policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme) // Only allow JWT
+       .RequireAuthenticatedUser());
+        });
 
             // Add organization settings if configured
             var settingsConfig = ConfigureOrganizationSettings();
@@ -107,38 +106,45 @@ namespace Simplic.OxS.Server
             services.AddScoped<IInternalClient, InternalClientBase>();
             services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
             services.AddSingleton<ServiceDefinitionService>((x) =>
+         {
+             var f = new ServiceDefinitionService
+             {
+                 ServiceName = ServiceName,
+                 Version = ApiVersion
+             };
+
+             f.Fill();
+
+             return f;
+         });
+
+            // Add GraphQL if configured
+            if (GraphQLQueryType != null)
             {
-                var f = new ServiceDefinitionService
-                {
-                    ServiceName = ServiceName,
-                    Version = ApiVersion
-                };
+                services.AddGraphQLWithDocumentation(GraphQLQueryType, ConfigureGraphQL);
+            }
 
-                f.Fill();
-
-                return f;
-            });
-
-            // Register web-api controller. Must be executed before creating swagger configuration
+            // Register web-api controller. Must be executed before creating documentation configuration
             MvcBuilder(services.AddControllers(o =>
-            {
-                o.Filters.Add<RequestContextActionFilter>();
-                o.Filters.Add<ValidationActionFilter>();
-            }));
+           {
+               o.Filters.Add<RequestContextActionFilter>();
+               o.Filters.Add<ValidationActionFilter>();
+           }));
 
-            services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
+            // Add Scalar API documentation
+            services.AddScalar(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 
             // Add signalr
             if (string.IsNullOrWhiteSpace(connection))
                 services.AddSignalR(hubOptions =>
-                {
-                    hubOptions.AddFilter<RequestContextHubFilter>();
-                });
+                  {
+                      hubOptions.AddFilter<RequestContextHubFilter>();
+                  });
             else
                 services.AddSignalR(hubOptions =>
-                {
-                    hubOptions.AddFilter<RequestContextHubFilter>();
-                }).AddStackExchangeRedis(connection);
+                  {
+                      hubOptions.AddFilter<RequestContextHubFilter>();
+                  }).AddStackExchangeRedis(connection);
         }
 
         /// <summary>
@@ -157,26 +163,30 @@ namespace Simplic.OxS.Server
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseSwagger(c =>
+            // Configure Scalar API documentation
+            var scalarOptions = new ScalarOptions
             {
-                c.PreSerializeFilters.Add((swagger, httpReq) =>
+                ApiVersion = ApiVersion,
+                Title = GetApiInformation().Title,
+                Description = GetApiInformation().Description ?? "API Documentation",
+                Contact = new ScalarContact
                 {
-                    if (env.IsDevelopment())
-                    {
-                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"{httpReq.Scheme}://{httpReq.Host.Value}{basePath}" } };
-                    }
-                    else
-                    {
-                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"https://{httpReq.Host.Value}{basePath}" } };
-                    }
-                });
-            });
+                    Name = GetApiInformation().Contact?.Name,
+                    Email = GetApiInformation().Contact?.Email,
+                    Url = GetApiInformation().Contact?.Url?.ToString()
+                },
+                License = new ScalarLicense
+                {
+                    Name = GetApiInformation().License?.Name,
+                    Url = GetApiInformation().License?.Url?.ToString()
+                },
+                TermsOfService = GetApiInformation().TermsOfService?.ToString(),
+                BasePath = basePath,
+                IncludeSignalR = HasSignalRHubs(),
+                IncludeGraphQL = GraphQLQueryType != null
+            };
 
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
-                c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}-SignalR/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}-SignalR");
-            });
+            app.UseScalarDocumentation(scalarOptions, env);
 
             var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
             if (modelDefinitionBuilderConfig.Count != 0)
@@ -194,13 +204,19 @@ namespace Simplic.OxS.Server
             app.UseMiddleware<ErrorLoggingMiddleware>();
 
             app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
+              {
+                  endpoints.MapControllers();
 
-                MapHubs(endpoints);
+                  MapHubs(endpoints);
 
-                MapEndpoints(endpoints);
-            });
+                  MapEndpoints(endpoints);
+
+                  // Map GraphQL endpoint if configured
+                  if (GraphQLQueryType != null)
+                  {
+                      endpoints.MapGraphQL();
+                  }
+              });
         }
 
         /// <summary>
@@ -226,6 +242,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="builder">Builder instance</param>
         protected virtual void MapGrpcServices(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+
+        /// <summary>
+        /// Method for GraphQL configuration
+        /// </summary>
+        /// <param name="builder">GraphQL request executor builder</param>
+        protected virtual void ConfigureGraphQL(HotChocolate.Execution.Configuration.IRequestExecutorBuilder builder) { }
 
         /// <summary>
         /// Get api information for the current service
@@ -283,6 +305,21 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns>Settings configuration action or null</returns>
         protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
+
+        /// <summary>
+        /// Gets the GraphQL query type for automatic endpoint mapping. Return null to disable GraphQL.
+        /// </summary>
+        protected virtual Type? GraphQLQueryType { get; } = null;
+
+        /// <summary>
+        /// Check if the service has SignalR hubs configured
+        /// </summary>
+        /// <returns>True if SignalR hubs are configured</returns>
+        protected virtual bool HasSignalRHubs()
+        {
+            // This can be overridden in derived classes to provide more specific logic
+            return false;
+        }
 
         /// <summary>
         /// Will be called for registering custom services.

@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -84,54 +84,31 @@ namespace Simplic.OxS.Server.Extensions
                     Console.WriteLine($"No xml documentation file found under `{xmlPath}`. https://docs.microsoft.com/en-us/samples/aspnet/aspnetcore.docs/getstarted-swashbuckle-aspnetcore/?tabs=visual-studio");
                 }
 
-                var securityRequirements = new OpenApiSecurityRequirement()
+                // Add global security requirements using the newer API
+                c.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
                 {
                     {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            },
-                            Scheme = "oauth2",
-                            Name = "Bearer",
-                            In = ParameterLocation.Header,
-
-                        },
+                        new OpenApiSecuritySchemeReference("Bearer", null, null),
                         new List<string>()
                     },
                     {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "ApiKey"
-                            },
-                            In = ParameterLocation.Header,
-                        },
-                        Array.Empty<string>()
+                        new OpenApiSecuritySchemeReference("ApiKey", null, null),
+                        new List<string>()
                     }
-                };
+                });
 
+                // Internal API Key security requirement for development/local environments
                 if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
                 {
-                    securityRequirements.Add(new OpenApiSecurityScheme
+                    c.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
                     {
-                        Reference = new OpenApiReference
                         {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = Constants.HttpAuthorizationSchemeInternalKey
-                        },
-                        Scheme = Constants.HttpAuthorizationSchemeInternalKey,
-                        Name = Constants.HttpAuthorizationSchemeInternalKey,
-                        In = ParameterLocation.Header,
-
-                    }, new List<string>());
+                            new OpenApiSecuritySchemeReference(Constants.HttpAuthorizationSchemeInternalKey, null, null),
+                            new List<string>()
+                        }
+                    });
                 }
 
-                c.AddSecurityRequirement(securityRequirements);
                 // c.DocumentFilter<HideInternalAPIFilter>();
 
                 c.AddSignalRSwaggerGen(so =>

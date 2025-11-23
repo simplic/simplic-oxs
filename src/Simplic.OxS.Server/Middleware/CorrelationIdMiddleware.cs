@@ -38,8 +38,8 @@ namespace Simplic.OxS.Server.Middleware
                 // Generate new correlation Id
                 correlationId = Guid.NewGuid().ToString();
 
-                // Add correlation id to the actual header
-                httpContext.Request.Headers.Add(Constants.HttpHeaderCorrelationIdKey, correlationId);
+                // Add correlation id to the actual header - use indexer instead of Add
+                httpContext.Request.Headers[Constants.HttpHeaderCorrelationIdKey] = correlationId;
             }
 
             httpContext.Response.OnStarting(() =>

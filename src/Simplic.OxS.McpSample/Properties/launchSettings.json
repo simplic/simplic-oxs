@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Simplic.OxS.McpSample": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:58272;http://localhost:58273"
+    }
+  }
+}

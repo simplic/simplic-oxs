@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.Mcp\Simplic.OxS.Mcp.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
+    <ProjectReference Include="..\Simplic.OxS.Mcp.Server\Simplic.OxS.Mcp.Server.csproj" />
+  </ItemGroup>
+
+</Project>

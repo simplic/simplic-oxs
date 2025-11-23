@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using MongoDB.Bson;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
@@ -46,6 +47,8 @@ namespace Simplic.OxS.Server
         /// <param name="services">Service collection</param>
         public virtual void ConfigureServices(IServiceCollection services)
         {
+            MongoDB.Bson.Serialization.BsonSerializer.RegisterSerializer(new MongoDB.Bson.Serialization.Serializers.GuidSerializer(GuidRepresentation.Standard));
+
             Console.WriteLine($"Configure for env: {CurrentEnvironment.EnvironmentName}");
 
             // Add logging and tracing systems
@@ -82,6 +85,12 @@ namespace Simplic.OxS.Server
                           .RequireAuthenticatedUser());
             });
 
+            // Add MCP server if enabled and available
+            if (IsMcpEnabled())
+            {
+                ConfigureMcpServicesIfAvailable(services);
+            }
+
             // Add organization settings if configured
             var settingsConfig = ConfigureOrganizationSettings();
             if (settingsConfig != null)
@@ -93,10 +102,13 @@ namespace Simplic.OxS.Server
             RegisterServices(services);
 
             // Create mapper profiles and register mapper
-            var mapperConfig = new MapperConfiguration(RegisterMapperProfiles);
+            services.AddSingleton(provider =>
+            {
+                var loggerFactory = provider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
+                var mapperConfig = new MapperConfiguration(RegisterMapperProfiles, loggerFactory);
 
-            IMapper mapper = mapperConfig.CreateMapper();
-            services.AddSingleton(mapper);
+                return mapperConfig.CreateMapper();
+            });
 
             services.AddTransient<IMapService, MapService>();
 
@@ -193,6 +205,12 @@ namespace Simplic.OxS.Server
             app.UseMiddleware<PutJsonContextMiddleware>();
             app.UseMiddleware<ErrorLoggingMiddleware>();
 
+            // Configure MCP server if enabled and available
+            if (IsMcpEnabled())
+            {
+                ConfigureMcpApplicationIfAvailable(app);
+            }
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
@@ -283,6 +301,79 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns>Settings configuration action or null</returns>
         protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
+
+        /// <summary>
+        /// Method for configuring MCP services. Override to register custom MCP tools.
+        /// This method is only called if IsMcpEnabled() returns true and MCP dependencies are available.
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        protected virtual void ConfigureMcpServices(IServiceCollection services) { }
+
+        /// <summary>
+        /// Determines whether MCP server is enabled for this service. Default is false.
+        /// </summary>
+        /// <returns>True if MCP should be enabled, false otherwise</returns>
+        protected virtual bool IsMcpEnabled() { return false; }
+
+        /// <summary>
+        /// Configures MCP services if the MCP packages are available
+        /// </summary>
+        /// <param name="services">Service collection</param>
+        private void ConfigureMcpServicesIfAvailable(IServiceCollection services)
+        {
+            try
+            {
+                // Try to load MCP types using reflection to avoid compile-time dependencies
+                var mcpServerAssembly = System.Reflection.Assembly.Load("Simplic.OxS.Mcp.Server");
+                var extensionsType = mcpServerAssembly.GetType("Simplic.OxS.Mcp.Server.Extensions.ServiceCollectionExtensions");
+
+                if (extensionsType != null)
+                {
+                    var addMcpServerMethod = extensionsType.GetMethod("AddMcpServer",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+
+                    if (addMcpServerMethod != null)
+                    {
+                        addMcpServerMethod.Invoke(null, new object[] { services });
+                        ConfigureMcpServices(services);
+                        Console.WriteLine("MCP Server configured successfully");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MCP Server not available: {ex.Message}");
+                Console.WriteLine("To enable MCP functionality, add references to Simplic.OxS.Mcp and Simplic.OxS.Mcp.Server packages");
+            }
+        }
+
+        /// <summary>
+        /// Configures MCP application if the MCP packages are available
+        /// </summary>
+        /// <param name="app">Application builder</param>
+        private void ConfigureMcpApplicationIfAvailable(IApplicationBuilder app)
+        {
+            try
+            {
+                var mcpServerAssembly = System.Reflection.Assembly.Load("Simplic.OxS.Mcp.Server");
+                var extensionsType = mcpServerAssembly.GetType("Simplic.OxS.Mcp.Server.Extensions.ApplicationBuilderExtensions");
+
+                if (extensionsType != null)
+                {
+                    var useMcpServerMethod = extensionsType.GetMethod("UseMcpServer",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+
+                    if (useMcpServerMethod != null)
+                    {
+                        useMcpServerMethod.Invoke(null, new object[] { app });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MCP Server configuration skipped: {ex.Message}");
+            }
+        }
 
         /// <summary>
         /// Will be called for registering custom services.

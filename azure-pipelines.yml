@@ -23,7 +23,7 @@ variables:
 - name: buildConfiguration
   value: "Release"
 - name: dotNetVersion
-  value: '8.0.x'
+  value: '10.0.x'
 
 resources:
   repositories:

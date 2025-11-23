@@ -86,16 +86,10 @@ namespace Simplic.OxS.Server.Extensions
                 }
 
                 // Add global security requirements using the newer API
-                c.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+                c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
                 {
-                    {
-                        new OpenApiSecuritySchemeReference("Bearer", null, null),
-                        new List<string>()
-                    },
-                    {
-                        new OpenApiSecuritySchemeReference("ApiKey", null, null),
-                        new List<string>()
-                    }
+                    [new OpenApiSecuritySchemeReference("Bearer", document)] = [],
+                    [new OpenApiSecuritySchemeReference("ApiKey", document)] = []
                 });
 
                 // Internal API Key security requirement for development/local environments

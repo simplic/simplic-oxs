@@ -27,8 +27,7 @@ namespace Simplic.OxS.Server.Extensions
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc(apiVersion, new OpenApiInfo { Title = $"Simplic.OxS.{serviceName}", Version = apiVersion });
-                c.SwaggerDoc($"{apiVersion}-SignalR", new OpenApiInfo { Title = $"Simplic.OxS.{serviceName} with SignalR", Version = apiVersion });
-
+                
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\"",
@@ -103,18 +102,6 @@ namespace Simplic.OxS.Server.Extensions
                         }
                     });
                 }
-
-                // c.DocumentFilter<HideInternalAPIFilter>();
-
-                c.AddSignalRSwaggerGen(so =>
-                {
-                    so.AutoDiscover = SignalRSwaggerGen.Enums.AutoDiscover.MethodsAndParams;
-                    so.DisplayInDocuments($"{apiVersion}-SignalR");
-                    if (File.Exists(xmlPath))
-                    {
-                        so.UseXmlComments(xmlPath);
-                    }
-                });
             });
 
             return services;

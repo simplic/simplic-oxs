@@ -26,7 +26,6 @@
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
-    <PackageReference Include="SignalRSwaggerGen" Version="4.8.0" />
     <PackageReference Include="Simplic.OxS.Identity.Extension" Version="1.0.325.204" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.1" />
     <PackageReference Include="AutoMapper" Version="15.1.0" />

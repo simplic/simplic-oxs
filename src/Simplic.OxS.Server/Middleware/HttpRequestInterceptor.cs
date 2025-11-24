@@ -1,5 +1,6 @@
 ﻿using HotChocolate.AspNetCore;
 using HotChocolate.Execution;
+using HotChocolate.Language;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using System;
@@ -13,7 +14,7 @@ namespace Simplic.OxS.Server.Middleware
 	internal class HttpRequestInterceptor : DefaultHttpRequestInterceptor
 	{
 		public override ValueTask OnCreateAsync(HttpContext context,
-			IRequestExecutor requestExecutor, IQueryRequestBuilder requestBuilder,
+			IRequestExecutor requestExecutor, OperationRequestBuilder requestBuilder,
 			CancellationToken cancellationToken)
 		{
 			if (context.RequestServices.GetService(typeof(IRequestContext)) is IRequestContext requestContext)
@@ -34,8 +35,8 @@ namespace Simplic.OxS.Server.Middleware
 					// Generate new correlation Id
 					correlationId = Guid.NewGuid().ToString();
 
-					// Add correlation id to the actual header
-					context.Request.Headers.Add(Constants.HttpHeaderCorrelationIdKey, correlationId);
+					// Add correlation id to the actual header - use indexer instead of Add
+					context.Request.Headers[Constants.HttpHeaderCorrelationIdKey] = correlationId;
 				}
 
 				// TODO: Optimize that one / use guid from above

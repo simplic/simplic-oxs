@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -27,14 +27,14 @@ namespace Simplic.OxS.Server.Extensions
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc(apiVersion, new OpenApiInfo { Title = $"Simplic.OxS.{serviceName}", Version = apiVersion });
-                c.SwaggerDoc($"{apiVersion}-SignalR", new OpenApiInfo { Title = $"Simplic.OxS.{serviceName} with SignalR", Version = apiVersion });
-
+                
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\"",
                     Name = "Authorization",
                     In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey,
+                    Type = SecuritySchemeType.Http,
+                    BearerFormat = "JWT",
                     Scheme = "Bearer"
                 });
 
@@ -84,65 +84,24 @@ namespace Simplic.OxS.Server.Extensions
                     Console.WriteLine($"No xml documentation file found under `{xmlPath}`. https://docs.microsoft.com/en-us/samples/aspnet/aspnetcore.docs/getstarted-swashbuckle-aspnetcore/?tabs=visual-studio");
                 }
 
-                var securityRequirements = new OpenApiSecurityRequirement()
+                // Add global security requirements using the newer API
+                c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
                 {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            },
-                            Scheme = "oauth2",
-                            Name = "Bearer",
-                            In = ParameterLocation.Header,
+                    [new OpenApiSecuritySchemeReference("Bearer", document)] = [],
+                    [new OpenApiSecuritySchemeReference("ApiKey", document)] = []
+                });
 
-                        },
-                        new List<string>()
-                    },
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "ApiKey"
-                            },
-                            In = ParameterLocation.Header,
-                        },
-                        Array.Empty<string>()
-                    }
-                };
-
+                // Internal API Key security requirement for development/local environments
                 if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
                 {
-                    securityRequirements.Add(new OpenApiSecurityScheme
+                    c.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
                     {
-                        Reference = new OpenApiReference
                         {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = Constants.HttpAuthorizationSchemeInternalKey
-                        },
-                        Scheme = Constants.HttpAuthorizationSchemeInternalKey,
-                        Name = Constants.HttpAuthorizationSchemeInternalKey,
-                        In = ParameterLocation.Header,
-
-                    }, new List<string>());
+                            new OpenApiSecuritySchemeReference(Constants.HttpAuthorizationSchemeInternalKey, null, null),
+                            new List<string>()
+                        }
+                    });
                 }
-
-                c.AddSecurityRequirement(securityRequirements);
-                // c.DocumentFilter<HideInternalAPIFilter>();
-
-                c.AddSignalRSwaggerGen(so =>
-                {
-                    so.AutoDiscover = SignalRSwaggerGen.Enums.AutoDiscover.MethodsAndParams;
-                    so.DisplayInDocuments($"{apiVersion}-SignalR");
-                    if (File.Exists(xmlPath))
-                    {
-                        so.UseXmlComments(xmlPath);
-                    }
-                });
             });
 
             return services;

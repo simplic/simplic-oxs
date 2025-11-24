@@ -1,5 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 namespace Simplic.OxS.Data.MongoDB
@@ -17,8 +19,6 @@ namespace Simplic.OxS.Data.MongoDB
 
         public MongoContext(IConfiguration configuration)
         {
-            BsonDefaults.GuidRepresentation = GuidRepresentation.Standard;
-
             // Every command will be stored and it'll be processed at SaveChanges
             commands = new List<Func<Task>>();
 
@@ -35,6 +35,7 @@ namespace Simplic.OxS.Data.MongoDB
                 return;
 
             MongoClient = new MongoClient(settings.ConnectionString);
+
             database = MongoClient.GetDatabase(settings.Database);
         }
 

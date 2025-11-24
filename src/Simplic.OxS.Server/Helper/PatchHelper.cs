@@ -452,7 +452,7 @@ namespace Simplic.OxS.Server
                             originalProperty.SetValue(original, patch);
 
                         }
-                        catch (InvalidCastException ex)
+                        catch (InvalidCastException)
                         {
                             if (originalProperty.PropertyType.IsGenericType)
                             {
@@ -489,7 +489,7 @@ namespace Simplic.OxS.Server
                                 originalProperty.SetValue(original, value);
                                 originalValue = originalProperty.GetValue(original, null);
                             }
-                            catch (Exception ex)
+                            catch
                             {
                                 throw new Exception($"Could not initialize not initialized type {currentOriginalType.Name}.{propertyName}");
                             }

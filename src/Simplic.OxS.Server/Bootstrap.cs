@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using MongoDB.Bson;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
@@ -46,6 +47,8 @@ namespace Simplic.OxS.Server
         /// <param name="services">Service collection</param>
         public virtual void ConfigureServices(IServiceCollection services)
         {
+            MongoDB.Bson.Serialization.BsonSerializer.RegisterSerializer(new MongoDB.Bson.Serialization.Serializers.GuidSerializer(GuidRepresentation.Standard));
+
             Console.WriteLine($"Configure for env: {CurrentEnvironment.EnvironmentName}");
 
             // Add logging and tracing systems
@@ -93,10 +96,13 @@ namespace Simplic.OxS.Server
             RegisterServices(services);
 
             // Create mapper profiles and register mapper
-            var mapperConfig = new MapperConfiguration(RegisterMapperProfiles);
+            services.AddSingleton(provider =>
+            {
+                var loggerFactory = provider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
+                var mapperConfig = new MapperConfiguration(RegisterMapperProfiles, loggerFactory);
 
-            IMapper mapper = mapperConfig.CreateMapper();
-            services.AddSingleton(mapper);
+                return mapperConfig.CreateMapper();
+            });
 
             services.AddTransient<IMapService, MapService>();
 

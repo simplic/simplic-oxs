@@ -15,13 +15,17 @@ namespace Simplic.OxS.Server.Extensions
         /// <returns></returns>
         public static IServiceCollection UseGraphQL<TQuery>(this IServiceCollection services, Action<IRequestExecutorBuilder> builder = null) where TQuery : class
         {
-            var req = services.AddGraphQLServer()
-                        .AddHttpRequestInterceptor<HttpRequestInterceptor>()
-                        .AddAuthorization()
-                        .AddQueryType<TQuery>();
+            var req = services.AddGraphQLServer().ModifyOptions(o =>
+            {
+                o.DefaultQueryDependencyInjectionScope = DependencyInjectionScope.Request;
+                o.DefaultMutationDependencyInjectionScope = DependencyInjectionScope.Request;
+            })
+            .AddHttpRequestInterceptor<HttpRequestInterceptor>()
+            .AddAuthorization()
+            .AddQueryType<TQuery>();
 
-                        // Set TimeSpan representation to d.hh:mm:ss
-                        req.AddType(new TimeSpanType(TimeSpanFormat.DotNet));
+            // Set TimeSpan representation to d.hh:mm:ss
+            req.AddType(new TimeSpanType(TimeSpanFormat.DotNet));
 
             builder?.Invoke(req);
 

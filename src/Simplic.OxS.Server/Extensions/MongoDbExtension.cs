@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson;
 using Simplic.OxS.Data.MongoDB;
 
 namespace Simplic.OxS.Server.Extensions
@@ -17,6 +18,8 @@ namespace Simplic.OxS.Server.Extensions
         /// <returns>Service collection instance</returns>
         internal static IServiceCollection AddMongoDb(this IServiceCollection services, IConfiguration configuration)
         {
+            MongoDB.Bson.Serialization.BsonSerializer.RegisterSerializer(new MongoDB.Bson.Serialization.Serializers.GuidSerializer(GuidRepresentation.Standard));
+
             services.Configure<ConnectionSettings>(options => configuration.GetSection("MongoDB").Bind(options));
 
             // Setup database stuff

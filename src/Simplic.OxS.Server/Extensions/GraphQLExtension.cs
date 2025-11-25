@@ -1,6 +1,5 @@
 ﻿using HotChocolate.Execution.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Simplic.OxS.Server.Abstract;
 using Simplic.OxS.Server.Middleware;
 
 namespace Simplic.OxS.Server.Extensions
@@ -9,7 +8,6 @@ namespace Simplic.OxS.Server.Extensions
     {
         /// <summary>
         /// Enable the use of GraphQL within the simplic eco system 
-        /// In order to work you will need to implement the <see cref="IQueryBase"/>
         /// </summary>
         /// <param name="services"></param>
         /// <returns></returns>

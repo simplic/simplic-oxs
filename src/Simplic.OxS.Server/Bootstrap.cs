@@ -9,7 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi;
-using MongoDB.Bson;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
@@ -47,8 +46,6 @@ namespace Simplic.OxS.Server
         /// <param name="services">Service collection</param>
         public virtual void ConfigureServices(IServiceCollection services)
         {
-            MongoDB.Bson.Serialization.BsonSerializer.RegisterSerializer(new MongoDB.Bson.Serialization.Serializers.GuidSerializer(GuidRepresentation.Standard));
-
             Console.WriteLine($"Configure for env: {CurrentEnvironment.EnvironmentName}");
 
             // Add logging and tracing systems

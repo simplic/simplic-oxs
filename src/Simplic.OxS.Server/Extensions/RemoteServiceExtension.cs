@@ -3,6 +3,7 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using Simplic.OxS.ServiceDefinition;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using System.Text;
@@ -28,36 +29,44 @@ public static class RemoteServiceExtension
     }
 }
 
-internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequestContext requestContext) : IRemoteServiceInvoker
+internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
-    public async Task<T?> Call<T, P>([NotNull] string functionName, P parameter, string? defaultTargetUri)
+    public async Task<T?> Call<T, P>([NotNull] string contract, P parameter, Func<P, Task<T>>? defaultImpl)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new()
 
     {
         // functionName: simplic.ox.routing.calculate
 
-        if (string.IsNullOrWhiteSpace(functionName))
-            throw new Exception("No function name passed for remove service call.");
+        if (string.IsNullOrWhiteSpace(contract))
+            throw new Exception("No contract passed for remove service call.");
 
-        var uri = await GetFunctionUriAsync(functionName, defaultTargetUri);
+        var uri = await GetEndpointAsync(contract);
 
-        if (TryParseProtocol(uri, out string? protocol, out string? url))
+        if (!string.IsNullOrWhiteSpace(uri))
         {
-            if (protocol == "http.post")
+            if (TryParseProtocol(uri, out string? protocol, out string? url))
             {
-                return await RemoteHttpCall<T, P>(requestContext, parameter, url);
-            }
-            else if (protocol == "grpc")
-            {
-                return await RemoteGrpcCall<T, P>(requestContext, parameter, url);
+                if (protocol == "http.post")
+                {
+                    return await RemoteHttpCall<T, P>(requestContext, parameter, url);
+                }
+                else if (protocol == "grpc")
+                {
+                    return await RemoteGrpcCall<T, P>(requestContext, parameter, url);
+                }
+                else
+                {
+                    throw new Exception($"Invalid protocol: `{protocol}`");
+                }
             }
             else
-            {
-                throw new Exception($"Invalid protocol: `{protocol}`");
-            }
+                throw new Exception($"Could not parse url: {uri}");
         }
+
+        if (defaultImpl != null)
+            return await defaultImpl(parameter);
 
         return default(T);
     }
@@ -119,12 +128,6 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequest
             throw new Exception($"Could not call internal function: {await response.Content.ReadAsStringAsync()}");
     }
 
-    /// <inheritdoc />
-    public async Task<T> Call<T, P>([NotNull] string functionName, P parameter, Func<T, P>? defaultImpl)
-    {
-        throw new NotImplementedException();
-    }
-
     private static Marshaller<T> CreateMarshaller<T>()
     where T : class, IMessage<T>, new() =>
     Marshallers.Create(
@@ -136,9 +139,9 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequest
             return m;
         });
 
-    private async Task<string?> GetFunctionUriAsync(string functionName, string? defaultUri)
+    private async Task<string?> GetEndpointAsync(string contract)
     {
-        var key = $"{requestContext.OrganizationId.Value}_{functionName}";
+        var key = $"{requestContext.OrganizationId.Value}_{contract}";
 
         var value = await distributedCache.GetStringAsync(key);
 
@@ -150,17 +153,24 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequest
             return value;
         }
 
-        var uri = defaultUri;
-
-        if (!string.IsNullOrWhiteSpace(uri))
+        var endpointContract = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
         {
-            await distributedCache.SetStringAsync(key, uri, new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(30)
-            });
-        }
+            QueryAllOrganizations = false,
+            OrganizationId = requestContext.OrganizationId.Value,
+            Name = contract,
+            IsDeleted = false
+        })).FirstOrDefault();
 
-        return uri;
+        if (endpointContract == null)
+            return null;
+
+        // Cache for 10 minutes
+        _ = distributedCache.SetStringAsync(key, endpointContract.Endpoint, new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+        });
+
+        return endpointContract.Endpoint;
     }
 
     private bool TryParseProtocol(string uri, out string? protocol, out string? url)

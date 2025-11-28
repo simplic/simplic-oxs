@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -48,6 +49,12 @@ namespace Simplic.OxS.Server
         {
             Console.WriteLine($"Configure for env: {CurrentEnvironment.EnvironmentName}");
 
+            services.AddSingleton<ICurrentService>(x => new Implementations.CurrentService
+            {
+                ServiceName = ServiceName,
+                ApiVersion = ApiVersion
+            });
+
             // Add logging and tracing systems
             services.AddLoggingAndMetricTracing(Configuration, ServiceName);
 
@@ -61,7 +68,7 @@ namespace Simplic.OxS.Server
             services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
 
             // Add Grpc Server
-            services.AddGrpcServer();
+            services.AddGrpcServer(ConfigureGrpc);
 
             // Add Jwt authentication and bind configuration
             var authBuilder = services.AddAuthentication(Configuration);
@@ -191,6 +198,9 @@ namespace Simplic.OxS.Server
             app.UseAuthentication();
             app.UseAuthorization();
 
+            // Add gRPC host validation middleware
+            app.UseMiddleware<GrpcHostValidationMiddleware>(ServiceName);
+
             app.UseMiddleware<CorrelationIdMiddleware>();
             app.UseMiddleware<PutJsonContextMiddleware>();
             app.UseMiddleware<ErrorLoggingMiddleware>();
@@ -202,6 +212,9 @@ namespace Simplic.OxS.Server
                 MapHubs(endpoints);
 
                 MapEndpoints(endpoints);
+
+                // Map gRPC endpoints
+                MapGrpcEndpoints(endpoints);
             });
         }
 
@@ -210,6 +223,15 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="builder"><see cref="IMvcBuilder"/> instance</param>
         protected virtual void MvcBuilder(IMvcBuilder builder) { }
+
+        /// <summary>
+        /// Configures gRPC service endpoints on the specified endpoint route builder.
+        /// </summary>
+        /// <remarks>Override this method to customize the mapping of gRPC endpoints for your application.
+        /// This method is typically called during application startup to define how gRPC services are exposed over
+        /// HTTP.</remarks>
+        /// <param name="builder">The endpoint route builder used to register gRPC endpoints. Cannot be null.</param>
+        protected virtual void MapGrpcEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
 
         /// <summary>
         /// Method for SignalR hub registration
@@ -273,6 +295,21 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="authBuilder">Authentication builder instance, for adding additional auth scheme</param>
         protected virtual void ConfigureAuthentication(AuthenticationBuilder authBuilder) { }
+
+        /// <summary>
+        /// Configures the specified gRPC service options before the service is started.
+        /// </summary>
+        /// <remarks>Override this method to customize gRPC service behavior by modifying the provided
+        /// options before the service is initialized.</remarks>
+        /// <param name="options">The options to configure for the gRPC service. Cannot be null.</param>
+        protected virtual void ConfigureGrpc(GrpcServiceOptions options) 
+        {
+            options.EnableDetailedErrors = true;
+    
+            // Configure gRPC security for localhost and service-name domain restrictions
+            options.Interceptors.Add<GrpcSecurityInterceptor>();
+            options.Interceptors.Add<GrpcHeaderContextInterceptor>();
+        }
 
         /// <summary>
         /// Method that should return all controllers that are used to build model definitions

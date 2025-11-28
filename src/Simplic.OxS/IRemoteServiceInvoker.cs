@@ -17,7 +17,7 @@ namespace Simplic.OxS
         /// <param name="parameter">Parameter that is required for function calling</param>
         /// <param name="endpointContract">Uri to the defaut target: [grpc] https://...  [http.post] https://</param>
         /// <returns>Processed value</returns>
-        Task<T?> Call<T, P>([NotNull] string endpointContract, P parameter, Func<P, Task<T>>? defaultImpl)
+        Task<T?> Call<T, P>([NotNull] string endpointContract, P parameter, Func<P, Task<T>>? defaultImpl = null)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new();
     }

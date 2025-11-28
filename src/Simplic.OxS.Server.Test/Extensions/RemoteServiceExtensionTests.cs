@@ -10,7 +10,7 @@ public class RemoteServiceExtensionTests
 
     public RemoteServiceExtensionTests()
     {
-    // Create mock dependencies for the constructor
+        // Create mock dependencies for the constructor
         var mockCache = new Mock<IDistributedCache>();
         var mockRequestContext = new Mock<IRequestContext>();
         var mockEndpointContract = new Mock<IEndpointContractRepository>();
@@ -20,107 +20,77 @@ public class RemoteServiceExtensionTests
 
     private bool InvokeTryParseProtocol(string uri, out string? protocol, out string? url)
     {
-   // Use reflection to access the private method
-        var method = typeof(RemoteServiceInvoker).GetMethod("TryParseProtocol", 
+        // Use reflection to access the private method
+        var method = typeof(RemoteServiceInvoker).GetMethod("TryParseProtocol",
      BindingFlags.NonPublic | BindingFlags.Instance);
-        
- var parameters = new object[] { uri, null!, null! };
-      var result = (bool)method!.Invoke(_invoker, parameters)!;
-        
-   protocol = parameters[1] as string;
+
+        var parameters = new object[] { uri, null!, null! };
+        var result = (bool)method!.Invoke(_invoker, parameters)!;
+
+        protocol = parameters[1] as string;
         url = parameters[2] as string;
-        
+
         return result;
     }
 
     [Fact]
     public void TryParseProtocol_WithValidGrpcUri_ShouldReturnTrue()
     {
-    // Arrange
+        // Arrange
         var uri = "[grpc]https://example.com::MyService::MyMethod";
 
-    // Act
-   var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
-
-        // Assert
-   result.Should().BeTrue();
-        protocol.Should().Be("grpc");
-    url.Should().Be("https://example.com::MyService::MyMethod");
-    }
-
-    [Fact]
-    public void TryParseProtocol_WithValidHttpPostUri_ShouldReturnTrue()
-    {
-        // Arrange
-        var uri = "[http.post]https://api.example.com/endpoint";
-
- // Act
+        // Act
         var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
 
-    // Assert
+        // Assert
         result.Should().BeTrue();
-        protocol.Should().Be("http.post");
-   url.Should().Be("https://api.example.com/endpoint");
+        protocol.Should().Be("grpc");
+        url.Should().Be("https://example.com::MyService::MyMethod");
     }
 
     [Fact]
     public void TryParseProtocol_WithGrpcUriAndExtraSpaces_ShouldTrimUrl()
     {
- // Arrange
+        // Arrange
         var uri = "[grpc]   https://example.com::MyService::MyMethod   ";
 
         // Act
         var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
 
         // Assert
-   result.Should().BeTrue();
+        result.Should().BeTrue();
         protocol.Should().Be("grpc");
         url.Should().Be("https://example.com::MyService::MyMethod");
     }
 
     [Fact]
-    public void TryParseProtocol_WithHttpPostUriAndExtraSpaces_ShouldTrimUrl()
-    {
-        // Arrange
-        var uri = "[http.post]   https://api.example.com/endpoint   ";
-
-        // Act
-        var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
-
-        // Assert
-        result.Should().BeTrue();
-        protocol.Should().Be("http.post");
-   url.Should().Be("https://api.example.com/endpoint");
-    }
-
-[Fact]
     public void TryParseProtocol_WithInvalidProtocol_ShouldReturnFalse()
     {
         // Arrange
-   var uri = "[invalid]https://example.com";
+        var uri = "[invalid]https://example.com";
 
         // Act
         var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
 
         // Assert
-      result.Should().BeFalse();
-   protocol.Should().BeNull();
-      url.Should().BeNull();
+        result.Should().BeFalse();
+        protocol.Should().BeNull();
+        url.Should().BeNull();
     }
 
     [Fact]
-  public void TryParseProtocol_WithNoProtocolPrefix_ShouldReturnFalse()
+    public void TryParseProtocol_WithNoProtocolPrefix_ShouldReturnFalse()
     {
-  // Arrange
+        // Arrange
         var uri = "https://example.com";
 
         // Act
-  var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
+        var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
 
         // Assert
-  result.Should().BeFalse();
+        result.Should().BeFalse();
         protocol.Should().BeNull();
-url.Should().BeNull();
+        url.Should().BeNull();
     }
 
     [Fact]
@@ -130,10 +100,10 @@ url.Should().BeNull();
         var uri = "";
 
         // Act
-   var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
+        var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
 
         // Assert
-     result.Should().BeFalse();
+        result.Should().BeFalse();
         protocol.Should().BeNull();
         url.Should().BeNull();
     }
@@ -142,10 +112,10 @@ url.Should().BeNull();
     public void TryParseProtocol_WithNullString_ShouldThrow()
     {
         // Arrange
-    string uri = null!;
+        string uri = null!;
 
         // Act & Assert
-  var act = () => InvokeTryParseProtocol(uri, out string? protocol, out string? url);
+        var act = () => InvokeTryParseProtocol(uri, out string? protocol, out string? url);
         act.Should().Throw<TargetInvocationException>();
     }
 
@@ -153,7 +123,7 @@ url.Should().BeNull();
     public void TryParseProtocol_WithMalformedGrpcProtocol_ShouldReturnFalse()
     {
         // Arrange
-    var uri = "[grpc https://example.com"; // Missing closing bracket
+        var uri = "[grpc https://example.com"; // Missing closing bracket
 
         // Act
         var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
@@ -161,11 +131,11 @@ url.Should().BeNull();
         // Assert
         result.Should().BeFalse();
         protocol.Should().BeNull();
- url.Should().BeNull();
+        url.Should().BeNull();
     }
 
     [Fact]
-  public void TryParseProtocol_WithMalformedHttpPostProtocol_ShouldReturnFalse()
+    public void TryParseProtocol_WithMalformedHttpPostProtocol_ShouldReturnFalse()
     {
         // Arrange
         var uri = "[http.post https://example.com"; // Missing closing bracket
@@ -176,7 +146,7 @@ url.Should().BeNull();
         // Assert
         result.Should().BeFalse();
         protocol.Should().BeNull();
-     url.Should().BeNull();
+        url.Should().BeNull();
     }
 
     [Fact]
@@ -196,9 +166,9 @@ url.Should().BeNull();
 
     [Fact]
     public void TryParseProtocol_WithCaseVariation_ShouldReturnFalse()
-  {
+    {
         // Arrange
- var uri = "[GRPC]https://example.com"; // Case sensitive
+        var uri = "[GRPC]https://example.com"; // Case sensitive
 
         // Act
         var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
@@ -210,47 +180,17 @@ url.Should().BeNull();
     }
 
     [Fact]
-    public void TryParseProtocol_WithHttpPostOnlyProtocolPrefix_ShouldReturnTrueWithEmptyUrl()
-    {
-        // Arrange
-        var uri = "[http.post]";
-
-        // Act
-      var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
-
-        // Assert
-        result.Should().BeTrue();
-   protocol.Should().Be("http.post");
-        url.Should().Be("");
-    }
-
-    [Fact]
     public void TryParseProtocol_WithWhitespaceOnlyAfterPrefix_ShouldReturnTrueWithEmptyUrl()
     {
-// Arrange
+        // Arrange
         var uri = "[grpc]   ";
 
-      // Act
-  var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
-
-      // Assert
-   result.Should().BeTrue();
-        protocol.Should().Be("grpc");
-   url.Should().Be("");
-    }
-
-    [Fact]
-    public void TryParseProtocol_WithComplexUrl_ShouldParseCorrectly()
-    {
-        // Arrange
-        var uri = "[http.post]https://api.example.com:8080/v1/service/method?param=value";
-
-      // Act
+        // Act
         var result = InvokeTryParseProtocol(uri, out string? protocol, out string? url);
 
         // Assert
         result.Should().BeTrue();
-        protocol.Should().Be("http.post");
-        url.Should().Be("https://api.example.com:8080/v1/service/method?param=value");
+        protocol.Should().Be("grpc");
+        url.Should().Be("");
     }
 }

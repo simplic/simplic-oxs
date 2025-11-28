@@ -3,6 +3,7 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using Simplic.OxS.ServiceDefinition;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using System.Text;
@@ -28,38 +29,56 @@ public static class RemoteServiceExtension
     }
 }
 
-internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequestContext requestContext) : IRemoteServiceInvoker
+/// <summary>
+/// Provides functionality to invoke remote service endpoints using contract-based routing, supporting both HTTP and
+/// gRPC protocols for asynchronous calls.
+/// </summary>
+/// <remarks>RemoteServiceInvoker is intended for internal use in scenarios where service endpoints are
+/// dynamically resolved and invoked based on contract names. Endpoint URLs are cached for performance, and cache
+/// refreshes are handled automatically. The invoker supports both HTTP and gRPC protocols, selecting the appropriate
+/// transport based on endpoint configuration. All remote calls include organization and user metadata for authorization
+/// and auditing purposes.</remarks>
+/// <param name="distributedCache">The distributed cache used to store and retrieve endpoint URLs for contracts, enabling efficient endpoint resolution
+/// and cache refresh.</param>
+/// <param name="endpointContractRepository">The repository used to query contract-to-endpoint mappings for the current organization when cache misses occur.</param>
+/// <param name="requestContext">The context containing organization and user identifiers, used for endpoint resolution and for passing metadata to
+/// remote service calls.</param>
+internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
-    public async Task<T?> Call<T, P>([NotNull] string functionName, P parameter, string? defaultTargetUri)
+    public async Task<T?> Call<T, P>([NotNull] string contract, P parameter, Func<P, Task<T>>? defaultImpl = null)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new()
 
     {
         // functionName: simplic.ox.routing.calculate
 
-        if (string.IsNullOrWhiteSpace(functionName))
-            throw new Exception("No function name passed for remove service call.");
+        if (string.IsNullOrWhiteSpace(contract))
+            throw new Exception("No contract passed for remote service call.");
 
-        var uri = await GetFunctionUriAsync(functionName, defaultTargetUri);
+        var uri = await GetEndpointAsync(contract);
 
-        if (TryParseProtocol(uri, out string? protocol, out string? url))
+        if (!string.IsNullOrWhiteSpace(uri))
         {
-            if (protocol == "http.post")
+            if (TryParseProtocol(uri, out string? protocol, out string? url))
             {
-                return await RemoteHttpCall<T, P>(requestContext, parameter, url);
-            }
-            else if (protocol == "grpc")
-            {
-                return await RemoteGrpcCall<T, P>(requestContext, parameter, url);
+                if (protocol == "grpc")
+                {
+                    return await RemoteGrpcCall<T, P>(requestContext, parameter, url);
+                }
+                else
+                {
+                    throw new Exception($"Invalid protocol: `{protocol}`");
+                }
             }
             else
-            {
-                throw new Exception($"Invalid protocol: `{protocol}`");
-            }
+                throw new Exception($"Could not parse url: {uri}");
         }
 
-        return default(T);
+        if (defaultImpl != null)
+            return await defaultImpl(parameter);
+
+        return default;
     }
 
     private static async Task<T?> RemoteGrpcCall<T, P>(IRequestContext requestContext, P parameter, [NotNull] string url)
@@ -100,31 +119,6 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequest
             .ResponseAsync.ConfigureAwait(false);
     }
 
-    private static async Task<T?> RemoteHttpCall<T, P>(IRequestContext requestContext, P parameter, string? url)
-        where T : class, IMessage<T>, new()
-        where P : class, IMessage<P>, new()
-    {
-
-        using var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.Add(Constants.HttpHeaderOrganizationIdKey, requestContext.OrganizationId.Value.ToString());
-        httpClient.DefaultRequestHeaders.Add(Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString());
-
-        string json = JsonSerializer.Serialize(parameter);
-
-        var response = await httpClient.PostAsync(new Uri(url), new StringContent(json, Encoding.UTF8, "application/json"));
-
-        if (response.IsSuccessStatusCode)
-            return await response.Content.ReadFromJsonAsync<T>();
-        else
-            throw new Exception($"Could not call internal function: {await response.Content.ReadAsStringAsync()}");
-    }
-
-    /// <inheritdoc />
-    public async Task<T> Call<T, P>([NotNull] string functionName, P parameter, Func<T, P>? defaultImpl)
-    {
-        throw new NotImplementedException();
-    }
-
     private static Marshaller<T> CreateMarshaller<T>()
     where T : class, IMessage<T>, new() =>
     Marshallers.Create(
@@ -136,9 +130,17 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequest
             return m;
         });
 
-    private async Task<string?> GetFunctionUriAsync(string functionName, string? defaultUri)
+    /// <summary>
+    /// Asynchronously retrieves the endpoint URL associated with the specified contract for the current organization.
+    /// </summary>
+    /// <remarks>If the endpoint is cached, the cache is refreshed in the background and the cached value is
+    /// returned. If not cached, the endpoint is retrieved from the repository and cached for 10 minutes. This method is
+    /// thread-safe and intended for use in asynchronous workflows.</remarks>
+    /// <param name="contract">The name of the contract for which to retrieve the endpoint. Cannot be null or empty.</param>
+    /// <returns>A string containing the endpoint URL if found; otherwise, null.</returns>
+    private async Task<string?> GetEndpointAsync(string contract)
     {
-        var key = $"{requestContext.OrganizationId.Value}_{functionName}";
+        var key = $"{requestContext.OrganizationId.Value}_{contract}";
 
         var value = await distributedCache.GetStringAsync(key);
 
@@ -150,33 +152,44 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IRequest
             return value;
         }
 
-        var uri = defaultUri;
-
-        if (!string.IsNullOrWhiteSpace(uri))
+        var endpointContract = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
         {
-            await distributedCache.SetStringAsync(key, uri, new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(30)
-            });
-        }
+            QueryAllOrganizations = false,
+            OrganizationId = requestContext.OrganizationId.Value,
+            Name = contract,
+            IsDeleted = false
+        })).FirstOrDefault();
 
-        return uri;
+        if (endpointContract == null)
+            return null;
+
+        // Cache for 10 minutes
+        _ = distributedCache.SetStringAsync(key, endpointContract.Endpoint, new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+        });
+
+        return endpointContract.Endpoint;
     }
 
+    /// <summary>
+    /// Attempts to extract the protocol and URL from the specified URI string if it matches a supported protocol
+    /// format.
+    /// </summary>
+    /// <remarks>Supported protocol prefixes are "[grpc]" and "[http.post]". If the URI does not start with a
+    /// supported prefix, both out parameters are set to null and the method returns false.</remarks>
+    /// <param name="uri">The URI string to parse. Must begin with a supported protocol prefix such as "[grpc]" or "[http.post]".</param>
+    /// <param name="protocol">When this method returns, contains the protocol name extracted from the URI if parsing succeeds; otherwise,
+    /// null.</param>
+    /// <param name="url">When this method returns, contains the URL portion of the URI with the protocol prefix removed if parsing
+    /// succeeds; otherwise, null.</param>
+    /// <returns>true if the URI contains a recognized protocol prefix and parsing succeeds; otherwise, false.</returns>
     private bool TryParseProtocol(string uri, out string? protocol, out string? url)
     {
         if (uri.StartsWith("[grpc]"))
         {
             url = uri.Remove(0, 6).Trim();
             protocol = "grpc";
-
-            return true;
-        }
-
-        if (uri.StartsWith("[http.post]"))
-        {
-            url = uri.Remove(0, 11).Trim();
-            protocol = "http.post";
 
             return true;
         }

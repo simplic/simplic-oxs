@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Simplic.OxS.Server.Middleware;
 
@@ -27,6 +28,8 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
 
         // Set list of allowed hosts, defined in bootstrap file
         allowedHosts ??= [$"{currentService.ServiceName}", $"{currentService.ServiceName}-{currentService.ApiVersion}"];
+
+        Console.WriteLine($"Check hosts for: {serviceName} with allowed hosts: {string.Join(',', allowedHosts)}");
 
         // Only apply validation to gRPC requests
         if (IsGrpcRequest(context))
@@ -61,6 +64,11 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
     /// </summary>
     private static bool IsGrpcRequest(HttpContext context)
     {
+        Console.WriteLine($"Check is gRPC request: {context.Request.ContentType}, {context.Request.Protocol}");
+
+        foreach(var h in context.Request.Headers)
+            Console.WriteLine($" Header: {h.Key}: {h.Value}");
+
         return context.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true ||
                   (context.Request.Protocol == "HTTP/2" && context.Request.Headers.ContainsKey("grpc-accept-encoding"));
     }
@@ -70,6 +78,8 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
     /// </summary>
     private bool IsAllowedHost(string host, string serviceName)
     {
+        Console.WriteLine($"Check is allowed header: {host} / {serviceName}");
+
         if (string.IsNullOrWhiteSpace(host))
             return false;
 

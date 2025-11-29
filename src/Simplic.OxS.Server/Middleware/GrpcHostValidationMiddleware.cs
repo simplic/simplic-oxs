@@ -20,9 +20,11 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
     /// Invoke the middleware to validate gRPC host access
     /// </summary>
     /// <param name="context">Http context</param>
-    /// <param name="serviceName">Service name for domain validation</param>
-    public async Task InvokeAsync(HttpContext context, string serviceName)
+    public async Task InvokeAsync(HttpContext context)
     {
+        // Get service name from the current service
+        var serviceName = currentService.ServiceName;
+
         // Set list of allowed hosts, defined in bootstrap file
         allowedHosts ??= [$"{currentService.ServiceName}", $"{currentService.ServiceName}-{currentService.ApiVersion}"];
 

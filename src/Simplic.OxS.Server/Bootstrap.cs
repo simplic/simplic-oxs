@@ -199,7 +199,7 @@ namespace Simplic.OxS.Server
             app.UseAuthorization();
 
             // Add gRPC host validation middleware
-            app.UseMiddleware<GrpcHostValidationMiddleware>(ServiceName);
+            app.UseMiddleware<GrpcHostValidationMiddleware>();
 
             app.UseMiddleware<CorrelationIdMiddleware>();
             app.UseMiddleware<PutJsonContextMiddleware>();

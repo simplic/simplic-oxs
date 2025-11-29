@@ -87,8 +87,12 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
     /// </summary>
     private Task<bool> ValidateHostAccess(ServerCallContext context)
     {
+        Console.WriteLine("Validate host access");
+
         // Extract host from context
         var host = ExtractHostFromContext(context);
+
+        Console.WriteLine($"Host: {host}");
 
         if (string.IsNullOrWhiteSpace(host))
         {
@@ -98,11 +102,14 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
         // Allow localhost variations
         if (IsLocalhost(host))
         {
+            Console.WriteLine("Is local host");
             return Task.FromResult(true);
         }
 
         // Set list of allowed hosts, defined in bootstrap file
         allowedHosts ??= [$"{currentService.ServiceName}", $"{currentService.ServiceName}-{currentService.ApiVersion}"];
+
+        Console.WriteLine($"Allowed hosts: {string.Join(',', allowedHosts)}");
 
         // Validate against allowed hosts
         return Task.FromResult(allowedHosts.Contains(host));

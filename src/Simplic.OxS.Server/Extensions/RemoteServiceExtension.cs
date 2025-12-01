@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Simplic.OxS.ServiceDefinition;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Eventing.Reader;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -46,17 +47,23 @@ public static class RemoteServiceExtension
 internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
-    public async Task<T?> Call<T, P>([NotNull] string contract, P parameter, Func<P, Task<T>>? defaultImpl = null)
+    public async Task<T?> Call<T, P>([NotNull] string contractOrUri, P parameter, Func<P, Task<T>>? defaultImpl = null)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new()
 
     {
         // functionName: simplic.ox.routing.calculate
 
-        if (string.IsNullOrWhiteSpace(contract))
+        if (string.IsNullOrWhiteSpace(contractOrUri))
             throw new Exception("No contract passed for remote service call.");
 
-        var uri = await GetEndpointAsync(contract);
+        var uri = "";
+
+        // Allow to pass contract or uri
+        if (contractOrUri.StartsWith("["))
+            uri = contractOrUri;
+        else
+            uri = await GetEndpointAsync(contractOrUri);
 
         if (!string.IsNullOrWhiteSpace(uri))
         {

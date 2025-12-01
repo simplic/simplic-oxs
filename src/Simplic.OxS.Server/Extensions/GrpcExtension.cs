@@ -12,8 +12,10 @@ internal static class GrpcExtension
     /// <returns>Service collection</returns>
     public static IServiceCollection AddGrpcServer(this IServiceCollection services, Action<Grpc.AspNetCore.Server.GrpcServiceOptions> configureGrpc)
     {
+        Console.WriteLine("Add gRPC / Protobug");
         services.AddGrpc(configureGrpc);
 
+        Console.WriteLine(" > Register security interceptor");
         // Register gRPC security interceptor
         services.AddSingleton<GrpcSecurityInterceptor>();
 

@@ -246,12 +246,6 @@ namespace Simplic.OxS.Server
         protected virtual void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
 
         /// <summary>
-        /// Method for mapping grpc services
-        /// </summary>
-        /// <param name="builder">Builder instance</param>
-        protected virtual void MapGrpcServices(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
-
-        /// <summary>
         /// Get api information for the current service
         /// </summary>
         /// <returns>Api info instance</returns>

@@ -8,6 +8,8 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
 using Simplic.OxS.Server.Settings;
+using Simplic.OxS.Server.Telemetry;
+using System.Diagnostics;
 
 namespace Simplic.OxS.Server.Extensions;
 
@@ -35,27 +37,59 @@ internal static class MonitoringExtension
         }
 
         var resourceBuilder = ResourceBuilder.CreateDefault()
-            .AddService($"Simplic.OxS.{serviceName}")
+            .AddService($"oxs-{serviceName}")
             .AddTelemetrySdk();
 
-        services.ConfigureOpenTelemetryTracerProvider((builder) =>
-        {
-            builder.SetResourceBuilder(resourceBuilder)
-                .AddSource(serviceName)
-                .AddHttpClientInstrumentation()
-                .SetErrorStatusOnException(true);
+        // Register TelemetryService for custom metrics and tracing
+        // services.AddSingleton(provider => new TelemetryService(serviceName));
 
-            if (UseConsoleExporter(monitoringSettings.TracingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                builder.AddConsoleExporter();
-
-            if (UseOtlpExporter(monitoringSettings.TracingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+        // Configure tracing
+        services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource
+            .AddService($"oxs-{serviceName}")
+            .AddTelemetrySdk())
+            .WithTracing(tracerProviderBuilder =>
             {
-                builder.AddOtlpExporter(opt =>
+                tracerProviderBuilder
+                    .AddSource(serviceName)
+                    .AddSource($"oxs-{serviceName}")
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .SetErrorStatusOnException(true);
+
+                if (UseConsoleExporter(monitoringSettings.TracingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+                    tracerProviderBuilder.AddConsoleExporter();
+
+                if (UseOtlpExporter(monitoringSettings.TracingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                 {
-                    opt.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                });
-            }
-        });
+                    tracerProviderBuilder.AddOtlpExporter(opt =>
+                    {
+                        opt.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
+                        opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                    });
+                }
+            })
+            .WithMetrics(meterProviderBuilder =>
+            {
+                meterProviderBuilder
+                    .AddMeter(serviceName)
+                    .AddMeter($"oxs-{serviceName}")
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation()
+                    .AddProcessInstrumentation();
+
+                if (UseConsoleExporter(monitoringSettings.MetricsExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+                    meterProviderBuilder.AddConsoleExporter();
+
+                if (UseOtlpExporter(monitoringSettings.MetricsExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
+                {
+                    meterProviderBuilder.AddOtlpExporter(otlpOptions =>
+                    {
+                        otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
+                    });
+                }
+            });
 
         // Add logging provider
         services.AddLogging(logging =>
@@ -73,11 +107,14 @@ internal static class MonitoringExtension
                     restrictedToMinimumLevel: LogEventLevel.Debug
                 );
 
-                options.WriteTo.OpenTelemetry(o =>
+                if (!string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
                 {
-                    o.Endpoint = monitoringSettings.OtlpEndpoint;
-                    o.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
-                });
+                    options.WriteTo.OpenTelemetry(o =>
+                    {
+                        o.Endpoint = monitoringSettings.OtlpEndpoint;
+                        o.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
+                    });
+                }
             });
 
             logging.AddOpenTelemetry(options =>
@@ -106,25 +143,6 @@ internal static class MonitoringExtension
             opt.IncludeScopes = true;
             opt.ParseStateValues = true;
             opt.IncludeFormattedMessage = true;
-        });
-
-        // Metrics
-        services.ConfigureOpenTelemetryMeterProvider(options =>
-        {
-            options.SetResourceBuilder(resourceBuilder)
-                .AddHttpClientInstrumentation();
-
-            if (UseConsoleExporter(monitoringSettings.LoggingExporter) || string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-                options.AddConsoleExporter();
-
-            if (UseOtlpExporter(monitoringSettings.LoggingExporter) && !string.IsNullOrWhiteSpace(monitoringSettings.OtlpEndpoint))
-            {
-                options.AddOtlpExporter(otlpOptions =>
-                {
-                    otlpOptions.Endpoint = new Uri(monitoringSettings.OtlpEndpoint);
-                });
-            }
-
         });
 
         return services;

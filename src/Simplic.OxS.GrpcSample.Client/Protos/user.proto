@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+option csharp_namespace = "Simplic.OxS.GrpcSample.Client.Protos";
+
+package user;
+
+// The user service definition.
+service UserService {
+  // Gets user information by ID
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+  
+  // Creates a new user
+  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse);
+  
+  // Lists all users
+  rpc ListUsers (ListUsersRequest) returns (ListUsersResponse);
+}
+
+// The request message containing the user's ID.
+message GetUserRequest {
+  string user_id = 1;
+}
+
+// The response message containing the user details.
+message GetUserResponse {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  int32 age = 4;
+  bool is_active = 5;
+}
+
+// The request message for creating a user.
+message CreateUserRequest {
+  string name = 1;
+  string email = 2;
+  int32 age = 3;
+}
+
+// The response message after creating a user.
+message CreateUserResponse {
+  string user_id = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// The request message for listing users.
+message ListUsersRequest {
+  int32 page_size = 1;
+  int32 page_number = 2;
+}
+
+// The response message containing a list of users.
+message ListUsersResponse {
+  repeated GetUserResponse users = 1;
+  int32 total_count = 2;
+}

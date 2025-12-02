@@ -145,6 +145,6 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
     {
         string[] localhostVariants = ["localhost", "127.0.0.1", "::1", "0.0.0.0"];
 
-        return localhostVariants.Any(localhost => string.Equals(host, localhost, StringComparison.OrdinalIgnoreCase));
+        return localhostVariants.Any(localhost => host.Contains(localhost, StringComparison.OrdinalIgnoreCase));
     }
 }

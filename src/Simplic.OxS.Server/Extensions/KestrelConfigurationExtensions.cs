@@ -1,6 +1,7 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
-namespace Simplic.OxS.GrpcSample.Server.Extensions;
+namespace Simplic.OxS.Server.Extensions;
 
 /// <summary>
 /// Extension methods for configuring Kestrel server

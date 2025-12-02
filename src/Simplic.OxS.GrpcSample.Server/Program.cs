@@ -1,5 +1,6 @@
 using Simplic.OxS.GrpcSample.Server;
 using Simplic.OxS.GrpcSample.Server.Extensions;
+using Simplic.OxS.Server.Extensions;
 
 namespace Simplic.OxS.GrpcSample.Server;
 

@@ -1,6 +1,8 @@
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Simplic.OxS.Settings;
 
 namespace Simplic.OxS.Server.Middleware;
 
@@ -8,9 +10,9 @@ namespace Simplic.OxS.Server.Middleware;
 /// gRPC interceptor for host validation and security
 /// </summary>
 public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
-                                    , ICurrentService currentService) : Interceptor
+                                   , IOptions<AuthSettings> settings) : Interceptor
 {
-    private static string[] allowedHosts = null;
+    private static string? iApiKey = null;
 
     /// <summary>
     /// Intercept unary server calls for validation
@@ -89,65 +91,12 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
     {
         Console.WriteLine("Validate host access");
 
-        // Extract host from context
-        var host = ExtractHostFromContext(context);
+        if (iApiKey == null)
+            iApiKey = settings.Value.InternalApiKey;
 
-        Console.WriteLine($"Host: {host}");
+        var internalApiKey = context.RequestHeaders.Get(Constants.HttpAuthorizationSchemeInternalKey)?.Value ?? "<null-i-api-key>";
+        Console.WriteLine($" > {internalApiKey}=={iApiKey}");
 
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            return Task.FromResult(false);
-        }
-
-        // Allow localhost variations
-        if (IsLocalhost(host))
-        {
-            Console.WriteLine("Is local host");
-            return Task.FromResult(true);
-        }
-
-        // Set list of allowed hosts, defined in bootstrap file
-        allowedHosts ??= [$"{currentService.ServiceName}"
-                        , $"{currentService.ServiceName}-{currentService.ApiVersion}"
-                        , $"simplic-oxs-{currentService.ServiceName}"
-                        , $"simplic-oxs-{currentService.ServiceName}-{currentService.ApiVersion}"];
-
-        Console.WriteLine($"Allowed hosts: {string.Join(',', allowedHosts)}");
-
-        // Validate against allowed hosts
-        return Task.FromResult(allowedHosts.Contains(host));
-    }
-
-    /// <summary>
-    /// Extract host from ServerCallContext
-    /// </summary>
-    private string? ExtractHostFromContext(ServerCallContext context)
-    {
-        // Try to get host from :authority header (HTTP/2)
-        var authorityHeader = context.RequestHeaders.GetValue(":authority");
-        if (!string.IsNullOrWhiteSpace(authorityHeader))
-        {
-            return authorityHeader.Split(':')[0]; // Remove port if present
-        }
-
-        // Try to get host from Host header
-        var hostHeader = context.RequestHeaders.GetValue("host");
-        if (!string.IsNullOrWhiteSpace(hostHeader))
-        {
-            return hostHeader.Split(':')[0]; // Remove port if present
-        }
-
-        // Fallback to peer (might be IP address)
-        return context.Peer;
-    }
-
-    /// <summary>
-    /// Check if the host is localhost or local IP
-    /// </summary>
-    private static bool IsLocalhost(string host)
-    {
-        string[] localhostVariants = ["localhost", "127.0.0.1", "::1", "0.0.0.0"];
-
-        return localhostVariants.Any(localhost => host.Contains(localhost, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(internalApiKey == iApiKey);
     }
 }

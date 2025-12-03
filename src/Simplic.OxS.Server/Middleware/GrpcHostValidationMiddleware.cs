@@ -1,9 +1,13 @@
+using Google.Protobuf.WellKnownTypes;
 using MassTransit.Caching.Internals;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Simplic.OxS.Settings;
 using StackExchange.Redis;
+using System;
 
 namespace Simplic.OxS.Server.Middleware;
 
@@ -13,9 +17,10 @@ namespace Simplic.OxS.Server.Middleware;
 public class GrpcHostValidationMiddleware(RequestDelegate next
                                         , ILogger<GrpcHostValidationMiddleware> logger
                                         , ICurrentService currentService
-                                        , IWebHostEnvironment environment)
+                                        , IWebHostEnvironment environment
+                                        , IOptions<AuthSettings> settings)
 {
-    private static string[] allowedHosts = null;
+    private static string? iApiKey = null;
 
     /// <summary>
     /// Invoke the middleware to validate gRPC host access
@@ -25,14 +30,6 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
     {
         // Get service name from the current service
         var serviceName = currentService.ServiceName;
-
-        // Set list of allowed hosts, defined in bootstrap file
-        allowedHosts ??= [$"{currentService.ServiceName}"
-                        , $"simplic-oxs-{currentService.ServiceName}"
-                        , $"{currentService.ServiceName}-{currentService.ApiVersion}"
-                        , $"simplic-oxs-{currentService.ServiceName}-{currentService.ApiVersion}"];
-
-        Console.WriteLine($"Check hosts for: {serviceName} with allowed hosts: {string.Join(',', allowedHosts)}");
 
         // Only apply validation to gRPC requests
         if (IsGrpcRequest(context))
@@ -46,7 +43,7 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
             }
 
             var host = context.Request.Host.Host;
-            var isAllowed = IsAllowedHost(host, serviceName);
+            var isAllowed = CheckApiKey(context.Request);
 
             if (!isAllowed)
             {
@@ -69,7 +66,7 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
     {
         Console.WriteLine($"Check is gRPC request: {context.Request.ContentType}, {context.Request.Protocol}");
 
-        foreach(var h in context.Request.Headers)
+        foreach (var h in context.Request.Headers)
             Console.WriteLine($" Header: {h.Key}: {h.Value}");
 
         return context.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true ||
@@ -79,57 +76,22 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
     /// <summary>
     /// Validate if the host is allowed for gRPC requests
     /// </summary>
-    private bool IsAllowedHost(string host, string serviceName)
+    private bool CheckApiKey(HttpRequest httpRequest)
     {
-        Console.WriteLine($"Check is allowed header: {host} / {serviceName}");
+        Console.WriteLine("Validate host access");
+        if (iApiKey == null)
+            iApiKey = settings.Value.InternalApiKey;
 
-        if (string.IsNullOrWhiteSpace(host))
-            return false;
-
-        // Allow localhost and variations
-        if (IsLocalhost(host))
-            return true;
-
-        // Allow service-name as domain
-        if (string.Equals(host, serviceName, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        // Remove port if present
-        host = host.Split(':')[0];
-
-        // Allow service-name with common TLDs for service discovery
-        var allowedServiceDomains = new[]
+        if (httpRequest.Headers.TryGetValue(Constants.HttpAuthorizationSchemeInternalKey, out Microsoft.Extensions.Primitives.StringValues values))
         {
-            $"simplic-oxs-{serviceName}",
-            $"simplic-oxs-{serviceName}.local",
-            $"simplic-oxs-{serviceName}.internal",
-            $"simplic-oxs-{serviceName}.cluster.local",
-            $"simplic-oxs-{serviceName}.svc.cluster.local"
-        };
-
-        if (allowedServiceDomains.Any(domain => string.Equals(host, domain, StringComparison.OrdinalIgnoreCase)))
-            return true;
-
-        // Check additional configured hosts
-        if (allowedHosts.Any(allowedHost => string.Equals(host, allowedHost, StringComparison.OrdinalIgnoreCase)))
-            return true;
+            Console.WriteLine($" > {values}=={iApiKey}");
+            return values == iApiKey;
+        }
+        else
+        {
+            Console.WriteLine("No i-api-key found in HostValidation");
+        }
 
         return false;
-    }
-
-    /// <summary>
-    /// Check if the host is localhost or local IP
-    /// </summary>
-    private static bool IsLocalhost(string host)
-    {
-        var localhostVariants = new[]
-        {
-            "localhost",
-            "127.0.0.1",
-            "::1",
-            "0.0.0.0"
-        };
-
-        return localhostVariants.Any(localhost => string.Equals(host, localhost, StringComparison.OrdinalIgnoreCase));
     }
 }

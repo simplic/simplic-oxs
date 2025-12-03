@@ -3,7 +3,10 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Simplic.OxS.ServiceDefinition;
+using Simplic.OxS.Settings;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Eventing.Reader;
 using System.Net.Http.Json;
@@ -44,7 +47,10 @@ public static class RemoteServiceExtension
 /// <param name="endpointContractRepository">The repository used to query contract-to-endpoint mappings for the current organization when cache misses occur.</param>
 /// <param name="requestContext">The context containing organization and user identifiers, used for endpoint resolution and for passing metadata to
 /// remote service calls.</param>
-internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext) : IRemoteServiceInvoker
+internal class RemoteServiceInvoker(IDistributedCache distributedCache
+                                  , IEndpointContractRepository endpointContractRepository
+                                  , IOptions<AuthSettings> settings
+                                  , IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
     public async Task<T?> Call<T, P>([NotNull] string contractOrUri, P parameter, Func<P, Task<T>>? defaultImpl = null)
@@ -71,7 +77,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpoin
             {
                 if (protocol == "grpc")
                 {
-                    return await RemoteGrpcCall<T, P>(requestContext, parameter, url);
+                    return await RemoteGrpcCall<T, P>(settings, requestContext, parameter, url);
                 }
                 else
                 {
@@ -88,7 +94,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpoin
         return default;
     }
 
-    private static async Task<T?> RemoteGrpcCall<T, P>(IRequestContext requestContext, P parameter, [NotNull] string url)
+    private static async Task<T?> RemoteGrpcCall<T, P>(IOptions<AuthSettings> settings, IRequestContext requestContext, P parameter, [NotNull] string url)
         where T : class, IMessage<T>, new()
         where P : class, IMessage<P>, new()
     {
@@ -115,7 +121,8 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache, IEndpoin
         var headers = new Metadata
                 {
                     { Constants.HttpHeaderOrganizationIdKey, requestContext.OrganizationId.Value.ToString() },
-                    { Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString() }
+                    { Constants.HttpHeaderUserIdKey, requestContext.UserId.Value.ToString() },
+                    { Constants.HttpAuthorizationSchemeInternalKey, settings.Value.InternalApiKey }
                 };
 
         var options = new CallOptions(headers);

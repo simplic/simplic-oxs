@@ -1,6 +1,9 @@
+using MassTransit.Configuration;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.ServiceDefinition;
+using Simplic.OxS.Settings;
 
 namespace Simplic.OxS.Server.Test.Extensions;
 
@@ -14,8 +17,9 @@ public class RemoteServiceExtensionTests
         var mockCache = new Mock<IDistributedCache>();
         var mockRequestContext = new Mock<IRequestContext>();
         var mockEndpointContract = new Mock<IEndpointContractRepository>();
+        var mockSettings = new Mock<IOptions<AuthSettings>>();
 
-        _invoker = new RemoteServiceInvoker(mockCache.Object, mockEndpointContract.Object, mockRequestContext.Object);
+        _invoker = new RemoteServiceInvoker(mockCache.Object, mockEndpointContract.Object, mockSettings.Object, mockRequestContext.Object);
     }
 
     private bool InvokeTryParseProtocol(string uri, out string? protocol, out string? url)

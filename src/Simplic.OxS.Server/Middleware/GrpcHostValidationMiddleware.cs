@@ -27,7 +27,10 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
         var serviceName = currentService.ServiceName;
 
         // Set list of allowed hosts, defined in bootstrap file
-        allowedHosts ??= [$"{currentService.ServiceName}", $"{currentService.ServiceName}-{currentService.ApiVersion}"];
+        allowedHosts ??= [$"{currentService.ServiceName}"
+                        , $"simplic-oxs-{currentService.ServiceName}"
+                        , $"{currentService.ServiceName}-{currentService.ApiVersion}"
+                        , $"simplic-oxs-{currentService.ServiceName}-{currentService.ApiVersion}"];
 
         Console.WriteLine($"Check hosts for: {serviceName} with allowed hosts: {string.Join(',', allowedHosts)}");
 

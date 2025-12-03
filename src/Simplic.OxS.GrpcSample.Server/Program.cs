@@ -1,5 +1,3 @@
-using Simplic.OxS.GrpcSample.Server;
-using Simplic.OxS.GrpcSample.Server.Extensions;
 using Simplic.OxS.Server.Extensions;
 
 namespace Simplic.OxS.GrpcSample.Server;
@@ -19,7 +17,7 @@ public class Program
             .ConfigureWebHostDefaults(webBuilder =>
             {
                 webBuilder.UseStartup<Startup>();
-                
+
                 // Configure Kestrel to listen on specific ports using extension method
                 webBuilder.ConfigureKestrelPorts();
             });

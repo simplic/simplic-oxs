@@ -25,7 +25,7 @@ public static class KestrelConfigurationExtensions
             // HTTPS port for gRPC and secure REST API
             options.ListenAnyIP(httpsPort, listenOptions =>
             {
-                listenOptions.UseHttps();
+                // listenOptions.UseHttps();
                 listenOptions.Protocols = HttpProtocols.Http2;
             });
         });

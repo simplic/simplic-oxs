@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Simplic.OxS.GrpcSample.Server": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:8443;http://localhost:8080"
+    }
+  }
+}

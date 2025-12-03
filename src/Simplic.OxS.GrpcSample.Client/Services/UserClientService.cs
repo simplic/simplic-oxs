@@ -31,7 +31,7 @@ public class UserClientService
 
             // Call the remote service using the contract name or direct URI
             var response = await _remoteServiceInvoker.Call<GetUserResponse, GetUserRequest>(
-                "[grpc]http://localhost:8443::user.UserService::GetUser",
+                "[grpc]http://localhost:8082::user.UserService::GetUser",
                 request,
                 defaultImpl: async (req) =>
                 {
@@ -73,7 +73,7 @@ public class UserClientService
             };
 
             var response = await _remoteServiceInvoker.Call<CreateUserResponse, CreateUserRequest>(
-                "[grpc]https://localhost:8443::user.UserService::CreateUser",
+                "[grpc]https://localhost:8082::user.UserService::CreateUser",
                 request,
                 defaultImpl: async (req) =>
                 {
@@ -113,7 +113,7 @@ public class UserClientService
             };
 
             var response = await _remoteServiceInvoker.Call<ListUsersResponse, ListUsersRequest>(
-                "[grpc]https://localhost:8443::user.UserService::ListUsers",
+                "[grpc]https://localhost:8082::user.UserService::ListUsers",
                 request,
                 defaultImpl: async (req) =>
                 {

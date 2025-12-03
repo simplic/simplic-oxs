@@ -13,9 +13,9 @@ public static class KestrelConfigurationExtensions
     /// </summary>
     /// <param name="webBuilder">The web host builder to configure</param>
     /// <param name="httpPort">Port for HTTP connections (default: 8080)</param>
-    /// <param name="httpsPort">Port for HTTPS connections with gRPC support (default: 8443)</param>
+    /// <param name="httpsPort">Port for HTTPS connections with gRPC support (default: 8082)</param>
     /// <returns>The configured web host builder</returns>
-    public static IWebHostBuilder ConfigureKestrelPorts(this IWebHostBuilder webBuilder, int httpPort = 8080, int httpsPort = 8443)
+    public static IWebHostBuilder ConfigureKestrelPorts(this IWebHostBuilder webBuilder, int httpPort = 8080, int httpsPort = 8082)
     {
         return webBuilder.ConfigureKestrel(options =>
         {

@@ -33,8 +33,8 @@ The server provides the following gRPC endpoints:
 
 3. **Server endpoints:**
    - HTTP: `http://localhost:8080`
-   - HTTPS/gRPC: `https://localhost:8443`
-   - Swagger UI: `https://localhost:8443/grpcsample-api/v1/swagger`
+   - HTTPS/gRPC: `http://localhost:8082`
+   - Swagger UI: `http://localhost:8082/grpcsample-api/v1/swagger`
 
 ## Configuration
 

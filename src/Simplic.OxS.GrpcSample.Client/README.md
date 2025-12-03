@@ -84,7 +84,7 @@ Simplic.OxS.GrpcSample.Client/
 
 The `UserClientService.cs` demonstrates:
 - Using `IRemoteServiceInvoker.Call<TResponse, TRequest>()` 
-- Direct URI specification: `[grpc]https://localhost:8443::user.UserService::GetUser`
+- Direct URI specification: `[grpc]http://localhost:8082::user.UserService::GetUser`
 - Fallback implementations for service unavailability
 - Proper error handling and logging
 
@@ -96,8 +96,8 @@ The gRPC URI format used is:
 ```
 
 Examples:
-- `[grpc]https://localhost:8443::user.UserService::GetUser`
-- `[grpc]https://localhost:8443::user.UserService::CreateUser`
+- `[grpc]https://localhost:8082::user.UserService::GetUser`
+- `[grpc]http://localhost:8082::user.UserService::CreateUser`
 
 ### Mock Implementations
 

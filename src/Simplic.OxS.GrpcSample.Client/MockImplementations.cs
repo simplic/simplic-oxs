@@ -70,7 +70,7 @@ public class MockEndpointContractRepository : IEndpointContractRepository
             {
                 Id = Guid.NewGuid(),
                 Name = filter.Name,
-                Endpoint = "[grpc]https://localhost:8443::user.UserService",
+                Endpoint = "[grpc]https://localhost:8082::user.UserService",
                 OrganizationId = filter.OrganizationId ?? Guid.Empty,
                 IsDeleted = false
             };

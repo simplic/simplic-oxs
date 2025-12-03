@@ -93,12 +93,12 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
 
         // Allow service-name with common TLDs for service discovery
         var allowedServiceDomains = new[]
-     {
-            $"{serviceName}",
-            $"{serviceName}.local",
-            $"{serviceName}.internal",
-            $"{serviceName}.cluster.local",
-            $"{serviceName}.svc.cluster.local"
+        {
+            $"simplic-oxs-{serviceName}",
+            $"simplic-oxs-{serviceName}.local",
+            $"simplic-oxs-{serviceName}.internal",
+            $"simplic-oxs-{serviceName}.cluster.local",
+            $"simplic-oxs-{serviceName}.svc.cluster.local"
         };
 
         if (allowedServiceDomains.Any(domain => string.Equals(host, domain, StringComparison.OrdinalIgnoreCase)))

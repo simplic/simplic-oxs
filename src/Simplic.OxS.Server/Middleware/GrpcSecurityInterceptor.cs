@@ -107,7 +107,7 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
         }
 
         // Set list of allowed hosts, defined in bootstrap file
-        allowedHosts ??= [$"{currentService.ServiceName}", $"{currentService.ServiceName}-{currentService.ApiVersion}"];
+        allowedHosts ??= [$"{currentService.ServiceName}", $"{currentService.ServiceName}-{currentService.ApiVersion}", $"simplic-oxs-{currentService.ServiceName}-{currentService.ApiVersion}"];
 
         Console.WriteLine($"Allowed hosts: {string.Join(',', allowedHosts)}");
 

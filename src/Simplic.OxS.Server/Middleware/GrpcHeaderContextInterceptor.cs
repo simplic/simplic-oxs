@@ -146,9 +146,6 @@ public class GrpcHeaderContextInterceptor(IServiceScopeFactory scopeFactory, ILo
                 correlationId = Guid.NewGuid();
             }
 
-            logger.LogInformation("Processing gRPC request with UserId: {UserId}, OrganizationId: {OrganizationId}, CorrelationId: {CorrelationId}",
-                                        userId, organizationId, correlationId);
-
             // Get the request context service from the current request scope
             if (context.GetHttpContext()?.RequestServices.GetService<IRequestContext>() is IRequestContext requestContext)
             {

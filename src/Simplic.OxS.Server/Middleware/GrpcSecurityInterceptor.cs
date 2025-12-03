@@ -9,6 +9,8 @@ namespace Simplic.OxS.Server.Middleware;
 /// <summary>
 /// gRPC interceptor for host validation and security
 /// </summary>
+/// <param name="logger"></param>
+/// <param name="settings"></param>
 public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
                                    , IOptions<AuthSettings> settings) : Interceptor
 {
@@ -22,7 +24,7 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
                                              ServerCallContext context,
                                              UnaryServerMethod<TRequest, TResponse> continuation)
     {
-        if (!await ValidateHostAccess(context))
+        if (!await ValidateApiKey(context))
         {
             logger.LogWarning("gRPC call rejected from unauthorized host: {Host}", context.Host);
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Host not authorized for gRPC access"));
@@ -40,7 +42,7 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
                                     ServerCallContext context,
                                     ServerStreamingServerMethod<TRequest, TResponse> continuation)
     {
-        if (!await ValidateHostAccess(context))
+        if (!await ValidateApiKey(context))
         {
             logger.LogWarning("gRPC streaming call rejected from unauthorized host: {Host}", context.Host);
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Host not authorized for gRPC access"));
@@ -57,7 +59,7 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
                     ServerCallContext context,
                     ClientStreamingServerMethod<TRequest, TResponse> continuation)
     {
-        if (!await ValidateHostAccess(context))
+        if (!await ValidateApiKey(context))
         {
             logger.LogWarning("gRPC client streaming call rejected from unauthorized host: {Host}", context.Host);
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Host not authorized for gRPC access"));
@@ -75,7 +77,7 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
               ServerCallContext context,
               DuplexStreamingServerMethod<TRequest, TResponse> continuation)
     {
-        if (!await ValidateHostAccess(context))
+        if (!await ValidateApiKey(context))
         {
             logger.LogWarning("gRPC duplex streaming call rejected from unauthorized host: {Host}", context.Host);
             throw new RpcException(new Status(StatusCode.PermissionDenied, "Host not authorized for gRPC access"));
@@ -85,18 +87,17 @@ public class GrpcSecurityInterceptor(ILogger<GrpcSecurityInterceptor> logger
     }
 
     /// <summary>
-    /// Validate if the host is allowed for gRPC access
+    /// Validate the internal API key from the gRPC context
     /// </summary>
-    private Task<bool> ValidateHostAccess(ServerCallContext context)
+    /// <param name="context"></param>
+    /// <returns></returns>
+    private Task<bool> ValidateApiKey(ServerCallContext context)
     {
-        Console.WriteLine("Validate host access");
-
         if (iApiKey == null)
             iApiKey = settings.Value.InternalApiKey;
 
         var internalApiKey = context.RequestHeaders.Get(Constants.HttpAuthorizationSchemeInternalKey)?.Value ?? "<null-i-api-key>";
-        Console.WriteLine($" > {internalApiKey}=={iApiKey}");
-
+        
         return Task.FromResult(internalApiKey == iApiKey);
     }
 }

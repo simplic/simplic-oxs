@@ -91,6 +91,9 @@ public class GrpcHostValidationMiddleware(RequestDelegate next
         if (string.Equals(host, serviceName, StringComparison.OrdinalIgnoreCase))
             return true;
 
+        // Remove port if present
+        host = host.Split(':')[0];
+
         // Allow service-name with common TLDs for service discovery
         var allowedServiceDomains = new[]
         {

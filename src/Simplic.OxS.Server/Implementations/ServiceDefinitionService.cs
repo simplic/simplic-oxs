@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc.TagHelpers;
 using Simplic.OxS.ServiceDefinition;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace Simplic.OxS.Server.Service;
 
@@ -73,8 +74,94 @@ public class ServiceDefinitionService
             }).ToList();
         }
 
+        // Load gRPC definitions from proto files
+        LoadGrpcDefinitions();
+
         // Cache service definition
         ServiceObject = serviceDefinition;
+    }
+
+    /// <summary>
+    /// Loads gRPC definitions from proto files found at runtime
+    /// </summary>
+    private void LoadGrpcDefinitions()
+    {
+        try
+        {
+            var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            var protoFiles = Directory.GetFiles(baseDirectory, "*.proto", SearchOption.AllDirectories);
+
+            Console.WriteLine($"Found {protoFiles.Length} proto file(s) in {baseDirectory}");
+
+            foreach (var protoFile in protoFiles)
+            {
+                try
+                {
+                    Console.WriteLine($"Processing proto file: {protoFile}");
+                    var grpcDefinition = CreateGrpcDefinitionFromProtoFile(protoFile);
+                    if (grpcDefinition != null)
+                    {
+                        serviceDefinition.GrpcDefinitions ??= new List<GrpcDefinitions>();
+                        serviceDefinition.GrpcDefinitions.Add(grpcDefinition);
+                        Console.WriteLine($"Added gRPC definition - Package: {grpcDefinition.Package}, Service: {grpcDefinition.Service}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error processing proto file {protoFile}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error scanning for proto files: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Creates a GrpcDefinitions instance from a proto file
+    /// </summary>
+    /// <param name="protoFilePath">Path to the proto file</param>
+    /// <returns>GrpcDefinitions instance or null if parsing failed</returns>
+    private GrpcDefinitions? CreateGrpcDefinitionFromProtoFile(string protoFilePath)
+    {
+        try
+        {
+            var protoContent = File.ReadAllText(protoFilePath);
+            var protoBytes = File.ReadAllBytes(protoFilePath);
+
+            // Extract package name using regex
+            var packageMatch = Regex.Match(protoContent, @"package\s+([^;]+);", RegexOptions.IgnoreCase);
+            var packageName = packageMatch.Success ? packageMatch.Groups[1].Value.Trim() : "";
+
+            // Extract service names using regex
+            var serviceMatches = Regex.Matches(protoContent, @"service\s+(\w+)\s*\{", RegexOptions.IgnoreCase);
+            
+            if (serviceMatches.Count == 0)
+            {
+                Console.WriteLine($"No services found in proto file: {protoFilePath}");
+                return null;
+            }
+
+            // For now, we'll take the first service found
+            // In a more complex scenario, you might want to create separate GrpcDefinitions for each service
+            var serviceName = serviceMatches[0].Groups[1].Value;
+
+            // Combine package and service name for the full service name
+            var fullServiceName = !string.IsNullOrEmpty(packageName) ? $"{packageName}.{serviceName}" : serviceName;
+
+            return new GrpcDefinitions
+            {
+                Package = packageName,
+                Service = fullServiceName,
+                ProtoFile = protoBytes
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing proto file {protoFilePath}: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

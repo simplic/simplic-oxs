@@ -31,6 +31,11 @@ public class ServiceObject
     public string? ModelDefinitionUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the gRPC definitions
+    /// </summary>
+    public IList<GrpcDefinitions>? GrpcDefinitions { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the service type
     /// <list type="bullet">
     /// * internal - service is available inside the ox cluster

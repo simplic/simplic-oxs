@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option csharp_namespace = "Simplic.OxS.Server.Test.Protos";
+
+package test;
+
+// The test service definition
+service TestService {
+  // Gets test information
+  rpc GetTest (TestRequest) returns (TestResponse);
+  
+  // Creates a new test
+  rpc CreateTest (CreateTestRequest) returns (CreateTestResponse);
+}
+
+// Test request message
+message TestRequest {
+  string test_id = 1;
+}
+
+// Test response message
+message TestResponse {
+  string test_id = 1;
+  string name = 2;
+  bool is_active = 3;
+}
+
+// Create test request message
+message CreateTestRequest {
+  string name = 1;
+}
+
+// Create test response message
+message CreateTestResponse {
+  string test_id = 1;
+  bool success = 2;
+  string message = 3;
+}

@@ -45,8 +45,7 @@ public class ServiceDefinitionService
                 EndpointContracts = providerGroup.Select(x => new EndpointContractDefinition
                 {
                     Name = x.Attribute.ContractName,
-                    Endpoint = x.Attribute.Endpoint,
-                    Schema = x.Schema
+                    Endpoint = x.Attribute.Endpoint
                 }).ToList()
             };
 
@@ -93,7 +92,7 @@ public class ServiceDefinitionService
     /// </summary>
     public ServiceObject ServiceObject { get; set; }
 
-    record _ContractResult(EndpointContractAttribute Attribute, JsonSchema Schema, bool AllowMultiple);
+    record _ContractResult(EndpointContractAttribute Attribute, bool AllowMultiple);
 
     private static IEnumerable<_ContractResult> GetAllContractNames(Assembly assembly)
     {
@@ -103,7 +102,7 @@ public class ServiceDefinitionService
             .SelectMany(type => type.GetMethods(
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
             .SelectMany(method => method.GetCustomAttributes<EndpointContractAttribute>(),
-                (method, attribute) => new _ContractResult(attribute, SchemaGenerator.GenerateMethodJsonSchema(method), false));
+                (method, attribute) => new _ContractResult(attribute, false));
     }
 
     private static IEnumerable<_ContractResult> GetAllRequiredContractNames(Assembly assembly)
@@ -114,6 +113,6 @@ public class ServiceDefinitionService
             .SelectMany(type => type.GetMethods(
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
             .SelectMany(method => method.GetCustomAttributes<RequiredEndpointContractAttribute>(),
-                (method, attribute) => new _ContractResult(new EndpointContractAttribute(attribute.ContractName, "", attribute.ProviderName), SchemaGenerator.GenerateMethodJsonSchema(method), attribute.AllowMultiple));
+                (method, attribute) => new _ContractResult(new EndpointContractAttribute(attribute.ContractName, "", attribute.ProviderName), attribute.AllowMultiple));
     }
 }

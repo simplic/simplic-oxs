@@ -15,9 +15,4 @@ public class EndpointContractDefinition
     /// Gets or sets the endpoint
     /// </summary>
     public string Endpoint { get; set; }
-
-    /// <summary>
-    /// Gets or sets the endpoint schema
-    /// </summary>
-    public JsonSchema Schema { get; set; }
 }

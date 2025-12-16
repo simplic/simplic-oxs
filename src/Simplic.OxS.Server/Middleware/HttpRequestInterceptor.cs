@@ -1,85 +1,88 @@
 ﻿using HotChocolate.AspNetCore;
 using HotChocolate.Execution;
-using HotChocolate.Language;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server.Middleware
 {
-	internal class HttpRequestInterceptor : DefaultHttpRequestInterceptor
-	{
-		public override ValueTask OnCreateAsync(HttpContext context,
-			IRequestExecutor requestExecutor, OperationRequestBuilder requestBuilder,
-			CancellationToken cancellationToken)
-		{
-			if (context.RequestServices.GetService(typeof(IRequestContext)) is IRequestContext requestContext)
-			{
-				requestContext.UserId = GetUserId(context);
-				requestContext.OrganizationId = GetOrganizationId(context);
+    internal class HttpRequestInterceptor : DefaultHttpRequestInterceptor
+    {
+        public override ValueTask OnCreateAsync(HttpContext context,
+            IRequestExecutor requestExecutor, OperationRequestBuilder requestBuilder,
+            CancellationToken cancellationToken)
+        {
+            if (context.RequestServices.GetService(typeof(IRequestContext)) is IRequestContext requestContext)
+            {
+                requestContext.UserId = GetUserId(context);
+                requestContext.OrganizationId = GetOrganizationId(context);
 
-				// Set correlation id (http defaults)
-				string correlationId;
+                requestContext.OxSHeaders = new Dictionary<string, string>();
+                foreach (var header in context.Request.Headers)
+                {
+                    if (header.Key.StartsWith(Simplic.OxS.Constants.OxSHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        requestContext.OxSHeaders[header.Key] = header.Value;
+                    }
+                }
 
-				if (context.Request.Headers.TryGetValue(Constants.HttpHeaderCorrelationIdKey, out StringValues correlationIds))
-				{
-					correlationId = correlationIds.FirstOrDefault(k => k == Constants.HttpHeaderCorrelationIdKey) ??
-													Guid.NewGuid().ToString();
-				}
-				else
-				{
-					// Generate new correlation Id
-					correlationId = Guid.NewGuid().ToString();
+                // Set correlation id (http defaults)
+                string correlationId;
 
-					// Add correlation id to the actual header - use indexer instead of Add
-					context.Request.Headers[Constants.HttpHeaderCorrelationIdKey] = correlationId;
-				}
+                if (context.Request.Headers.TryGetValue(Constants.HttpHeaderCorrelationIdKey, out StringValues correlationIds))
+                {
+                    correlationId = correlationIds.FirstOrDefault(k => k == Constants.HttpHeaderCorrelationIdKey) ??
+                                                    Guid.NewGuid().ToString();
+                }
+                else
+                {
+                    // Generate new correlation Id
+                    correlationId = Guid.NewGuid().ToString();
 
-				// TODO: Optimize that one / use guid from above
-				requestContext.CorrelationId = Guid.Parse(correlationId);
-			}
+                    // Add correlation id to the actual header - use indexer instead of Add
+                    context.Request.Headers[Constants.HttpHeaderCorrelationIdKey] = correlationId;
+                }
 
-			return base.OnCreateAsync(context, requestExecutor, requestBuilder, cancellationToken);
-		}
+                // TODO: Optimize that one / use guid from above
+                requestContext.CorrelationId = Guid.Parse(correlationId);
+            }
 
-		/// <summary>
-		/// Gets the actual user id from the given jwt token
-		/// </summary>
-		/// <returns>User id as guid. Null if no user id was found.</returns>
-		protected Guid? GetUserId(HttpContext httpContext)
-		{
-			var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "Id");
+            return base.OnCreateAsync(context, requestExecutor, requestBuilder, cancellationToken);
+        }
 
-			if (string.IsNullOrWhiteSpace(claim?.Value))
-				return null;
+        /// <summary>
+        /// Gets the actual user id from the given jwt token
+        /// </summary>
+        /// <returns>User id as guid. Null if no user id was found.</returns>
+        protected Guid? GetUserId(HttpContext httpContext)
+        {
+            var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "Id");
 
-			if (Guid.TryParse(claim.Value, out Guid result))
-				return result;
+            if (string.IsNullOrWhiteSpace(claim?.Value))
+                return null;
 
-			return null;
-		}
+            if (Guid.TryParse(claim.Value, out Guid result))
+                return result;
 
-		/// <summary>
-		/// Gets the actual organization id from the given jwt token
-		/// </summary>
-		/// <returns>Organization id as guid. Null if no organization id was found.</returns>
-		protected Guid? GetOrganizationId(HttpContext httpContext)
-		{
-			var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "OId");
+            return null;
+        }
 
-			if (string.IsNullOrWhiteSpace(claim?.Value))
-				return null;
+        /// <summary>
+        /// Gets the actual organization id from the given jwt token
+        /// </summary>
+        /// <returns>Organization id as guid. Null if no organization id was found.</returns>
+        protected Guid? GetOrganizationId(HttpContext httpContext)
+        {
+            var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "OId");
 
-			if (Guid.TryParse(claim.Value, out Guid result))
-				return result;
+            if (string.IsNullOrWhiteSpace(claim?.Value))
+                return null;
 
-			return null;
-		}
-	}
+            if (Guid.TryParse(claim.Value, out Guid result))
+                return result;
+
+            return null;
+        }
+    }
 
 
 }

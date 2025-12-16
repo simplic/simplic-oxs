@@ -20,6 +20,11 @@
         /// Gets or sets the current context/correlation id.
         /// </summary>
         public Guid? CorrelationId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a list of custom oxs-headers, passed through the request.
+        /// E.g. oxs-skip-flow: true
+        /// </summary>
+        public IDictionary<string, string> OxSHeaders { get; set; } = new Dictionary<string, string>();
     }
 }
- 

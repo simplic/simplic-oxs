@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Primitives;
+using System;
 
 namespace Simplic.OxS.Server.Filter
 {
@@ -48,6 +49,19 @@ namespace Simplic.OxS.Server.Filter
             {
                 requestContext.UserId = GetUserId(executionContext.HttpContext);
                 requestContext.OrganizationId = GetOrganizationId(executionContext.HttpContext);
+            }
+
+            // Set request header if none are set yet
+            if (requestContext.OxSHeaders == null || requestContext.OxSHeaders.Any() == false)
+            {
+                requestContext.OxSHeaders = new Dictionary<string, string>();
+                foreach (var header in requestContext.OxSHeaders)
+                {
+                    if (header.Key.StartsWith(Simplic.OxS.Constants.OxSHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        requestContext.OxSHeaders[header.Key] = header.Value;
+                    }
+                }
             }
         }
 

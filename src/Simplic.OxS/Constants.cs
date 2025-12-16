@@ -29,6 +29,13 @@
         /// Gets or sets the name/key of the http-header for the correlation id
         /// </summary>
         public const string HttpHeaderCorrelationIdKey = "X-Correlation-ID";
+
+        /// <summary>
+        /// Represents the standard prefix used for OXS-related HTTP headers.
+        /// </summary>
+        /// <remarks>Use this constant when constructing or parsing custom HTTP headers that are specific
+        /// to OXS functionality to ensure consistency across requests and responses.</remarks>
+        public const string OxSHeaderPrefix = "oxs-";
     }
 }
 

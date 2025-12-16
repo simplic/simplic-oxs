@@ -148,4 +148,5 @@ public class MockRequestContext : IRequestContext
     public Guid? OrganizationId { get; set; } = Guid.NewGuid();
     public Guid? UserId { get; set; } = Guid.NewGuid();
     public Guid? CorrelationId { get; set; } = Guid.NewGuid();
+    public IDictionary<string, string> OxSHeaders { get; set; } = new Dictionary<string, string>();
 }

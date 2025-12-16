@@ -28,6 +28,11 @@ namespace Simplic.OxS.MessageBroker.Filter
 
             context.CorrelationId = requestContext.CorrelationId;
 
+            // Pass custom request header to rabbitmq request
+            if (requestContext.OxSHeaders != null)
+                foreach (var header in requestContext.OxSHeaders)
+                    context.Headers.Set(header.Key, header.Value);
+
             return next.Send(context);
         }
 

@@ -37,6 +37,15 @@ namespace Simplic.OxS.MessageBroker.Filter
                 if (Guid.TryParse(organizationHeaderId, out Guid organizationId))
                     requestContext.OrganizationId = organizationId;
 
+            requestContext.OxSHeaders = new Dictionary<string, string>();
+            foreach (var header in context.Headers)
+            {
+                if (header.Key.StartsWith(Constants.OxSHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    requestContext.OxSHeaders[header.Key] = header.Value?.ToString() ?? "";
+                }
+            }
+
             await next.Send(context);
         }
 

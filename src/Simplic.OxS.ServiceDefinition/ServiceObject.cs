@@ -47,4 +47,9 @@ public class ServiceObject
     /// Gets or sets the contracts inside this service
     /// </summary>
     public IList<ServiceContract> Contracts { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the GraphQL schema of the service
+    /// </summary>
+    public string? GraphQLSchema { get; set; }
 }

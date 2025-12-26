@@ -1,21 +1,27 @@
-﻿using Microsoft.AspNetCore.Mvc.TagHelpers;
+﻿using DnsClient.Internal;
+using HotChocolate.Execution;
+using Microsoft.AspNetCore.Mvc.TagHelpers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.ServiceDefinition;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Simplic.OxS.Server.Service;
 
 /// <summary>
 /// Service definition
 /// </summary>
-public class ServiceDefinitionService
+public class ServiceDefinitionService(IServiceProvider serviceProvider, ILogger<ServiceDefinitionService> logger)
 {
     private static ServiceObject serviceDefinition;
 
     /// <summary>
     /// Fill service definition
     /// </summary>
-    public void Fill()
+    public async Task Fill()
     {
         if (serviceDefinition != null)
             ServiceObject = serviceDefinition;
@@ -77,8 +83,32 @@ public class ServiceDefinitionService
         // Load gRPC definitions from proto files
         LoadGrpcDefinitions();
 
+        await ExportGraphQlSchema(serviceDefinition);
+
         // Cache service definition
         ServiceObject = serviceDefinition;
+    }
+
+    /// <summary>
+    /// Exports the GraphQL schema and adds it to the service object
+    /// </summary>
+    /// <param name="serviceObject"></param>
+    /// <returns></returns>
+    private async Task ExportGraphQlSchema(ServiceObject serviceObject)
+    {
+        try
+        {
+            var requestExecutorResolver = serviceProvider.GetRequiredService<IRequestExecutorResolver>();
+
+            var executor = await requestExecutorResolver.GetRequestExecutorAsync();
+            var schema = executor.Schema;
+
+            serviceObject.GraphQLSchema = schema.Print();
+        }
+        catch(Exception ex)
+        {
+            logger.LogWarning(ex, "Could not get GraphQL schema".);
+        }
     }
 
     /// <summary>
@@ -136,7 +166,7 @@ public class ServiceDefinitionService
 
             // Extract service names using regex
             var serviceMatches = Regex.Matches(protoContent, @"service\s+(\w+)\s*\{", RegexOptions.IgnoreCase);
-            
+
             if (serviceMatches.Count == 0)
             {
                 Console.WriteLine($"No services found in proto file: {protoFilePath}");

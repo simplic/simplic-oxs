@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.FileProviders;
 using Simplic.OxS.Server.Controller;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.ServiceDefinition;
@@ -32,12 +33,30 @@ public class ServiceDefinitionController : OxSController
     /// </summary>
     /// <returns>Collection of organization settings</returns>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(ServiceObject), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> GetServiceDefinition()
     {
         return Ok(serviceDefinitionService.ServiceObject);
+    }
+
+    /// <summary>
+    /// Get all organization settings
+    /// </summary>
+    /// <returns>Collection of organization settings</returns>
+    [HttpGet("graphql/sdl")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ServiceObject), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+    public async Task<IActionResult> GetGraphQLSDL()
+    {
+        if (string.IsNullOrWhiteSpace(serviceDefinitionService.ServiceObject.GraphQLSchema))
+            return NotFound();
+
+        return Content(serviceDefinitionService.ServiceObject.GraphQLSchema, "text/plain");
     }
 
     /// <summary>

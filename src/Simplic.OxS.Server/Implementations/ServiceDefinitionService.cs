@@ -107,7 +107,7 @@ public class ServiceDefinitionService(IServiceProvider serviceProvider, ILogger<
         }
         catch(Exception ex)
         {
-            logger.LogWarning(ex, "Could not get GraphQL schema".);
+            logger.LogWarning(ex, "Could not get GraphQL schema");
         }
     }
 

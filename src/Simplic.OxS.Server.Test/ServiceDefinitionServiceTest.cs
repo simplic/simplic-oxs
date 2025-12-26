@@ -1,4 +1,6 @@
+using Castle.Core.Logging;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Simplic.OxS.Server.Service;
 using Xunit;
 
@@ -9,8 +11,11 @@ namespace Simplic.OxS.Server.Test
         [Fact]
         public void ServiceDefinitionService_Constructor_ShouldInitializeProperties()
         {
+            var logger = new Mock<ILogger<ServiceDefinitionService>>().Object;
+            var serviceProvider = new Mock<IServiceProvider>().Object;
+
             // Arrange & Act
-            var service = new ServiceDefinitionService
+            var service = new ServiceDefinitionService(serviceProvider, logger)
             {
                 ServiceName = "TestService",
                 Version = "v1"
@@ -25,7 +30,11 @@ namespace Simplic.OxS.Server.Test
         public void ServiceDefinitionService_Properties_ShouldBeSettable()
         {
             // Arrange
-            var service = new ServiceDefinitionService();
+            var logger = new Mock<ILogger<ServiceDefinitionService>>().Object;
+            var serviceProvider = new Mock<IServiceProvider>().Object;
+
+            // Arrange & Act
+            var service = new ServiceDefinitionService(serviceProvider, logger);
 
             // Act
             service.ServiceName = "MyService";

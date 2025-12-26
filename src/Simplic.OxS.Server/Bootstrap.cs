@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using DnsClient.Internal;
 using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
@@ -118,7 +120,7 @@ namespace Simplic.OxS.Server
             services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
             services.AddSingleton<ServiceDefinitionService>((x) =>
             {
-                var f = new ServiceDefinitionService
+                var f = new ServiceDefinitionService(x, x.GetRequiredService<ILogger<ServiceDefinitionService>>())
                 {
                     ServiceName = ServiceName,
                     Version = ApiVersion

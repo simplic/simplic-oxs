@@ -28,11 +28,12 @@ public class ServiceContractController : OxSController
     /// Create controller instance
     /// </summary>
     /// <param name="serviceDefinitionService">Service definition service</param>
-    public ServiceContractController(ServiceDefinitionService serviceDefinitionService, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext)
+    public ServiceContractController(ServiceDefinitionService serviceDefinitionService, IEndpointContractRepository endpointContractRepository, IRequestContext requestContext, IDistributedCache distributedCache)
     {
         this.serviceDefinitionService = serviceDefinitionService;
         this.requestContext = requestContext;
         this.endpointContractRepository = endpointContractRepository;
+        this.distributedCache = distributedCache;
     }
 
     /// <summary>

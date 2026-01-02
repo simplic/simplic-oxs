@@ -18,7 +18,7 @@ public class GrpcEndpointContractAttribute : EndpointContractAttribute
     /// <param name="grpcMethod">gRPC method name</param>
     /// <param name="providerName">Provider name (if multiple provider are supported for the given contract)</param>
     public GrpcEndpointContractAttribute([NotNull] string contractName, [NotNull] string serviceName, [NotNull] string grpcPackage, [NotNull] string grpcService, [NotNull] string grpcMethod, [NotNull] string providerName)
-        : base(contractName, $"[gprc]http://{serviceName}:8082::{grpcPackage}.{grpcService}::{grpcMethod}", providerName)
+        : base(contractName, $"[grpc]http://{serviceName}:8082::{grpcPackage}.{grpcService}::{grpcMethod}", providerName)
     {
 
     }

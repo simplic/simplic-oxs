@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
 using Simplic.OxS.Server.Controller;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.ServiceDefinition;
@@ -21,6 +22,8 @@ public class ServiceContractController : OxSController
     private readonly ServiceDefinitionService serviceDefinitionService;
     private readonly IEndpointContractRepository endpointContractRepository;
     private readonly IRequestContext requestContext;
+    private readonly IDistributedCache distributedCache;
+
     /// <summary>
     /// Create controller instance
     /// </summary>
@@ -118,6 +121,8 @@ public class ServiceContractController : OxSController
 
             await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract);
             await endpointContractRepository.CommitAsync();
+
+            await distributedCache.RemoveAsync($"{requestContext.OrganizationId.Value}_{contract.Name}");
         }
 
         return Ok();

@@ -28,12 +28,12 @@ public class ServiceDefinitionService(IServiceProvider serviceProvider, ILogger<
 
         serviceDefinition = new ServiceObject
         {
-            Name = ServiceName,
-            Version = Version,
+            Name = ServiceName.ToLower(),
+            Version = Version.ToLower(),
             Type = "internal",
-            BaseUrl = $"/{ServiceName}-api/{Version}/",
-            SwaggerJsonUrl = $"/{ServiceName}-api/{Version}/swagger.json",
-            ModelDefinitionUrl = $"/{ServiceName}-api/{Version}/modeldefinition"
+            BaseUrl = $"/{ServiceName}-api/{Version}/".ToLower(),
+            SwaggerJsonUrl = $"/{ServiceName}-api/{Version}/swagger/{Version}/swagger.json".ToLower(),
+            ModelDefinitionUrl = $"/{ServiceName}-api/{Version}/modeldefinition".ToLower()
         };
 
         var allContracts = AppDomain.CurrentDomain.GetAssemblies()

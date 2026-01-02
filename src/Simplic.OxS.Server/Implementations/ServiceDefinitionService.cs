@@ -230,6 +230,6 @@ public class ServiceDefinitionService(IServiceProvider serviceProvider, ILogger<
             .SelectMany(type => type.GetMethods(
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
             .SelectMany(method => method.GetCustomAttributes<RequiredEndpointContractAttribute>(),
-                (method, attribute) => new _ContractResult(new EndpointContractAttribute(attribute.ContractName, "", attribute.ProviderName), attribute.AllowMultiple));
+                (method, attribute) => new _ContractResult(new EndpointContractAttribute(attribute.ContractName, "", ""), attribute.AllowMultiple));
     }
 }

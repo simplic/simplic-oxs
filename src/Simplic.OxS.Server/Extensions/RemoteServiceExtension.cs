@@ -53,7 +53,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
                                   , IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
-    public async Task<T?> Call<T, P>([NotNull] string contractOrUri, P parameter, Func<P, Task<T>>? defaultImpl = null)
+    public async Task<T?> Call<T, P>([NotNull] string contractOrUri, string? provider, P parameter, Func<P, Task<T>>? defaultImpl = null)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new()
 
@@ -69,7 +69,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
         if (contractOrUri.StartsWith("["))
             uri = contractOrUri;
         else
-            uri = await GetEndpointAsync(contractOrUri);
+            uri = await GetEndpointAsync(contractOrUri, provider);
 
         if (!string.IsNullOrWhiteSpace(uri))
         {
@@ -151,10 +151,11 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
     /// returned. If not cached, the endpoint is retrieved from the repository and cached for 10 minutes. This method is
     /// thread-safe and intended for use in asynchronous workflows.</remarks>
     /// <param name="contract">The name of the contract for which to retrieve the endpoint. Cannot be null or empty.</param>
+    /// <param name="provider">An optional provider identifier to further specify the endpoint. Can be null.</param>
     /// <returns>A string containing the endpoint URL if found; otherwise, null.</returns>
-    private async Task<string?> GetEndpointAsync(string contract)
+    private async Task<string?> GetEndpointAsync(string contract, string? provider)
     {
-        var key = $"{requestContext.OrganizationId.Value}_{contract}";
+        var key = $"{requestContext.OrganizationId.Value}_{contract}_{provider ?? ""}";
 
         var value = await distributedCache.GetStringAsync(key);
 
@@ -166,13 +167,18 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
             return value;
         }
 
-        var endpointContract = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
+        var endpointContracts = (await endpointContractRepository.GetByFilterAsync(new EndpointContractFilter
         {
             QueryAllOrganizations = false,
             OrganizationId = requestContext.OrganizationId.Value,
             Name = contract,
             IsDeleted = false
-        })).FirstOrDefault();
+        })).ToList();
+        var endpointContract = endpointContracts.FirstOrDefault(x => (x.ProviderName ?? "") == "");
+
+        // Select by provider, if one is required
+        if (!string.IsNullOrWhiteSpace(provider))
+            endpointContract = endpointContracts.FirstOrDefault(ec => ec.ProviderName == provider);
 
         if (endpointContract == null)
             return null;

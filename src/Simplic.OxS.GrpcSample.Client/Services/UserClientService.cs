@@ -32,6 +32,7 @@ public class UserClientService
             // Call the remote service using the contract name or direct URI
             var response = await _remoteServiceInvoker.Call<GetUserResponse, GetUserRequest>(
                 "[grpc]http://localhost:8082::user.UserService::GetUser",
+                null,
                 request,
                 defaultImpl: async (req) =>
                 {
@@ -74,6 +75,7 @@ public class UserClientService
 
             var response = await _remoteServiceInvoker.Call<CreateUserResponse, CreateUserRequest>(
                 "[grpc]https://localhost:8082::user.UserService::CreateUser",
+                null,
                 request,
                 defaultImpl: async (req) =>
                 {
@@ -114,7 +116,8 @@ public class UserClientService
 
             var response = await _remoteServiceInvoker.Call<ListUsersResponse, ListUsersRequest>(
                 "[grpc]https://localhost:8082::user.UserService::ListUsers",
-                request,
+                null,
+                request,                
                 defaultImpl: async (req) =>
                 {
                     _logger.LogWarning("Using default implementation for ListUsers - remote service unavailable");

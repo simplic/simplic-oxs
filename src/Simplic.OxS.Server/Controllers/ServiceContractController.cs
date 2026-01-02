@@ -123,7 +123,7 @@ public class ServiceContractController : OxSController
             await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract);
             await endpointContractRepository.CommitAsync();
 
-            await distributedCache.RemoveAsync($"{requestContext.OrganizationId.Value}_{contract.Name}");
+            await distributedCache.RemoveAsync($"{requestContext.OrganizationId.Value}_{contract.Name}_{contract.ProviderName ?? ""}");
         }
 
         return Ok();

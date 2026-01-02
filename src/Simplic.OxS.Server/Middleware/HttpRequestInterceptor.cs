@@ -18,7 +18,7 @@ namespace Simplic.OxS.Server.Middleware
 			CancellationToken cancellationToken)
 		{
 			if (context.RequestServices.GetService(typeof(IRequestContext)) is IRequestContext requestContext)
-			{
+			{ 
 				requestContext.UserId = GetUserId(context);
 				requestContext.OrganizationId = GetOrganizationId(context);
 

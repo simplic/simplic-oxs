@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>3.0.825.201</Version>
+    <Version>3.0.825.102</Version>
   </PropertyGroup>
 
   <ItemGroup>

@@ -14,7 +14,7 @@ namespace Simplic.OxS.Server.Controllers;
 /// </summary>
 [Authorize]
 [ApiController]
-[Route("[Controller]")]
+[Route("[Controller]")] 
 public class OrganizationSettingsController : OxSController
 {
     private readonly IOrganizationSettingsProvider settingsProvider;

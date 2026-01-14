@@ -22,9 +22,12 @@ internal static class MonitoringExtension
     /// Add logging and metric/tracing to the service
     /// </summary>
     /// <param name="services">Service collection</param>
+    /// <param name="configuration"></param>
     /// <param name="serviceName">Actual service name</param>
+    /// <param name="serviceVersion"></param>
+    /// <param name="environmentName"></param>
     /// <returns>Service collection</returns>
-    internal static IServiceCollection AddLoggingAndMetricTracing(this IServiceCollection services, IConfiguration configuration, string serviceName)
+    internal static IServiceCollection AddLoggingAndMetricTracing(this IServiceCollection services, IConfiguration configuration, string serviceName, string serviceVersion, string environmentName)
     {
         // Bind and read settings
         services.Configure<MonitoringSettings>(options => configuration.GetSection("Monitoring").Bind(options));
@@ -37,7 +40,7 @@ internal static class MonitoringExtension
         }
 
         var resourceBuilder = ResourceBuilder.CreateDefault()
-            .AddService($"oxs-{serviceName}")
+            .AddService(serviceName: $"oxs-{serviceName}", serviceVersion: serviceVersion)
             .AddTelemetrySdk();
 
         // Register TelemetryService for custom metrics and tracing
@@ -45,9 +48,15 @@ internal static class MonitoringExtension
 
         // Configure tracing
         services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-            .AddService($"oxs-{serviceName}")
-            .AddTelemetrySdk())
+            .ConfigureResource(resource => {
+                resource
+                    .AddService(serviceName: $"oxs-{serviceName}", serviceVersion: serviceVersion)
+                    .AddTelemetrySdk();
+                
+                resource.AddAttributes([
+                    new KeyValuePair<string, object>("environment", environmentName)
+                ]);
+            })
             .WithTracing(tracerProviderBuilder =>
             {
                 tracerProviderBuilder

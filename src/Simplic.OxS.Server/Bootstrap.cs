@@ -12,6 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
@@ -56,9 +58,9 @@ namespace Simplic.OxS.Server
                 ServiceName = ServiceName,
                 ApiVersion = ApiVersion
             });
-
+            
             // Add logging and tracing systems
-            services.AddLoggingAndMetricTracing(Configuration, ServiceName);
+            services.AddLoggingAndMetricTracing(Configuration, ServiceName, ApiVersion, CurrentEnvironment.EnvironmentName);
 
             // Add Redis caching
             services.AddRedisCaching(Configuration, out string connection);
@@ -150,7 +152,7 @@ namespace Simplic.OxS.Server
                 services.AddSignalR(hubOptions =>
                 {
                     hubOptions.AddFilter<RequestContextHubFilter>();
-                }).AddStackExchangeRedis(connection);
+                }).AddStackExchangeRedis(connection);            
         }
 
         /// <summary>

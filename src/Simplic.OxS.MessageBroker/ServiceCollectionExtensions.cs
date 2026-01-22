@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Simplic.OxS.MessageBroker.Filter;
 using System.Reflection;
+using System.Text.Json;
 
 namespace Simplic.OxS.MessageBroker
 {
@@ -58,6 +59,12 @@ namespace Simplic.OxS.MessageBroker
                     cfg.UseSendFilter(typeof(SendUserHeaderFilter<>), context);
                     cfg.UsePublishFilter(typeof(PublishUserHeaderFilter<>), context);
                     cfg.UseConsumeFilter(typeof(ConsumeContextFilter<>), context);
+
+                    cfg.ConfigureJsonSerializerOptions(options => new JsonSerializerOptions(options)
+                    {
+                        ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
+                        MaxDepth = 32
+                    });
 
                     cfg.ConfigureEndpoints(context);
                 });

@@ -30,7 +30,7 @@ namespace Simplic.OxS.Server
     /// <summary>
     /// Base class for implementing a Simplic.OxS microservice 
     /// </summary>
-    public abstract class Bootstrap
+    public abstract class Bootstrap 
     {
         /// <summary>
         /// Initialize web api and configure services. Will be called from the host-builder.

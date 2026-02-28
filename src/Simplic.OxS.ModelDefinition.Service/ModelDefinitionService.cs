@@ -386,9 +386,14 @@ namespace Simplic.OxS.ModelDefinition.Service
             {
                 Model = GetReferenceName(type),
                 Title = type.Name,
-                Properties = BuildProperties(type, modelDefinition),
                 ReferencePropertyName = GetReferencePropertyName(type),
             };
+
+            // Add reference to the list BEFORE building properties to prevent stack overflow on circular references
+            modelDefinition.References.Add(referenceDefinition);
+
+            // Build properties after adding to list so circular references are detected
+            referenceDefinition.Properties = BuildProperties(type, modelDefinition);
 
             var attribute = Attribute.GetCustomAttribute(type, typeof(SourceAttribute));
             if (attribute != null && attribute is SourceAttribute sourceAttribute)
@@ -410,8 +415,6 @@ namespace Simplic.OxS.ModelDefinition.Service
             {
                 referenceDefinition.SearchKey = searchKeyAttribute.SearchKey;
             }
-
-            modelDefinition.References.Add(referenceDefinition);
         }
 
         /// <summary>

@@ -1137,13 +1137,13 @@ namespace Simplic.OxS.Server.Test
             var addonValue = new Dictionary<string, object>
             {
                 ["decodedAt"] = "2026-04-22T12:17:07.901Z",
-                ["vin"] = "WKK63310313108712",
+                ["vin"] = "VIN123321123",
                 ["data"] = new[]
                 {
                     new Dictionary<string, object>
                     {
                         ["label"] = "VIN",
-                        ["value"] = "WKK63310313108712"
+                        ["value"] = "VIN123321123"
                     }
                 }
             };
@@ -1167,7 +1167,7 @@ namespace Simplic.OxS.Server.Test
             var vincarioJson = JsonConvert.SerializeObject(vincario);
             var vincarioDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(vincarioJson);
 
-            vincarioDict["vin"].ToString().Should().Be("WKK63310313108712");
+            vincarioDict["vin"].ToString().Should().Be("VIN123321123");
             vincarioDict["data"].Should().NotBeNull();
         }
     }

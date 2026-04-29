@@ -112,7 +112,18 @@ namespace Simplic.OxS.Server
                 switch (element.ValueKind)
                 {
                     case JsonValueKind.Object:
-                        //TODO: Also add dictioanary handling.
+                        // Check whether the current path resolves to a dictionary property.
+                        // If so, set the value directly instead of walking into children.
+                        if (parentPath != "" && IsDictionaryPath(patch, parentPath))
+                        {
+                            var dictFullPath = parentPath;
+                            if (startingPath != string.Empty)
+                                dictFullPath = startingPath + "." + parentPath;
+
+                            await SetSourceValueAtPath(patch, originalDocument, parentPath, validationRequest, dictFullPath);
+                            break;
+                        }
+
                         parentPath = parentPath == ""
                             ? parentPath
                             : parentPath + ".";
@@ -520,6 +531,40 @@ namespace Simplic.OxS.Server
 
                 throw new SetValueException(builder.ToString(), ex);
             }
+        }
+
+        /// <summary>
+        /// Checks whether navigating the given path on the object leads into a dictionary type,
+        /// meaning the next path segment would be a dictionary key rather than a property name.
+        /// </summary>
+        private static bool IsDictionaryPath(object obj, string path)
+        {
+            var splitPath = path.Split(".");
+            Type currentType = obj.GetType();
+
+            for (int i = 0; i < splitPath.Length; i++)
+            {
+                if (IsDictionaryType(currentType))
+                    return true;
+
+                var property = currentType.GetProperty(splitPath[i], BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                if (property == null)
+                    return false;
+
+                currentType = property.PropertyType;
+            }
+
+            return IsDictionaryType(currentType);
+        }
+
+        private static bool IsDictionaryType(Type type)
+        {
+            if (typeof(IDictionary).IsAssignableFrom(type))
+                return true;
+
+            return type.IsGenericType
+                && (type.GetGenericTypeDefinition() == typeof(IDictionary<,>)
+                    || type.GetGenericTypeDefinition() == typeof(Dictionary<,>));
         }
 
         private static IList GetCollection(object obj, string path)

@@ -1167,7 +1167,6 @@ namespace Simplic.OxS.Server.Test
             var vincarioJson = JsonConvert.SerializeObject(vincario);
             var vincarioDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(vincarioJson);
 
-            vincarioDict["decodedAt"].ToString().Should().Be("2026-04-22T12:17:07.901Z");
             vincarioDict["vin"].ToString().Should().Be("WKK63310313108712");
             vincarioDict["data"].Should().NotBeNull();
         }

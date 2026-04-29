@@ -1170,5 +1170,60 @@ namespace Simplic.OxS.Server.Test
             vincarioDict["vin"].ToString().Should().Be("VIN123321123");
             vincarioDict["data"].Should().NotBeNull();
         }
+
+        [Fact]
+        public async Task Patch_Dictionary_UpdatesNestedAddonObject()
+        {
+            var original = new TestPerson();
+            original.AddonProperties["vincario"] = new Dictionary<string, object>
+            {
+                ["decodedAt"] = "2025-01-01T00:00:00.000Z",
+                ["vin"] = "OLD_VIN_VALUE",
+                ["data"] = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["label"] = "VIN",
+                        ["value"] = "OLD_VIN_VALUE"
+                    }
+                }
+            };
+
+            var updatedAddon = new Dictionary<string, object>
+            {
+                ["decodedAt"] = "2026-04-22T12:17:07.901Z",
+                ["vin"] = "VIN123321123",
+                ["data"] = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["label"] = "VIN",
+                        ["value"] = "VIN123321123"
+                    }
+                }
+            };
+
+            var patch = new TestPerson();
+            patch.AddonProperties["vincario"] = updatedAddon;
+
+            var json = JsonConvert.SerializeObject(patch, new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore
+            });
+
+            var patchHelper = new PatchHelper();
+            var patched = await patchHelper.Patch<TestPerson>(original, patch, json, x => true);
+
+            patched.AddonProperties.Should().ContainKey("vincario");
+
+            var vincario = patched.AddonProperties["vincario"];
+            vincario.Should().NotBeNull();
+
+            var vincarioJson = JsonConvert.SerializeObject(vincario);
+            var vincarioDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(vincarioJson);
+
+            vincarioDict["vin"].ToString().Should().Be("VIN123321123");
+            vincarioDict["data"].Should().NotBeNull();
+        }
     }
 }

@@ -1128,5 +1128,48 @@ namespace Simplic.OxS.Server.Test
 
             patchedTestPerson.TestTuple.Should().HaveCount(2);
         }
+
+        [Fact]
+        public async Task Patch_Dictionary_PatchesNestedAddonObject()
+        {
+            var original = new TestPerson();
+
+            var addonValue = new Dictionary<string, object>
+            {
+                ["decodedAt"] = "2026-04-22T12:17:07.901Z",
+                ["vin"] = "WKK63310313108712",
+                ["data"] = new[]
+                {
+                    new Dictionary<string, object>
+                    {
+                        ["label"] = "VIN",
+                        ["value"] = "WKK63310313108712"
+                    }
+                }
+            };
+
+            var patch = new TestPerson();
+            patch.AddonProperties["vincario"] = addonValue;
+
+            var json = JsonConvert.SerializeObject(patch, new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore
+            });
+
+            var patchHelper = new PatchHelper();
+            var patched = await patchHelper.Patch<TestPerson>(original, patch, json, x => true);
+
+            patched.AddonProperties.Should().ContainKey("vincario");
+
+            var vincario = patched.AddonProperties["vincario"];
+            vincario.Should().NotBeNull();
+
+            var vincarioJson = JsonConvert.SerializeObject(vincario);
+            var vincarioDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(vincarioJson);
+
+            vincarioDict["decodedAt"].ToString().Should().Be("2026-04-22T12:17:07.901Z");
+            vincarioDict["vin"].ToString().Should().Be("WKK63310313108712");
+            vincarioDict["data"].Should().NotBeNull();
+        }
     }
 }

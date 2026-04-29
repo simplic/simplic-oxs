@@ -106,8 +106,7 @@ namespace Simplic.OxS.Server
             // Create mapper profiles and register mapper
             services.AddSingleton(provider =>
             {
-                var loggerFactory = provider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
-                var mapperConfig = new MapperConfiguration(RegisterMapperProfiles, loggerFactory);
+                var mapperConfig = new MapperConfiguration(RegisterMapperProfiles);
 
                 return mapperConfig.CreateMapper();
             });

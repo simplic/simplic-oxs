@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 
 pat
+# Synced from simplic-oxs-agent-skill - do not commit.
+.agent-guidelines/

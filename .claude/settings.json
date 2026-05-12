@@ -1,0 +1,14 @@
+﻿{
+    "hooks":  {
+                  "SessionStart":  [
+                                       {
+                                           "hooks":  [
+                                                         {
+                                                             "type":  "command",
+                                                             "command":  "pwsh -NoProfile -File scripts/sync-guidelines.ps1"
+                                                         }
+                                                     ]
+                                       }
+                                   ]
+              }
+}

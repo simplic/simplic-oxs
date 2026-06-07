@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <Nullable>enable</Nullable>
-    <Version>1.0.126.607</Version>
+    <Version>1.0.226.607</Version>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 

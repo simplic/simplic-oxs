@@ -1,7 +1,7 @@
 ﻿namespace Simplic.OxS.SchemaRegistry
 {
     /// <summary>
-    /// Event which is published when data is deleted in the schema registry.
+    /// Event which is published when data is updated in the schema registry.
     /// </summary>
     public interface DataUpdatedEvent
     {

@@ -13,6 +13,11 @@ namespace Simplic.OxS.SchemaRegistry
         public Guid DataId { get; set; }
 
         /// <summary>
+        /// Gets or sets the name of the data which is updated in the schema registry.
+        /// </summary>
+        public string Type { get; set; }
+
+        /// <summary>
         /// Gets or sets the json data which is updated in the schema registry.
         /// </summary>
         public string JsonData { get; set; }

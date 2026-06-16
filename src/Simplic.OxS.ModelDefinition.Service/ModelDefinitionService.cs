@@ -7,34 +7,48 @@ namespace Simplic.OxS.ModelDefinition.Service
 {
     public static class ModelDefinitionService
     {
+        private static readonly ThreadLocal<HashSet<Type>> _processingTypes = new(() => new HashSet<Type>());
+        private static readonly ThreadLocal<Dictionary<(PropertyInfo, Type), object?>> _attributeCache = new(() => new Dictionary<(PropertyInfo, Type), object?>());
+
         public static ModelDefinition GenerateDefinitionForController(Type controller)
         {
-            var modelDefinition = new ModelDefinition();
+            _processingTypes.Value!.Clear();
+            _attributeCache.Value!.Clear();
 
-            var methods = controller.GetMethods();
+            try
+            {
+                var modelDefinition = new ModelDefinition();
 
-            var getMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionGetOperationAttribute));
-            var postMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPostOperationAttribute));
-            var patchMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPatchOperationAttribute));
-            var putMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPutOperationAttribute));
-            var deleteMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionDeleteOperationAttribute));
+                var methods = controller.GetMethods();
 
-            if (getMethod is not null)
-                BuildGet(modelDefinition, getMethod);
+                var getMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionGetOperationAttribute));
+                var postMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPostOperationAttribute));
+                var patchMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPatchOperationAttribute));
+                var putMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPutOperationAttribute));
+                var deleteMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionDeleteOperationAttribute));
 
-            if (postMethod is not null)
-                BuildPost(modelDefinition, postMethod);
+                if (getMethod is not null)
+                    BuildGet(modelDefinition, getMethod);
 
-            if (patchMethod is not null)
-                BuildPatch(modelDefinition, patchMethod);
+                if (postMethod is not null)
+                    BuildPost(modelDefinition, postMethod);
 
-            if (putMethod is not null)
-                BuildPut(modelDefinition, putMethod);
+                if (patchMethod is not null)
+                    BuildPatch(modelDefinition, patchMethod);
 
-            if (deleteMethod is not null)
-                BuildDelete(modelDefinition, deleteMethod);
+                if (putMethod is not null)
+                    BuildPut(modelDefinition, putMethod);
 
-            return modelDefinition;
+                if (deleteMethod is not null)
+                    BuildDelete(modelDefinition, deleteMethod);
+
+                return modelDefinition;
+            }
+            finally
+            {
+                _processingTypes.Value!.Clear();
+                _attributeCache.Value!.Clear();
+            }
         }
 
         #region Operations
@@ -187,149 +201,182 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static IList<PropertyDefinition> BuildProperties(Type model, ModelDefinition modelDefinition)
         {
-            var properties = new List<PropertyDefinition>();
-            foreach (var property in model.GetProperties())
+            if (!_processingTypes.Value!.Add(model))
+                return new List<PropertyDefinition>();
+
+            try
             {
-                var propertyDefinition = new PropertyDefinition
+                var properties = new List<PropertyDefinition>();
+                foreach (var property in model.GetProperties())
                 {
-                    Name = ToCamelCase(property.Name),
-                    Description = "", //https://learn.microsoft.com/en-us/archive/msdn-magazine/2019/october/csharp-accessing-xml-documentation-via-reflection
-                    Nullable = Nullable.GetUnderlyingType(property.PropertyType) != null,
-                };
-
-                propertyDefinition.Internal = Attribute.GetCustomAttribute(
-                        property,
-                        typeof(InternalPropertyAttribute))
-                    is not null;
-
-                propertyDefinition.Required = Attribute.GetCustomAttribute(
-                        property,
-                        typeof(RequiredAttribute))
-                    is not null;
-
-                var referenceIdAttribute = Attribute.GetCustomAttribute(
-                    property,
-                    typeof(ReferenceIdAttribute)) as ReferenceIdAttribute;
-
-                if (referenceIdAttribute is not null)
-                    propertyDefinition.ReferenceId = referenceIdAttribute.ReferenceIdPropertyName;
-
-                var availableTypeAttributes = Attribute.GetCustomAttributes(
-                    property,
-                    typeof(AvailableTypeAttribute));
-
-                if (availableTypeAttributes is not null &&
-                    availableTypeAttributes.Length != 0)
-
-                {
-                    propertyDefinition.AvailableTypes = new List<string>();
-                    foreach (var availableTypeAttribute in availableTypeAttributes.OfType<AvailableTypeAttribute>())
+                    var propertyDefinition = new PropertyDefinition
                     {
-                        propertyDefinition.AvailableTypes.Add(GetReferenceName(availableTypeAttribute.Type));
-                        AddRefereceDefinition(modelDefinition, availableTypeAttribute.Type);
-                    }
-                }
-                if (property.PropertyType.IsSimpleType())
-                {
-                    (propertyDefinition.MinValue, propertyDefinition.MaxValue) = GetMinAndMaxValue(property);
+                        Name = ToCamelCase(property.Name),
+                        Description = "", //https://learn.microsoft.com/en-us/archive/msdn-magazine/2019/october/csharp-accessing-xml-documentation-via-reflection
+                        Nullable = Nullable.GetUnderlyingType(property.PropertyType) != null,
+                    };
 
-                    var underlyingType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
-                    propertyDefinition.Type = GetFriendlyTypeName(underlyingType);
+                    propertyDefinition.Internal = SafeGetCustomAttribute<InternalPropertyAttribute>(property) is not null;
 
-                    propertyDefinition.Format = GetFormat(property);
-                }
-                else if (property.PropertyType.IsCollectionType())
-                {
-                    Type? arrayType = null;
+                    propertyDefinition.Required = SafeGetCustomAttribute<RequiredAttribute>(property) is not null;
 
-                    if (property.PropertyType.IsArray)
-                        arrayType = property.PropertyType.GetElementType();
+                    var referenceIdAttribute = SafeGetCustomAttribute<ReferenceIdAttribute>(property);
 
-                    if (property.PropertyType.IsGenericType)
-                        arrayType = property.PropertyType.GetGenericArguments()[0];
+                    if (referenceIdAttribute is not null)
+                        propertyDefinition.ReferenceId = referenceIdAttribute.ReferenceIdPropertyName;
 
-                    if (arrayType is null && property.PropertyType.GetInterfaces().Any())
+                    var availableTypeAttributes = Attribute.GetCustomAttributes(
+                        property,
+                        typeof(AvailableTypeAttribute));
+
+                    if (availableTypeAttributes is not null &&
+                        availableTypeAttributes.Length != 0)
+
                     {
-                        foreach (var interfaceType in property.GetType().GetInterfaces())
+                        propertyDefinition.AvailableTypes = new List<string>();
+                        foreach (var availableTypeAttribute in availableTypeAttributes.OfType<AvailableTypeAttribute>())
                         {
-                            if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                            propertyDefinition.AvailableTypes.Add(GetReferenceName(availableTypeAttribute.Type));
+                            AddRefereceDefinition(modelDefinition, availableTypeAttribute.Type);
+                        }
+                    }
+                    if (property.PropertyType.IsSimpleType())
+                    {
+                        (propertyDefinition.MinValue, propertyDefinition.MaxValue) = GetMinAndMaxValue(property);
+
+                        var underlyingType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+                        propertyDefinition.Type = GetFriendlyTypeName(underlyingType);
+
+                        propertyDefinition.Format = GetFormat(property);
+                    }
+                    else if (property.PropertyType.IsCollectionType())
+                    {
+                        Type? arrayType = null;
+
+                        if (property.PropertyType.IsArray)
+                            arrayType = property.PropertyType.GetElementType();
+
+                        if (property.PropertyType.IsGenericType)
+                            arrayType = property.PropertyType.GetGenericArguments()[0];
+
+                        if (arrayType is null && property.PropertyType.GetInterfaces().Any())
+                        {
+                            foreach (var interfaceType in property.GetType().GetInterfaces())
                             {
-                                arrayType = interfaceType.GetGenericArguments()[0];
-                                break;
+                                if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                                {
+                                    arrayType = interfaceType.GetGenericArguments()[0];
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (arrayType is not null)
+                        {
+                            if (arrayType.IsSimpleType())
+                            {
+                                propertyDefinition.ArrayType = GetFriendlyTypeName(arrayType);
+                                propertyDefinition.PatchableArray = false;
+                            }
+                            else
+                            {
+                                propertyDefinition.ArrayType = GetReferenceName(arrayType);
+                                propertyDefinition.PatchableArray = FindInterfaceByName(arrayType, "IItemId");
+
+                                AddRefereceDefinition(modelDefinition, arrayType);
                             }
                         }
                     }
-
-                    if (arrayType is not null)
+                    else if (property.PropertyType.IsEnum)
                     {
-                        if (arrayType.IsSimpleType())
-                        {
-                            propertyDefinition.ArrayType = GetFriendlyTypeName(arrayType);
-                            propertyDefinition.PatchableArray = false;
-                        }
-                        else
-                        {
-                            propertyDefinition.ArrayType = GetReferenceName(arrayType);
-                            propertyDefinition.PatchableArray = FindInterfaceByName(arrayType, "IItemId");
-
-                            AddRefereceDefinition(modelDefinition, arrayType);
-                        }
+                        propertyDefinition.Type = property.PropertyType.Name;
+                        propertyDefinition.EnumType = GetFriendlyTypeName(Enum.GetUnderlyingType(property.PropertyType));
+                        propertyDefinition.EnumItems = GetEnumItems(property.GetType());
                     }
-                }
-                else if (property.PropertyType.IsEnum)
-                {
-                    propertyDefinition.Type = property.PropertyType.Name;
-                    propertyDefinition.EnumType = GetFriendlyTypeName(Enum.GetUnderlyingType(property.PropertyType));
-                    propertyDefinition.EnumItems = GetEnumItems(property.GetType());
-                }
-                else
-                {
-                    propertyDefinition.Type = GetReferenceName(property.PropertyType);
-                    AddRefereceDefinition(modelDefinition, property.PropertyType);
+                    else
+                    {
+                        propertyDefinition.Type = GetReferenceName(property.PropertyType);
+                        AddRefereceDefinition(modelDefinition, property.PropertyType);
+                    }
+
+                    properties.Add(propertyDefinition);
                 }
 
-                properties.Add(propertyDefinition);
+                return properties;
             }
+            finally
+            {
+                _processingTypes.Value!.Remove(model);
+            }
+        }
 
-            return properties;
+        /// <summary>
+        /// Safely retrieves a custom property attribute using a thread-local cache and handles circular type resolution failures.
+        /// </summary>
+        private static T? SafeGetCustomAttribute<T>(PropertyInfo property) where T : Attribute
+        {
+            var cache = _attributeCache.Value!;
+            var key = (property, typeof(T));
+
+            if (cache.TryGetValue(key, out var cachedValue))
+                return cachedValue as T;
+
+            try
+            {
+                var attribute = Attribute.GetCustomAttribute(property, typeof(T)) as T;
+                cache[key] = attribute;
+                return attribute;
+            }
+            catch (TypeLoadException)
+            {
+                cache[key] = null;
+                return null;
+            }
         }
 
         private static (string? min, string? max) GetMinAndMaxValue(PropertyInfo property)
         {
-            string? minValue = null;
-            string? maxValue = null;
+            if (property.DeclaringType is not null && _processingTypes.Value!.Contains(property.DeclaringType))
+                return (null, null);
 
-            if (property.PropertyType == typeof(string))
+            try
             {
-                var stringLenthAttribute = Attribute.GetCustomAttribute(property, typeof(StringLengthAttribute))
-                    as StringLengthAttribute;
+                string? minValue = null;
+                string? maxValue = null;
 
-                if (stringLenthAttribute != null)
-                    return (stringLenthAttribute.MinimumLength.ToString(), stringLenthAttribute.MaximumLength.ToString());
+                if (property.PropertyType == typeof(string))
+                {
+                    var stringLenthAttribute = SafeGetCustomAttribute<StringLengthAttribute>(property);
 
-                var minLengthAttribute = Attribute.GetCustomAttribute(property, typeof(MinLengthAttribute))
-                    as MinLengthAttribute;
-                var maxLengthAttribute = Attribute.GetCustomAttribute(property, typeof(MaxLengthAttribute))
-                    as MaxLengthAttribute;
+                    if (stringLenthAttribute != null)
+                        return (stringLenthAttribute.MinimumLength.ToString(), stringLenthAttribute.MaximumLength.ToString());
 
-                if (minLengthAttribute != null)
-                    minValue = minLengthAttribute.Length.ToString();
+                    var minLengthAttribute = SafeGetCustomAttribute<MinLengthAttribute>(property);
+                    var maxLengthAttribute = SafeGetCustomAttribute<MaxLengthAttribute>(property);
 
-                if (maxLengthAttribute != null)
-                    maxValue = maxLengthAttribute.Length.ToString();
+                    if (minLengthAttribute != null)
+                        minValue = minLengthAttribute.Length.ToString();
+
+                    if (maxLengthAttribute != null)
+                        maxValue = maxLengthAttribute.Length.ToString();
+
+                    return (minValue, maxValue);
+                }
+
+                var rangeAttribute = SafeGetCustomAttribute<RangeAttribute>(property);
+
+                if (rangeAttribute != null)
+                {
+                    minValue = rangeAttribute.Minimum?.ToString();
+                    maxValue = rangeAttribute.Maximum?.ToString();
+                }
 
                 return (minValue, maxValue);
             }
-
-            var attribute = Attribute.GetCustomAttribute(property, typeof(RangeAttribute));
-
-            if (attribute != null && attribute is RangeAttribute rangeAttribute)
+            catch (StackOverflowException)
             {
-                minValue = rangeAttribute.Minimum?.ToString();
-                maxValue = rangeAttribute.Maximum?.ToString();
+                return (null, null);
             }
-
-            return (minValue, maxValue);
         }
 
         private static IList<EnumItem>? GetEnumItems(Type type)
@@ -380,6 +427,9 @@ namespace Simplic.OxS.ModelDefinition.Service
             // There should be no need to add the base model to the references even when the base model is referenced 
             // anywhere.
             if (modelDefinition.Model!.Equals(GetReferenceName(type)))
+                return;
+
+            if (_processingTypes.Value!.Contains(type))
                 return;
 
             var referenceDefinition = new ReferenceDefinition

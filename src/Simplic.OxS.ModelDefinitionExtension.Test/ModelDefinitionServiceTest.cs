@@ -1,6 +1,8 @@
 ﻿using FluentAssertions;
+using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 using Simplic.OxS.ModelDefinition.Service;
 using Simplic.OxS.ModelDefinitionExtension.Test.TestEnv;
+using System.ComponentModel.DataAnnotations;
 
 namespace Simplic.OxS.ModelDefinitionExtension.Test
 {
@@ -136,10 +138,56 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             modelDefinition.DataSources.First().Type.Should().Be(ModelDefinition.DataSourceType.GraphQL);
         }
 
+        [Fact]
+        public void GenerateDefinitionForController_WithCircularAvailableTypeReferences_DoesNotRecurseInfinitely()
+        {
+            var modelDefinition = ModelDefinitionService.GenerateDefinitionForController(typeof(CircularController));
+
+            modelDefinition.Operations.Get.Should().NotBeNull();
+            modelDefinition.Operations.Get.ResponseReference.Should().Be("$CircularResponse");
+
+            modelDefinition.References.Count(x => x.Model == "$CircularTypeA").Should().Be(1);
+            modelDefinition.References.Count(x => x.Model == "$CircularTypeB").Should().Be(1);
+
+            var typeAProperty = modelDefinition.References.First(x => x.Model == "$CircularTypeA").Properties.First();
+            typeAProperty.AvailableTypes.Should().Contain("$CircularTypeB");
+            typeAProperty.MaxValue.Should().Be("10");
+
+            var typeBProperty = modelDefinition.References.First(x => x.Model == "$CircularTypeB").Properties.First();
+            typeBProperty.AvailableTypes.Should().Contain("$CircularTypeA");
+            typeBProperty.MaxValue.Should().Be("15");
+        }
+
 
         private class EmptyController
         {
 
+        }
+
+        private class CircularController
+        {
+            [ModelDefinitionGetOperation("/circular/get", typeof(CircularResponse))]
+            public void Get() { }
+        }
+
+        private class CircularResponse
+        {
+            [AvailableType(typeof(CircularTypeA))]
+            public string Selector { get; set; } = string.Empty;
+        }
+
+        private class CircularTypeA
+        {
+            [AvailableType(typeof(CircularTypeB))]
+            [StringLength(10)]
+            public string Name { get; set; } = string.Empty;
+        }
+
+        private class CircularTypeB
+        {
+            [AvailableType(typeof(CircularTypeA))]
+            [StringLength(15)]
+            public string Name { get; set; } = string.Empty;
         }
 
         private static string ToCamelCase(string input)

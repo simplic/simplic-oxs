@@ -30,7 +30,7 @@ using Simplic.OxS.Settings.Abstractions;
 namespace Simplic.OxS.Server
 {
     /// <summary>
-    /// Base class for implementing a Simplic.OxS microservice  
+    /// Base class for implementing a Simplic.OxS microservice 
     /// </summary>
     public abstract class Bootstrap 
     {

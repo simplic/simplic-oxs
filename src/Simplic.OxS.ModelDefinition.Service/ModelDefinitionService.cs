@@ -1,4 +1,4 @@
-﻿using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
+using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations;
 using System;

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Primitives;
 namespace Simplic.OxS.Server.Middleware
 {
     /// <summary>
-    /// Middleware for managing correlation ids
+    /// Middleware for managing correlation ids 
     /// </summary>
     internal class CorrelationIdMiddleware
     {

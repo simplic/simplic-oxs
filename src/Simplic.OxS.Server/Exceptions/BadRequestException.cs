@@ -2,7 +2,7 @@
 {
     /// <summary>
     /// Exception to throw when the request is bad, or not as it should be.
-    /// <para>
+    /// <para> 
     /// Should be catched in the controllers to return a bad request instead of an internal server error.
     /// </para>
     /// </summary>

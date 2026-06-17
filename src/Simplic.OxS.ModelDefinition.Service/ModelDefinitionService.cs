@@ -264,7 +264,7 @@ namespace Simplic.OxS.ModelDefinition.Service
 
                     if (arrayType is null && property.PropertyType.GetInterfaces().Any())
                     {
-                        foreach (var interfaceType in property.GetType().GetInterfaces())
+                        foreach (var interfaceType in property.PropertyType.GetInterfaces())
                         {
                             if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                             {
@@ -294,7 +294,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 {
                     propertyDefinition.Type = property.PropertyType.Name;
                     propertyDefinition.EnumType = GetFriendlyTypeName(Enum.GetUnderlyingType(property.PropertyType));
-                    propertyDefinition.EnumItems = GetEnumItems(property.GetType());
+                    propertyDefinition.EnumItems = GetEnumItems(property.PropertyType);
                 }
                 else
                 {
@@ -352,7 +352,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 return null;
 
             var enumItems = new List<EnumItem>();
-            foreach (var item in type.GetFields())
+            foreach (var item in type.GetFields().Where(f => f.IsLiteral && !f.IsInitOnly))
             {
                 var enumItem = new EnumItem
                 {

@@ -111,6 +111,11 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.NestedObject)) && p.Type == "$NestedObject");
             requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.NestedObjects)) && p.ArrayType == "$NestedObject");
             requestProperties.Should().ContainSingle(p => p.Name == ToCamelCase(nameof(TestRequest.Status)) && p.EnumType == "int");
+            var statusProp = requestProperties.First(p => p.Name == ToCamelCase(nameof(TestRequest.Status)));
+            statusProp.EnumItems.Should().HaveCount(3);
+            statusProp.EnumItems.Should().ContainSingle(i => i.Name == nameof(TestEnum.ValueOne) && i.Value == 0);
+            statusProp.EnumItems.Should().ContainSingle(i => i.Name == nameof(TestEnum.ValueTwo) && i.Value == 1);
+            statusProp.EnumItems.Should().ContainSingle(i => i.Name == nameof(TestEnum.ValueThree) && i.Value == 2);
 
             // Verify properties in TestResponse
             var responseProperties = modelDefinition.Properties;
@@ -158,6 +163,64 @@ namespace Simplic.OxS.ModelDefinitionExtension.Test
             typeBProperty.MaxValue.Should().Be("15");
         }
 
+
+        [Fact]
+        public void GenerateDefinitionForController_WithIEnumerableCollectionProperty_DetectsArrayType()
+        {
+            // Arrange - CustomCollection implements IEnumerable<NestedItem> but is not an array or generic type itself
+            var modelDefinition = ModelDefinitionService.GenerateDefinitionForController(typeof(IEnumerableController));
+
+            // Assert: the IEnumerable<T> fallback path (line 267) resolves the element type correctly
+            var props = modelDefinition.Properties;
+            props.Should().ContainSingle(p => p.Name == "items" && p.ArrayType == "$IEnumerableItem");
+        }
+
+        [Fact]
+        public void GenerateDefinitionForController_WithSelfReferentialType_DoesNotRecurseInfinitely()
+        {
+            // Arrange - TreeNode has a List<TreeNode> property pointing to itself
+            var modelDefinition = ModelDefinitionService.GenerateDefinitionForController(typeof(TreeController));
+
+            // Assert: completes without stack overflow; self-reference not added to References
+            modelDefinition.Operations.Get.Should().NotBeNull();
+            modelDefinition.References.Should().NotContain(r => r.Model == "$TreeNode");
+            modelDefinition.Properties.Should().ContainSingle(p => p.Name == "children" && p.ArrayType == "$TreeNode");
+        }
+
+        private class IEnumerableController
+        {
+            [ModelDefinitionGetOperation("/ienumerable/get", typeof(IEnumerableResponse))]
+            public void Get() { }
+        }
+
+        private class IEnumerableResponse
+        {
+            public CustomCollection Items { get; set; } = new();
+        }
+
+        private class CustomCollection : System.Collections.IEnumerable, IEnumerable<IEnumerableItem>
+        {
+            private readonly List<IEnumerableItem> _items = new();
+            public IEnumerator<IEnumerableItem> GetEnumerator() => _items.GetEnumerator();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
+        private class IEnumerableItem
+        {
+            public string Name { get; set; } = string.Empty;
+        }
+
+        private class TreeController
+        {
+            [ModelDefinitionGetOperation("/tree/get", typeof(TreeNode))]
+            public void Get() { }
+        }
+
+        private class TreeNode
+        {
+            public string Label { get; set; } = string.Empty;
+            public List<TreeNode> Children { get; set; } = new();
+        }
 
         private class EmptyController
         {

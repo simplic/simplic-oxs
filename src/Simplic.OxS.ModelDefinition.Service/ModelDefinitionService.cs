@@ -1,54 +1,40 @@
-﻿using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
+using Simplic.OxS.ModelDefinition.Extenstion.Abstractions;
 using System.Reflection;
 using System.ComponentModel.DataAnnotations;
 using System;
-using System.Threading;
 
 namespace Simplic.OxS.ModelDefinition.Service
 {
     public static class ModelDefinitionService
     {
-        private static readonly ThreadLocal<HashSet<Type>> TypeResolutionStack = new(() => new HashSet<Type>());
-        private static readonly ThreadLocal<Dictionary<(MemberInfo member, Type attributeType, bool multiple), object?>> AttributeCache = new(() => new Dictionary<(MemberInfo member, Type attributeType, bool multiple), object?>());
-
         public static ModelDefinition GenerateDefinitionForController(Type controller)
         {
-            TypeResolutionStack.Value!.Clear();
-            AttributeCache.Value!.Clear();
-
             var modelDefinition = new ModelDefinition();
-            try
-            {
-                var methods = controller.GetMethods();
 
-                var getMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionGetOperationAttribute));
-                var postMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPostOperationAttribute));
-                var patchMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPatchOperationAttribute));
-                var putMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPutOperationAttribute));
-                var deleteMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionDeleteOperationAttribute));
+            var methods = controller.GetMethods();
 
-                if (getMethod is not null)
-                    BuildGet(modelDefinition, getMethod);
+            var getMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionGetOperationAttribute));
+            var postMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPostOperationAttribute));
+            var patchMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPatchOperationAttribute));
+            var putMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionPutOperationAttribute));
+            var deleteMethod = GetOperationFromAttribute(methods, typeof(ModelDefinitionDeleteOperationAttribute));
 
-                if (postMethod is not null)
-                    BuildPost(modelDefinition, postMethod);
+            if (getMethod is not null)
+                BuildGet(modelDefinition, getMethod);
 
-                if (patchMethod is not null)
-                    BuildPatch(modelDefinition, patchMethod);
+            if (postMethod is not null)
+                BuildPost(modelDefinition, postMethod);
 
-                if (putMethod is not null)
-                    BuildPut(modelDefinition, putMethod);
+            if (patchMethod is not null)
+                BuildPatch(modelDefinition, patchMethod);
 
-                if (deleteMethod is not null)
-                    BuildDelete(modelDefinition, deleteMethod);
+            if (putMethod is not null)
+                BuildPut(modelDefinition, putMethod);
 
-                return modelDefinition;
-            }
-            finally
-            {
-                TypeResolutionStack.Value!.Clear();
-                AttributeCache.Value!.Clear();
-            }
+            if (deleteMethod is not null)
+                BuildDelete(modelDefinition, deleteMethod);
+
+            return modelDefinition;
         }
 
         #region Operations
@@ -62,7 +48,7 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static void BuildGet(ModelDefinition modelDefinition, MethodInfo getMethod)
         {
-            var attribute = GetCustomAttribute(getMethod, typeof(ModelDefinitionGetOperationAttribute));
+            var attribute = Attribute.GetCustomAttribute(getMethod, typeof(ModelDefinitionGetOperationAttribute));
 
             if (attribute is not ModelDefinitionGetOperationAttribute getAttribute)
                 return;
@@ -80,7 +66,7 @@ namespace Simplic.OxS.ModelDefinition.Service
         private static void BuildPost(ModelDefinition modelDefinition, MethodInfo postMethod)
         {
 
-            var attribute = GetCustomAttribute(postMethod, typeof(ModelDefinitionPostOperationAttribute));
+            var attribute = Attribute.GetCustomAttribute(postMethod, typeof(ModelDefinitionPostOperationAttribute));
 
             if (attribute is not ModelDefinitionPostOperationAttribute postAttribute)
                 return;
@@ -99,7 +85,7 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static void BuildPatch(ModelDefinition modelDefinition, MethodInfo patchMethod)
         {
-            var attribute = GetCustomAttribute(patchMethod, typeof(ModelDefinitionPatchOperationAttribute));
+            var attribute = Attribute.GetCustomAttribute(patchMethod, typeof(ModelDefinitionPatchOperationAttribute));
 
             if (attribute is not ModelDefinitionPatchOperationAttribute patchAttribute)
                 return;
@@ -118,7 +104,7 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static void BuildPut(ModelDefinition modelDefinition, MethodInfo putMethod)
         {
-            var attribute = GetCustomAttribute(putMethod, typeof(ModelDefinitionPutOperationAttribute));
+            var attribute = Attribute.GetCustomAttribute(putMethod, typeof(ModelDefinitionPutOperationAttribute));
 
             if (attribute is not ModelDefinitionPutOperationAttribute putAttribute)
                 return;
@@ -137,7 +123,7 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static void BuildDelete(ModelDefinition modelDefinition, MethodInfo deleteMethod)
         {
-            var attribute = GetCustomAttribute(deleteMethod, typeof(ModelDefinitionDeleteOperationAttribute));
+            var attribute = Attribute.GetCustomAttribute(deleteMethod, typeof(ModelDefinitionDeleteOperationAttribute));
 
             if (attribute is not ModelDefinitionDeleteOperationAttribute deleteAttribute)
                 return;
@@ -156,7 +142,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 // Return since the type is alrady the model type.
                 return;
 
-            var attribute = GetCustomAttribute(response, typeof(DataSourceAttribute));
+            var attribute = Attribute.GetCustomAttribute(response, typeof(DataSourceAttribute));
             if (attribute != null && attribute is DataSourceAttribute dataSourceAttribute)
             {
                 var dataSource = new DataSource
@@ -211,24 +197,24 @@ namespace Simplic.OxS.ModelDefinition.Service
                     Nullable = Nullable.GetUnderlyingType(property.PropertyType) != null,
                 };
 
-                propertyDefinition.Internal = GetCustomAttribute(
+                propertyDefinition.Internal = Attribute.GetCustomAttribute(
                         property,
                         typeof(InternalPropertyAttribute))
                     is not null;
 
-                propertyDefinition.Required = GetCustomAttribute(
+                propertyDefinition.Required = Attribute.GetCustomAttribute(
                         property,
                         typeof(RequiredAttribute))
                     is not null;
 
-                var referenceIdAttribute = GetCustomAttribute(
+                var referenceIdAttribute = Attribute.GetCustomAttribute(
                     property,
                     typeof(ReferenceIdAttribute)) as ReferenceIdAttribute;
 
                 if (referenceIdAttribute is not null)
                     propertyDefinition.ReferenceId = referenceIdAttribute.ReferenceIdPropertyName;
 
-                var availableTypeAttributes = GetCustomAttributes(
+                var availableTypeAttributes = Attribute.GetCustomAttributes(
                     property,
                     typeof(AvailableTypeAttribute));
 
@@ -264,7 +250,7 @@ namespace Simplic.OxS.ModelDefinition.Service
 
                     if (arrayType is null && property.PropertyType.GetInterfaces().Any())
                     {
-                        foreach (var interfaceType in property.PropertyType.GetInterfaces())
+                        foreach (var interfaceType in property.GetType().GetInterfaces())
                         {
                             if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                             {
@@ -280,21 +266,21 @@ namespace Simplic.OxS.ModelDefinition.Service
                         {
                             propertyDefinition.ArrayType = GetFriendlyTypeName(arrayType);
                             propertyDefinition.PatchableArray = false;
-                    }
-                    else
-                    {
-                        propertyDefinition.ArrayType = GetReferenceName(arrayType);
-                        propertyDefinition.PatchableArray = FindInterfaceByName(arrayType, "IItemId");
+                        }
+                        else
+                        {
+                            propertyDefinition.ArrayType = GetReferenceName(arrayType);
+                            propertyDefinition.PatchableArray = FindInterfaceByName(arrayType, "IItemId");
 
-                        AddRefereceDefinition(modelDefinition, arrayType);
-                    }
+                            AddRefereceDefinition(modelDefinition, arrayType);
+                        }
                     }
                 }
                 else if (property.PropertyType.IsEnum)
                 {
                     propertyDefinition.Type = property.PropertyType.Name;
                     propertyDefinition.EnumType = GetFriendlyTypeName(Enum.GetUnderlyingType(property.PropertyType));
-                    propertyDefinition.EnumItems = GetEnumItems(property.PropertyType);
+                    propertyDefinition.EnumItems = GetEnumItems(property.GetType());
                 }
                 else
                 {
@@ -315,15 +301,15 @@ namespace Simplic.OxS.ModelDefinition.Service
 
             if (property.PropertyType == typeof(string))
             {
-                var stringLenthAttribute = GetCustomAttribute(property, typeof(StringLengthAttribute))
+                var stringLenthAttribute = Attribute.GetCustomAttribute(property, typeof(StringLengthAttribute))
                     as StringLengthAttribute;
 
                 if (stringLenthAttribute != null)
                     return (stringLenthAttribute.MinimumLength.ToString(), stringLenthAttribute.MaximumLength.ToString());
 
-                var minLengthAttribute = GetCustomAttribute(property, typeof(MinLengthAttribute))
+                var minLengthAttribute = Attribute.GetCustomAttribute(property, typeof(MinLengthAttribute))
                     as MinLengthAttribute;
-                var maxLengthAttribute = GetCustomAttribute(property, typeof(MaxLengthAttribute))
+                var maxLengthAttribute = Attribute.GetCustomAttribute(property, typeof(MaxLengthAttribute))
                     as MaxLengthAttribute;
 
                 if (minLengthAttribute != null)
@@ -335,7 +321,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 return (minValue, maxValue);
             }
 
-            var attribute = GetCustomAttribute(property, typeof(RangeAttribute));
+            var attribute = Attribute.GetCustomAttribute(property, typeof(RangeAttribute));
 
             if (attribute != null && attribute is RangeAttribute rangeAttribute)
             {
@@ -352,7 +338,7 @@ namespace Simplic.OxS.ModelDefinition.Service
                 return null;
 
             var enumItems = new List<EnumItem>();
-            foreach (var item in type.GetFields().Where(f => f.IsLiteral && !f.IsInitOnly))
+            foreach (var item in type.GetFields())
             {
                 var enumItem = new EnumItem
                 {
@@ -370,13 +356,13 @@ namespace Simplic.OxS.ModelDefinition.Service
 
         private static string? GetFormat(PropertyInfo property)
         {
-            if (GetCustomAttribute(property, typeof(EmailAddressAttribute)) != null)
+            if (Attribute.GetCustomAttribute(property, typeof(EmailAddressAttribute)) != null)
                 return "email";
 
-            if (GetCustomAttribute(property, typeof(FileExtensionsAttribute)) != null)
+            if (Attribute.GetCustomAttribute(property, typeof(FileExtensionsAttribute)) != null)
                 return "file-extension";
 
-            if (GetCustomAttribute(property, typeof(PhoneAttribute)) != null)
+            if (Attribute.GetCustomAttribute(property, typeof(PhoneAttribute)) != null)
                 return "phone-number";
 
             return null;
@@ -387,55 +373,47 @@ namespace Simplic.OxS.ModelDefinition.Service
         #region References
         private static void AddRefereceDefinition(ModelDefinition modelDefinition, Type type)
         {
-            // Check if this exact type is already being processed in the current recursion stack
-            if (!TypeResolutionStack.Value!.Add(type))
-                return;  // Already in current recursion path - CYCLE DETECTED
+            // Reference already present.
+            if (modelDefinition.References.Any(x => x.Model.Equals(GetReferenceName(type))))
+                return;
 
-            try
+            // There should be no need to add the base model to the references even when the base model is referenced 
+            // anywhere.
+            if (modelDefinition.Model!.Equals(GetReferenceName(type)))
+                return;
+
+            var referenceDefinition = new ReferenceDefinition
             {
-                // Reference already fully processed in this model - skip
-                if (modelDefinition.References.Any(x => x.Model.Equals(GetReferenceName(type))))
-                    return;
+                Model = GetReferenceName(type),
+                Title = type.Name,
+                ReferencePropertyName = GetReferencePropertyName(type),
+            };
 
-                // Don't add the base model itself as a reference
-                if (modelDefinition.Model!.Equals(GetReferenceName(type)))
-                    return;
+            // Register before building properties to prevent infinite recursion on self-referential types
+            // (e.g. Item.Child: Item or Item.Children: IList<Item>).
+            modelDefinition.References.Add(referenceDefinition);
 
-                var referenceDefinition = new ReferenceDefinition
+            referenceDefinition.Properties = BuildProperties(type, modelDefinition);
+
+            var attribute = Attribute.GetCustomAttribute(type, typeof(SourceAttribute));
+            if (attribute != null && attribute is SourceAttribute sourceAttribute)
+            {
+                referenceDefinition.SourceUrl = sourceAttribute.SourceUrl;
+                referenceDefinition.Operation = new OperationDefinition
                 {
-                    Model = GetReferenceName(type),
-                    Title = type.Name,
-                    Properties = BuildProperties(type, modelDefinition),
-                    ReferencePropertyName = GetReferencePropertyName(type),
+                    Endpoint = sourceAttribute.Endpoint,
+                    Type = "http-get"
                 };
-
-                var attribute = GetCustomAttribute(type, typeof(SourceAttribute));
-                if (attribute != null && attribute is SourceAttribute sourceAttribute)
-                {
-                    referenceDefinition.SourceUrl = sourceAttribute.SourceUrl;
-                    referenceDefinition.Operation = new OperationDefinition
-                    {
-                        Endpoint = sourceAttribute.Endpoint,
-                        Type = "http-get"
-                    };
-                }
-                else
-                {
-                    referenceDefinition.SourceUrl = modelDefinition.SourceUrl;
-                }
-
-                attribute = GetCustomAttribute(type, typeof(SearchKeyAttribute));
-                if (attribute != null && attribute is SearchKeyAttribute searchKeyAttribute)
-                {
-                    referenceDefinition.SearchKey = searchKeyAttribute.SearchKey;
-                }
-
-                modelDefinition.References.Add(referenceDefinition);
             }
-            finally
+            else
             {
-                // Always remove from current recursion stack when done
-                TypeResolutionStack.Value!.Remove(type);
+                referenceDefinition.SourceUrl = modelDefinition.SourceUrl;
+            }
+
+            attribute = Attribute.GetCustomAttribute(type, typeof(SearchKeyAttribute));
+            if (attribute != null && attribute is SearchKeyAttribute searchKeyAttribute)
+            {
+                referenceDefinition.SearchKey = searchKeyAttribute.SearchKey;
             }
         }
 
@@ -445,7 +423,7 @@ namespace Simplic.OxS.ModelDefinition.Service
         private static string? GetReferencePropertyName(Type type)
         {
             PropertyInfo? property = type.GetProperties()
-                .FirstOrDefault(p => GetCustomAttribute(p, typeof(ReferencePropertyAttribute)) != null);
+                .FirstOrDefault(p => p.GetCustomAttribute<ReferencePropertyAttribute>() != null);
 
             return property?.Name;
         }
@@ -462,28 +440,6 @@ namespace Simplic.OxS.ModelDefinition.Service
         }
 
         private static string GetReferenceName(Type type) => $"${type.Name}";
-
-        private static Attribute? GetCustomAttribute(MemberInfo member, Type attributeType)
-        {
-            var key = (member, attributeType, false);
-            if (AttributeCache.Value!.TryGetValue(key, out var cached))
-                return cached as Attribute;
-
-            var attribute = Attribute.GetCustomAttribute(member, attributeType);
-            AttributeCache.Value[key] = attribute;
-            return attribute;
-        }
-
-        private static object[] GetCustomAttributes(MemberInfo member, Type attributeType)
-        {
-            var key = (member, attributeType, true);
-            if (AttributeCache.Value!.TryGetValue(key, out var cached) && cached is object[] cachedAttributes)
-                return cachedAttributes;
-
-            var attributes = Attribute.GetCustomAttributes(member, attributeType);
-            AttributeCache.Value[key] = attributes;
-            return attributes;
-        }
 
         private static string ToCamelCase(string input)
         {

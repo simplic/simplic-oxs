@@ -5,7 +5,7 @@
 /// </summary>
 public class DataSource
 {
-    /// <summary>
+    /// <summary> 
     /// Gets or sets the type of the data source.
     /// </summary>
     public DataSourceType Type { get; set; }

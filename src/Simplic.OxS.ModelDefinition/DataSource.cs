@@ -1,7 +1,7 @@
 ﻿namespace Simplic.OxS.ModelDefinition;
 
 /// <summary>
-/// Represents a data source for a model. E.g. an rest response and its endpoint. 
+/// Represents a data source for a model. E.g. an rest response and its endpoint.
 /// </summary>
 public class DataSource
 {

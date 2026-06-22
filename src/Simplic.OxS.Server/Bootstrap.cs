@@ -172,7 +172,6 @@ namespace Simplic.OxS.Server
 
             app.UseSwagger(c =>
             {
-                c.OpenApiVersion = OpenApiSpecVersion.OpenApi3_0;
                 c.PreSerializeFilters.Add((swagger, httpReq) =>
                 {
                     if (env.IsDevelopment())

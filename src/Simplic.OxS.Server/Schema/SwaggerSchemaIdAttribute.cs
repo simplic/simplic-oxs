@@ -9,6 +9,24 @@ namespace Simplic.OxS.Server;
 public sealed class SwaggerSchemaIdAttribute : Attribute
 {
     /// <summary>
+    /// The default swagger schema id selector.
+    /// From https://github.com/domaindrivendev/Swashbuckle.AspNetCore/blob/04bb28d7739fdea826198a8916396ce4df2550d4/src/Swashbuckle.AspNetCore.SwaggerGen/SchemaGenerator/SchemaGeneratorOptions.cs#L43
+    /// </summary>
+    public static string DefaultSchemaIdSelector(Type modelType)
+    {
+        if (!modelType.IsConstructedGenericType)
+        {
+            return modelType.Name.Replace("[]", "Array");
+        }
+
+        var prefix = modelType.GetGenericArguments()
+            .Select(DefaultSchemaIdSelector)
+            .Aggregate((previous, current) => previous + current);
+
+        return prefix + modelType.Name.Split('`').First();
+    }
+
+    /// <summary>
     /// Get the schema id of a model type.
     /// </summary>
     /// <param name="type">The type of the model.</param>
@@ -19,12 +37,10 @@ public sealed class SwaggerSchemaIdAttribute : Attribute
         ArgumentNullException.ThrowIfNull(type);
 
         var attribute = type.GetCustomAttribute<SwaggerSchemaIdAttribute>();
+        if (attribute != null)
+            return attribute.Id;
 
-        var id = attribute?.Id ?? type.Name;
-        if (string.IsNullOrWhiteSpace(id))
-            throw new Exception("Invalid schema id");
-
-        return id;
+        return DefaultSchemaIdSelector(type);
     }
 
     /// <summary>

@@ -48,6 +48,8 @@ public sealed class SwaggerSchemaIdAttribute : Attribute
     /// </summary>
     public SwaggerSchemaIdAttribute(string id)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
         Id = id;
     }
 

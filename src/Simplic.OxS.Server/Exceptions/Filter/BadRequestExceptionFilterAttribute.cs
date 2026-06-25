@@ -1,14 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Simplic.OxS.Server.Exceptions;
 
 namespace Simplic.OxS.Server;
 
-public class BadRequestExceptionFilterAttribute : ExceptionFilterAttribute
+public class BadRequestExceptionFilterAttribute : CommonExceptionFilterAttribute<BadRequestException>
 {
-    /// <inheritdoc/>
-    public override void OnException(ExceptionContext context)
+    protected override void HandleException(ExceptionContext context, BadRequestException exception)
     {
-        if (context.Exception is BadRequestException exception)
-            context.Result = new BadRequestObjectResult(exception.Message);
+        context.Result = new BadRequestObjectResult(exception.Message);
     }
 }

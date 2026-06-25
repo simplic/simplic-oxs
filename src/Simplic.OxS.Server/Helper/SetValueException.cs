@@ -1,8 +1,11 @@
-﻿namespace Simplic.OxS.Server
+﻿using Simplic.OxS.Server.Exceptions;
+
+namespace Simplic.OxS.Server
 {
     /// <summary>
     /// Exception thrown when a value is failed to be set at the source object.
     /// </summary>
+    [UnpackException]
     public class SetValueException : Exception
     {
         /// <summary>

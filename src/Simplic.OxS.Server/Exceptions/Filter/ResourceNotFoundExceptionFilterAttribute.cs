@@ -1,14 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
+﻿using Microsoft.AspNetCore.Mvc.Filters;
+using Simplic.OxS.Server.Exceptions;
 
 namespace Simplic.OxS.Server;
 
-public class ResourceNotFoundExceptionFilterAttribute : ExceptionFilterAttribute
+public class ResourceNotFoundExceptionFilterAttribute : CommonExceptionFilterAttribute<ResourceNotFoundException>
 {
-    /// <inheritdoc/>
-    public override void OnException(ExceptionContext context)
+    protected override void HandleException(ExceptionContext context, ResourceNotFoundException exception)
     {
-        if (context.Exception is ResourceNotFoundException exception)
-            context.Result = new NotFoundObjectResult(exception.Message);
+        context.Result = Results.NotFound(exception.Type, exception.Id);
     }
 }

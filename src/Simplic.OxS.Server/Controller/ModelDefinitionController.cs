@@ -67,17 +67,47 @@ namespace Simplic.OxS.Server.Controller
 
                     if (modelDef != null)
                     {
-                        var addonFields = await addonFieldRepository.GetAllAsync();
+                        var addonFields = (await addonFieldRepository.GetAllAsync())
+                            .Where(f => f.ObjectName == modelDef.Model)
+                            .ToList();
 
-                        foreach (var addonField in addonFields)
+                        if (addonFields.Count > 0)
                         {
-                            modelDef.Properties.Add(new PropertyDefinition
+                            const string addonRefName = "$Addon";
+
+                            // Add a single "addon" property entry pointing to the $Addon reference,
+                            // mirroring how a complex-type property is represented (e.g. public Addon Addon).
+                            if (!modelDef.Properties.Any(p => p.Name == "addon"))
                             {
-                                Name = addonField.PropertyName,
-                                Type = addonField.PropertyType,
-                                Description = addonField.Description,
+                                modelDef.Properties.Add(new PropertyDefinition
+                                {
+                                    Name = "addon",
+                                    Type = addonRefName,
+                                    Nullable = true
+                                });
+                            }
+
+                            // Build or replace the $Addon reference definition, one property per addon field,
+                            // exactly as BuildProperties() would for a real class.
+                            var addonRef = modelDef.References.FirstOrDefault(r => r.Model == addonRefName);
+                            if (addonRef == null)
+                            {
+                                addonRef = new ReferenceDefinition
+                                {
+                                    Model = addonRefName,
+                                    Title = "Addon",
+                                    Properties = new List<PropertyDefinition>()
+                                };
+                                modelDef.References.Add(addonRef);
+                            }
+
+                            addonRef.Properties = addonFields.Select(f => new PropertyDefinition
+                            {
+                                Name = f.PropertyName,
+                                Type = f.PropertyType,
+                                Description = f.Description,
                                 Nullable = true
-                            });
+                            }).ToList();
                         }
 
                         var extended = JsonSerializer.SerializeToUtf8Bytes(modelDef,

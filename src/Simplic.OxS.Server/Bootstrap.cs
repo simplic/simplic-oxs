@@ -119,6 +119,7 @@ namespace Simplic.OxS.Server
             services.AddScoped<ValidationActionFilter>();
             services.AddScoped<IInternalClient, InternalClientBase>();
             services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
+            services.AddScoped<IAddonFieldRepository, AddonFieldRepository>();
             services.AddSingleton<ServiceDefinitionService>((x) =>
             {
                 var f = new ServiceDefinitionService(x, x.GetRequiredService<ILogger<ServiceDefinitionService>>())

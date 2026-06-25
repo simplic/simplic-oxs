@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace Simplic.OxS.Server;
+namespace Simplic.OxS;
 
 /// <summary>
 /// Exception thrown when a referenced resource does not exist.

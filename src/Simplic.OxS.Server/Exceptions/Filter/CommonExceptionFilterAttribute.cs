@@ -1,31 +1,55 @@
 ﻿using Microsoft.AspNetCore.Mvc.Filters;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace Simplic.OxS.Server.Exceptions;
 
+/// <summary>
+/// Common base filter for exceptions.
+/// </summary>
+/// <typeparam name="TException"></typeparam>
 public class CommonExceptionFilterAttribute<TException> : ExceptionFilterAttribute where TException : Exception
 {
-    public override Task OnExceptionAsync(ExceptionContext context)
+    /// <inheritdoc/>
+    public override void OnException(ExceptionContext context)
     {
-        for (var exception = context.Exception; exception != null; exception = exception.InnerException)
+        if (TryGetException(context, out var exception))
+            HandleException(context, exception);
+    }
+
+    protected bool TryGetException(ExceptionContext context, [NotNullWhen(true)] out TException? target)
+    {
+        for (var exception = context.Exception; exception != null; exception = UnpackException(exception))
         {
             if (exception is TException targetException)
-                return HandleExceptionAsync(context, targetException);
-
-            if (exception.GetType().GetCustomAttribute<UnpackExceptionAttribute>() == null)
-                break;
+            {
+                target = targetException;
+                return true;
+            }
         }
 
-        return Task.CompletedTask;
+        target = null;
+        return false;
     }
 
-    protected virtual Task HandleExceptionAsync(ExceptionContext context, TException exception)
+    /// <summary>
+    /// Unpacks an inner exception.
+    /// </summary>
+    /// <param name="exception">The exception to unpack.</param>
+    /// <returns>The unpacked exception or null if there is no packaged exception.</returns>
+    protected virtual Exception? UnpackException(Exception exception)
     {
-        HandleException(context, exception);
-
-        return Task.CompletedTask;
+        if (exception.GetType().GetCustomAttribute<UnpackExceptionAttribute>() == null)
+            return null;
+        else
+            return exception.InnerException;
     }
 
+    /// <summary>
+    /// Handler for the targeted exception.
+    /// </summary>
+    /// <param name="context">The exception context.</param>
+    /// <param name="exception">The targeted exception.</param>
     protected virtual void HandleException(ExceptionContext context, TException exception)
     { }
 }

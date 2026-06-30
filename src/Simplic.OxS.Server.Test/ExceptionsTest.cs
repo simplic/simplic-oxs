@@ -26,7 +26,7 @@ namespace Simplic.OxS.Server.Test
         }
 
         [Fact]
-        public async Task CommonExceptionFilterAttribute_UnpacksException()
+        public async Task CommonExceptionFilterAttribute_UnpackableChain_ValidTarget_Handled()
         {
             var filter = new TestExceptionFilterAttribute();
 
@@ -43,6 +43,40 @@ namespace Simplic.OxS.Server.Test
 
             var okResult = (OkObjectResult)context.Result;
             okResult.Value.Should().Be("test");
+        }
+
+        [Fact]
+        public async Task CommonExceptionFilterAttribute_UnpackableChain_InvalidTarget_DoesNotHandle()
+        {
+            var filter = new TestExceptionFilterAttribute();
+
+            var thrownException = new PackedException(new PackedException(new Exception("test")));
+
+            var context = new ExceptionContext(new ActionContext(new DefaultHttpContext(), new(), new()), [])
+            {
+                Exception = thrownException,
+            };
+
+            await filter.OnExceptionAsync(context);
+
+            context.Result.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task CommonExceptionFilterAttribute_NotUnpackableChain_DoesNotHandle()
+        {
+            var filter = new TestExceptionFilterAttribute();
+
+            var thrownException = new Exception("", new Exception("", new TestException()));
+
+            var context = new ExceptionContext(new ActionContext(new DefaultHttpContext(), new(), new()), [])
+            {
+                Exception = thrownException,
+            };
+
+            await filter.OnExceptionAsync(context);
+
+            context.Result.Should().BeNull();
         }
     }
 }

@@ -17,6 +17,9 @@ public class CommonExceptionFilterAttribute<TException> : ExceptionFilterAttribu
             HandleException(context, exception);
     }
 
+    /// <summary>
+    /// Try to get the targeted exception from the context.
+    /// </summary>
     protected bool TryGetException(ExceptionContext context, [NotNullWhen(true)] out TException? target)
     {
         for (var exception = context.Exception; exception != null; exception = UnpackException(exception))

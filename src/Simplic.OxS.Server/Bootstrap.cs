@@ -185,7 +185,7 @@ namespace Simplic.OxS.Server
             Console.WriteLine("Add OxQL Studio");
             services.AddOxQLStudio(options =>
             {
-                options.RoutePath = "/oxql";
+                options.RoutePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}/oxql";
                 options.ApiBasePath = "/OxQL";  // full browser-visible path (includes path base)
                 options.Title = "OxQL Studio";
             });

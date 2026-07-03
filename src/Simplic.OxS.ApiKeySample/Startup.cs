@@ -1,4 +1,5 @@
 ﻿using Simplic.OxS.Server;
+using System.Reflection;
 
 namespace Simplic.OxS.ApiKeySample
 {
@@ -35,6 +36,12 @@ namespace Simplic.OxS.ApiKeySample
         }
 
         private readonly string _policyName = "CorsPolicy";
+
+        /// <summary>
+        /// Get the assemblies containing OxQL types for the gRPC sample
+        /// </summary>
+        /// <returns></returns>
+        protected override IList<Assembly> GetOxQLTypeAssemblies() => [typeof(Startup).Assembly];
 
         protected override string ServiceName => "Sample";
     }

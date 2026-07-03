@@ -276,6 +276,9 @@ namespace Simplic.OxS.Server
 
                 // Map gRPC endpoints
                 MapGrpcEndpoints(endpoints);
+
+                // Map OxQL Studio UI
+                endpoints.MapOxQLStudio();
             });
         }
 

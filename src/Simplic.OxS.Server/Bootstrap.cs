@@ -171,7 +171,7 @@ namespace Simplic.OxS.Server
             Console.WriteLine("Add OxQL ASP.NET Core");
             services.AddOxQLAspNetCore<BsonDocument>(options =>
             {
-                options.RoutePrefix = $"{ServiceName}-api/{ApiVersion}/oxql";
+                options.RoutePrefix = "oxql";
                 options.IncludeErrorDetails = true; // CurrentEnvironment.IsDevelopment();
 
                 options.RequireAuthorization = true;
@@ -185,8 +185,8 @@ namespace Simplic.OxS.Server
             Console.WriteLine("Add OxQL Studio");
             services.AddOxQLStudio(options =>
             {
-                options.RoutePath = $"/{ServiceName}-api/{ApiVersion}/oxql";
-                options.ApiBasePath = $"/{ServiceName}-api/{ApiVersion}/oxql";   // matches the OxQLController route
+                options.RoutePath = "/oxql";
+                options.ApiBasePath = $"/{ServiceName}-api/{ApiVersion}/oxql";   // full browser-visible path (includes path base)
                 options.Title = "OxQL Studio";
             });
 

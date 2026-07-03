@@ -189,7 +189,7 @@ namespace Simplic.OxS.Server
                 options.ApiBasePath = $"/{ServiceName}-api/{ApiVersion}/oxql";   // full browser-visible path (includes path base)
                 options.Title = "OxQL Studio";
             });
-/vehicle-api/v2/oxql
+
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>
             {

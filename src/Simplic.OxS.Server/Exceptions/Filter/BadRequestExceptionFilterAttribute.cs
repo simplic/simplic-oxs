@@ -1,8 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Simplic.OxS.Server.Exceptions;
 
-namespace Simplic.OxS.Server;
+namespace Simplic.OxS.Server.Exceptions;
 
 /// <summary>
 /// Exception filter for <see cref="BadRequestException"/>.

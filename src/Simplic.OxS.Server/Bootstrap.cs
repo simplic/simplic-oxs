@@ -12,8 +12,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
+using MongoDB.Bson;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
+using OxQL.AspNetCore;
+using OxQL.Core;
+using OxQL.Mongo;
+using OxQL.Studio;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
@@ -21,18 +26,21 @@ using Simplic.OxS.ModelDefinition.Extension;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
+using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.Server.Services;
+using Simplic.OxS.Server.Settings;
 using Simplic.OxS.ServiceDefinition;
 using Simplic.OxS.ServiceDefinition.Repository;
 using Simplic.OxS.Settings.Abstractions;
+using System.Reflection;
 
 namespace Simplic.OxS.Server
 {
     /// <summary>
     /// Base class for implementing a Simplic.OxS microservice
     /// </summary>
-    public abstract class Bootstrap 
+    public abstract class Bootstrap
     {
         /// <summary>
         /// Initialize web api and configure services. Will be called from the host-builder.
@@ -58,7 +66,7 @@ namespace Simplic.OxS.Server
                 ServiceName = ServiceName,
                 ApiVersion = ApiVersion
             });
-            
+
             // Add logging and tracing systems
             services.AddLoggingAndMetricTracing(Configuration, ServiceName, ApiVersion, CurrentEnvironment.EnvironmentName);
 
@@ -133,6 +141,55 @@ namespace Simplic.OxS.Server
                 return f;
             });
 
+            // Register oxql
+            Console.WriteLine("Add OxQL core");
+            services.AddOxQLCore(options =>
+            {
+                options.MaxPageSize = 500;
+                options.DefaultPageSize = 100;
+            });
+
+            // ── OxQL MongoDB adapter ────────────────────────────────────────────────
+            // Change the connection string in appsettings.json (or via environment variable
+            var mongodb = Configuration.GetSection("MongoDB").Get<Data.MongoDB.ConnectionSettings>();
+
+            if (mongodb != null)
+            {
+                Console.WriteLine("Add OxQL MongoDB");
+
+                services.AddOxQLMongo(options =>
+                {
+                    options.ConnectionString = mongodb.ConnectionString;
+                    options.DatabaseName = mongodb.Database;
+
+                    var types = (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+                    options.ScanAssemblies(types);
+                });
+            }
+
+            // ── OxQL ASP.NET Core controller ────────────────────────────────────────
+            Console.WriteLine("Add OxQL ASP.NET Core");
+            services.AddOxQLAspNetCore<BsonDocument>(options =>
+            {
+                options.RoutePrefix = $"{ServiceName}-api/{ApiVersion}/oxql";
+                options.IncludeErrorDetails = true; // CurrentEnvironment.IsDevelopment();
+
+                options.RequireAuthorization = true;
+            });
+
+            // ── Multi-tenant query injection (example) ──────────────────────────────
+            // Forces an OrganizationId filter onto every OxQL query using a root-level
+            services.AddOxQLQueryFilter<OxQLOrganizationFilter>();
+
+            // OxQL Studio
+            Console.WriteLine("Add OxQL Studio");
+            services.AddOxQLStudio(options =>
+            {
+                options.RoutePath = $"/{ServiceName}-api/{ApiVersion}/oxql";
+                options.ApiBasePath = $"/{ServiceName}-api/{ApiVersion}/oxql";   // matches the OxQLController route
+                options.Title = "OxQL Studio";
+            });
+
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>
             {
@@ -152,7 +209,7 @@ namespace Simplic.OxS.Server
                 services.AddSignalR(hubOptions =>
                 {
                     hubOptions.AddFilter<RequestContextHubFilter>();
-                }).AddStackExchangeRedis(connection);            
+                }).AddStackExchangeRedis(connection);
         }
 
         /// <summary>
@@ -300,10 +357,10 @@ namespace Simplic.OxS.Server
         /// <remarks>Override this method to customize gRPC service behavior by modifying the provided
         /// options before the service is initialized.</remarks>
         /// <param name="options">The options to configure for the gRPC service. Cannot be null.</param>
-        protected virtual void ConfigureGrpc(GrpcServiceOptions options) 
+        protected virtual void ConfigureGrpc(GrpcServiceOptions options)
         {
             options.EnableDetailedErrors = true;
-    
+
             // Configure gRPC security for localhost and service-name domain restrictions
             options.Interceptors.Add<GrpcSecurityInterceptor>();
             options.Interceptors.Add<GrpcHeaderContextInterceptor>();
@@ -314,6 +371,12 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns></returns>
         protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
+
+        /// <summary>
+        /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.
+        /// </summary>
+        /// <returns>List of assemblies containing OxQL types</returns>
+        protected abstract IList<Assembly> GetOxQLTypeAssemblies();
 
         /// <summary>
         /// Method for configuring organization settings. Return null to disable settings.
@@ -347,4 +410,4 @@ namespace Simplic.OxS.Server
         /// </summary>
         private IWebHostEnvironment CurrentEnvironment { get; set; }
     }
-} 
+}

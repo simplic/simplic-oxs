@@ -1,5 +1,6 @@
 using Simplic.OxS.GrpcSample.Server.Services;
 using Simplic.OxS.Server;
+using System.Reflection;
 
 namespace Simplic.OxS.GrpcSample.Server;
 
@@ -57,6 +58,12 @@ public class Startup : Bootstrap
         
         Console.WriteLine("gRPC Sample Server configured successfully");
     }
+
+    /// <summary>
+    /// Get the assemblies containing OxQL types for the gRPC sample
+    /// </summary>
+    /// <returns></returns>
+    protected override IList<Assembly> GetOxQLTypeAssemblies() => [typeof(Startup).Assembly];
 
     /// <summary>
     /// Service name for the gRPC sample

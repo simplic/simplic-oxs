@@ -59,13 +59,15 @@ namespace Simplic.OxS.Scheduler
         {
             try
             {
+                Console.WriteLine("Add cleanup job: cleanup-failed-jobs");
+
                 // This adds one cleanup job. It does not recreate or modify other jobs.
-                /// RecurringJob.AddOrUpdate<FailedJobCleanup>(
-                ///     recurringJobId: "cleanup-failed-jobs",
-                ///     methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
-                ///         retentionDays: 7,
-                ///         batchSize: 500),
-                ///     cronExpression: Cron.Daily);
+                RecurringJob.AddOrUpdate<FailedJobCleanup>(
+                    recurringJobId: "cleanup-failed-jobs",
+                    methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
+                        retentionDays: 7,
+                        batchSize: 500),
+                    cronExpression: Cron.Daily);
             }
             catch (Exception ex)
             {

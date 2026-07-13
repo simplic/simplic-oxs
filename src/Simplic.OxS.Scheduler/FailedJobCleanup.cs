@@ -30,7 +30,6 @@ namespace Simplic.OxS.Scheduler
             int retentionDays,
             int batchSize = 500)
         {
-            return;
             if (retentionDays < 1)
             {
                 throw new ArgumentOutOfRangeException(

@@ -177,7 +177,7 @@ namespace Simplic.OxS.Server
                 options.RequireAuthorization = true;
             });
 
-            // ── Multi-tenant query injection (example) ──────────────────────────────
+            // ── Multi-tenant query injection (example) ────────────────────────────── 
             // Forces an OrganizationId filter onto every OxQL query using a root-level
             services.AddOxQLQueryFilter<OxQLOrganizationFilter>();
 

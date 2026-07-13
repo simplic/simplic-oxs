@@ -55,6 +55,14 @@ namespace Simplic.OxS.Scheduler
 
         public static IEndpointRouteBuilder MapScheduler(this IEndpointRouteBuilder endpoints, string serviceName)
         {
+            // This adds one cleanup job. It does not recreate or modify other jobs.
+            RecurringJob.AddOrUpdate<FailedJobCleanup>(
+                recurringJobId: "cleanup-failed-jobs",
+                methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
+                    retentionDays: 7,
+                    batchSize: 500),
+                cronExpression: Cron.Daily);
+
             endpoints.MapHangfireDashboard(new DashboardOptions
             {
                 DashboardTitle = $"Hangfire - {serviceName}",

@@ -5,6 +5,7 @@ using Hangfire.Mongo.Migration.Strategies.Backup;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Simplic.OxS.Data.MongoDB;
 
 namespace Simplic.OxS.Scheduler
@@ -57,33 +58,53 @@ namespace Simplic.OxS.Scheduler
 
         public static IEndpointRouteBuilder MapScheduler(this IEndpointRouteBuilder endpoints, string serviceName)
         {
+            var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(nameof(SchedulerExtension));
+
             try
             {
-                Console.WriteLine("Add cleanup job: cleanup-failed-jobs");
+                var recurringJobManager = endpoints.ServiceProvider.GetService<IRecurringJobManager>();
+                if (recurringJobManager != null)
+                {
+                    logger.LogInformation("Add cleanup job: cleanup-failed-jobs");
 
-                // This adds one cleanup job. It does not recreate or modify other jobs.
-                RecurringJob.AddOrUpdate<FailedJobCleanup>(
-                    recurringJobId: "cleanup-failed-jobs",
-                    methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
-                        retentionDays: 7,
-                        batchSize: 500),
-                    cronExpression: Cron.Daily);
+                    // This adds one cleanup job. It does not recreate or modify other jobs.
+                    recurringJobManager.AddOrUpdate<FailedJobCleanup>(
+                        recurringJobId: "cleanup-failed-jobs",
+                        methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
+                            retentionDays: 7,
+                            batchSize: 500),
+                        cronExpression: Cron.Daily);
+                }
+                else
+                {
+                    logger.LogWarning("Could not add cleanup job: IRecurringJobManager is not available (Hangfire storage not configured)");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Could not add cleanup job: " + ex.Message);
+                logger.LogError(ex, "Could not add cleanup job");
             }
 
-            endpoints.MapHangfireDashboard(new DashboardOptions
+            try
             {
-                DashboardTitle = $"Hangfire - {serviceName}",
-                AppPath = $"/{serviceName}-api/v1/hangfire",
-                DisplayStorageConnectionString = false,
-                Authorization = new[]
+                endpoints.MapHangfireDashboard(new DashboardOptions
                 {
-                    new DashboardAuthorizationFilter()
-                }
-            });
+                    DashboardTitle = $"Hangfire - {serviceName}",
+                    AppPath = $"/{serviceName}-api/v1/hangfire",
+                    DisplayStorageConnectionString = false,
+                    Authorization = new[]
+                    {
+                        new DashboardAuthorizationFilter()
+                    }
+                });
+
+                logger.LogInformation("Hangfire dashboard mapped successfully");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not map Hangfire dashboard");
+            }
 
             return endpoints;
         }

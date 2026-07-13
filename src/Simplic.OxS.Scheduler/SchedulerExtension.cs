@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Simplic.OxS.Data.MongoDB;
-using System.Runtime.CompilerServices;
 
 namespace Simplic.OxS.Scheduler
 {
@@ -48,6 +47,9 @@ namespace Simplic.OxS.Scheduler
                     serverOptions.ServerName = $"Hangfire.Mongo server - {serviceName.ToLower()}";
                     serverOptions.Queues = new[] { serviceName.ToLower() };
                 });
+
+                // Register the failed-job cleanup so it is available for DI in MapScheduler.
+                services.AddScoped<FailedJobCleanup>();
             }
 
             return services;
@@ -55,6 +57,20 @@ namespace Simplic.OxS.Scheduler
 
         public static IEndpointRouteBuilder MapScheduler(this IEndpointRouteBuilder endpoints, string serviceName)
         {
+            // Register the cleanup job only when Hangfire storage has been configured
+            // (i.e. IRecurringJobManager is available in DI).
+            var recurringJobManager = endpoints.ServiceProvider.GetService<IRecurringJobManager>();
+            if (recurringJobManager != null)
+            {
+                // This adds one cleanup job. It does not recreate or modify other jobs.
+                recurringJobManager.AddOrUpdate<FailedJobCleanup>(
+                    recurringJobId: "cleanup-failed-jobs",
+                    methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
+                        retentionDays: 7,
+                        batchSize: 500),
+                    cronExpression: Cron.Daily);
+            }
+
             endpoints.MapHangfireDashboard(new DashboardOptions
             {
                 DashboardTitle = $"Hangfire - {serviceName}",

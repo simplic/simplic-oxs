@@ -22,14 +22,13 @@ namespace Simplic.OxS.Scheduler
             _backgroundJobClient = backgroundJobClient;
             _logger = logger;
         }
-
-        [AutomaticRetry(
-            Attempts = 3,
-            OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+        
         public void DeleteFailedJobsOlderThan(
             int retentionDays,
             int batchSize = 500)
         {
+            return;
+
             if (retentionDays < 1)
             {
                 throw new ArgumentOutOfRangeException(

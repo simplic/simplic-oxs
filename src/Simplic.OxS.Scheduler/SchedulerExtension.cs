@@ -63,31 +63,6 @@ namespace Simplic.OxS.Scheduler
 
             try
             {
-                var recurringJobManager = endpoints.ServiceProvider.GetService<IRecurringJobManager>();
-                if (recurringJobManager != null)
-                {
-                    logger.LogInformation("Add cleanup job: cleanup-failed-jobs");
-
-                    // This adds one cleanup job. It does not recreate or modify other jobs.
-                    recurringJobManager.AddOrUpdate<FailedJobCleanup>(
-                        recurringJobId: "cleanup-failed-jobs",
-                        methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
-                            retentionDays: 7,
-                            batchSize: 500),
-                        cronExpression: Cron.Daily);
-                }
-                else
-                {
-                    logger.LogWarning("Could not add cleanup job: IRecurringJobManager is not available (Hangfire storage not configured)");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Could not add cleanup job");
-            }
-
-            try
-            {
                 endpoints.MapHangfireDashboard(new DashboardOptions
                 {
                     DashboardTitle = $"Hangfire - {serviceName}",
@@ -104,6 +79,22 @@ namespace Simplic.OxS.Scheduler
             catch (Exception ex)
             {
                 logger.LogError(ex, "Could not map Hangfire dashboard");
+            }
+
+            try
+            {
+                logger.LogInformation("Add cleanup job: cleanup-failed-jobs");
+
+                RecurringJob.AddOrUpdate<FailedJobCleanup>(
+                    recurringJobId: "cleanup-failed-jobs",
+                    methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
+                        retentionDays: 7,
+                        batchSize: 500),
+                    cronExpression: Cron.Daily);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not add cleanup job");
             }
 
             return endpoints;

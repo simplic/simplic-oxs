@@ -9,16 +9,13 @@ namespace Simplic.OxS.Scheduler
     /// </summary>
     public sealed class FailedJobCleanup
     {
-        private readonly JobStorage _jobStorage;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly ILogger<FailedJobCleanup> _logger;
 
         public FailedJobCleanup(
-            JobStorage jobStorage,
             IBackgroundJobClient backgroundJobClient,
             ILogger<FailedJobCleanup> logger)
         {
-            _jobStorage = jobStorage;
             _backgroundJobClient = backgroundJobClient;
             _logger = logger;
         }
@@ -27,8 +24,6 @@ namespace Simplic.OxS.Scheduler
             int retentionDays,
             int batchSize = 500)
         {
-            return;
-
             if (retentionDays < 1)
             {
                 throw new ArgumentOutOfRangeException(
@@ -44,7 +39,7 @@ namespace Simplic.OxS.Scheduler
             }
 
             var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-            var monitoringApi = _jobStorage.GetMonitoringApi();
+            var monitoringApi = JobStorage.Current.GetMonitoringApi();
 
             var jobIdsToDelete = new List<string>();
             var offset = 0;

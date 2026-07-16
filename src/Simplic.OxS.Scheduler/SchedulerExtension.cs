@@ -27,7 +27,7 @@ namespace Simplic.OxS.Scheduler
 
                 // Add Hangfire services
                 services.AddHangfire(configuration => configuration
-                    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+                    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
                     .UseSimpleAssemblyNameTypeSerializer()
                     .UseRecommendedSerializerSettings()
                     .UseMongoStorage(settings.ConnectionString, settings.Database, new MongoStorageOptions

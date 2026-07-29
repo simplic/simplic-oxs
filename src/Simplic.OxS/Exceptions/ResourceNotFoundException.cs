@@ -4,9 +4,26 @@ namespace Simplic.OxS;
 
 /// <summary>
 /// Exception thrown when a referenced resource does not exist.
+/// <para>
+/// Produces <c>404 Not Found</c> with error code <c>resource_not_found</c> via the
+/// global exception handler — no per-controller exception filter needed.
+/// </para>
 /// </summary>
-public class ResourceNotFoundException : Exception
+public class ResourceNotFoundException : Exception, IOxSException
 {
+    /// <inheritdoc/>
+    public int StatusCode => 404;
+
+    /// <inheritdoc/>
+    public string ErrorCode => "resource_not_found";
+
+    /// <inheritdoc/>
+    public IReadOnlyDictionary<string, object?> ProblemExtensions => new Dictionary<string, object?>
+    {
+        ["resourceType"] = Type,
+        ["resourceId"] = Id?.ToString(),
+    };
+
     /// <summary>
     /// Helper to check for null resources. Throws if <paramref name="resource"/> is null.
     /// </summary>

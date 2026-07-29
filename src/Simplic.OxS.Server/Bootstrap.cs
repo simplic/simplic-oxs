@@ -23,6 +23,7 @@ using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.ModelDefinition.Extension;
+using Simplic.OxS.Server.Exceptions;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
@@ -190,6 +191,13 @@ namespace Simplic.OxS.Server
                 options.Title = "OxQL Studio";
             });
 
+            // Single error contract for the whole fleet. Every unhandled exception becomes an
+            // RFC 7807 ProblemDetails carrying errorCode / correlationId / traceId, instead of
+            // escaping the pipeline and returning a bare 500 with an empty body.
+            // See OxSExceptionHandler. Services do not need per-controller exception filters.
+            services.AddProblemDetails();
+            services.AddExceptionHandler<OxSExceptionHandler>();
+
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>
             {
@@ -223,10 +231,19 @@ namespace Simplic.OxS.Server
             var basePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}";
             app.UsePathBase(basePath);
 
-            if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
-            {
-                app.UseDeveloperExceptionPage();
-            }
+            // Must be the outermost error handler so it catches everything downstream,
+            // including failures inside routing, model binding and the endpoint itself.
+            //
+            // This deliberately replaces UseDeveloperExceptionPage: the ProblemDetails response
+            // already includes exceptionType / exceptionMessage / stackTrace in Development and
+            // Local, and using one code path in every environment means the error contract the
+            // frontend depends on is actually exercised during development.
+            app.UseExceptionHandler();
+
+            // Immediately inside the error handler, so a correlation id exists before anything
+            // can fail and every log entry for the request carries it — including failures in
+            // routing and authentication.
+            app.UseMiddleware<CorrelationIdMiddleware>();
 
             app.UseSwagger(c =>
             {
@@ -262,9 +279,11 @@ namespace Simplic.OxS.Server
             // Add gRPC host validation middleware
             app.UseMiddleware<GrpcAuthenticationMiddleware>();
 
-            app.UseMiddleware<CorrelationIdMiddleware>();
             app.UseMiddleware<PutJsonContextMiddleware>();
-            app.UseMiddleware<ErrorLoggingMiddleware>();
+
+            // ErrorLoggingMiddleware is intentionally no longer registered: it logged the
+            // exception and rethrew it, which now duplicates the richer entry written by
+            // OxSExceptionHandler. See the obsolete notice on that class.
 
             app.UseEndpoints(endpoints =>
             {

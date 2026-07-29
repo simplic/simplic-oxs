@@ -129,7 +129,7 @@ namespace Simplic.OxS.Server
                             : parentPath + ".";
                         foreach (var nextEl in element.EnumerateObject())
                         {
-                            // Enqueue inner proeprties with their full path.
+                            // Enqueue inner properties with their full path.
                             queue.Enqueue(($"{parentPath}{nextEl.Name}", nextEl.Value));
                         }
                         break;
@@ -297,7 +297,7 @@ namespace Simplic.OxS.Server
                 var originalItem = originalCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
                 if (originalItem == null)
                     throw new BadRequestException($"Could not find item with id {idGuid}." +
-                        "A reason might be that items of the collection does not derive from IITemId");
+                        "A reason might be that items of the collection does not derive from IItemId");
 
                 var patchItem = patchCollection.OfType<IItemId>().FirstOrDefault(x => x.Id == idGuid);
 
@@ -334,7 +334,7 @@ namespace Simplic.OxS.Server
 
             await HandleDocument(obj, patchItem, jsonElement, validationRequest, path);
 
-            //here boh the patch and the original item are set to the obj, since both make sense in a way.
+            //here both the patch and the original item are set to the obj, since both make sense in a way.
             if (!validationRequest(new ValidationRequest
             {
                 Path = path,

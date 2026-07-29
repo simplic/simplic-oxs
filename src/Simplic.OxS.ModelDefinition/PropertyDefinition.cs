@@ -21,7 +21,7 @@ public class PropertyDefinition
     public string? Description { get; set; }
 
     /// <summary>
-    /// Gets or sets whethter the property is internal, or readonly.
+    /// Gets or sets whether the property is internal, or readonly.
     /// </summary>
     public bool Internal { get; set; }
 
@@ -41,7 +41,7 @@ public class PropertyDefinition
     public string? EnumType { get; set; }
 
     /// <summary>
-    /// Gets or sets items of en enum type.
+    /// Gets or sets items of an enum type.
     /// </summary>
     public IList<EnumItem>? EnumItems { get; set; }
 

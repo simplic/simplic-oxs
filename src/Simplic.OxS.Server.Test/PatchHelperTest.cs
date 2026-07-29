@@ -574,7 +574,7 @@ namespace Simplic.OxS.Server.Test
 
         /// <summary>
         /// Tests whether the patch method will apply changes correctly when the properties of the patch object are nullable
-        /// but the proeprties in the original object are not.
+        /// but the properties in the original object are not.
         /// </summary>
         [Fact]
         public async Task Patch_AllTypes_AllDataIsWritten()

@@ -1,5 +1,6 @@
 ﻿using HotChocolate.Execution.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Simplic.OxS.Server.GraphQL;
 using Simplic.OxS.Server.Middleware;
 
 namespace Simplic.OxS.Server.Extensions
@@ -13,6 +14,9 @@ namespace Simplic.OxS.Server.Extensions
         /// <returns></returns>
         public static IServiceCollection UseGraphQL<TQuery>(this IServiceCollection services, Action<IRequestExecutorBuilder> builder = null) where TQuery : class
         {
+            // OxSErrorFilter reads the correlation id off the current request.
+            services.AddHttpContextAccessor();
+
             var req = services.AddGraphQLServer().ModifyOptions(o =>
             {
                 o.DefaultQueryDependencyInjectionScope = DependencyInjectionScope.Request;
@@ -20,6 +24,9 @@ namespace Simplic.OxS.Server.Extensions
             })
             .AddHttpRequestInterceptor<HttpRequestInterceptor>()
             .AddAuthorization()
+            // Gives GraphQL errors the same errorCode / correlationId / traceId members the REST
+            // endpoints return, so clients handle one error shape across both surfaces.
+            .AddErrorFilter<OxSErrorFilter>()
             .AddQueryType<TQuery>();
 
             // Set TimeSpan representation to d.hh:mm:ss

@@ -3,8 +3,14 @@
 namespace Simplic.OxS.Server.Controller
 {
     /// <summary>
-    /// Represents the simplic oxs base controller
+    /// Base controller for internal-only endpoints, gated by the internal API key.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ApiControllerAttribute"/> is applied here for the same reasons as on
+    /// <see cref="OxSController"/> — automatic <c>400 ProblemDetails</c>, binding-source
+    /// inference and attribute-routing enforcement.
+    /// </remarks>
+    [ApiController]
     [AuthorizeInternalApiKey]
     public abstract class OxSInternalController : ControllerBase
     {

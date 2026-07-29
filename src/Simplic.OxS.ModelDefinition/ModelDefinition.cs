@@ -17,7 +17,7 @@ public class ModelDefinition
     public string? Model { get; set; }
 
     /// <summary>
-    /// Gets or setss the source url.
+    /// Gets or sets the source url.
     /// </summary>
     public string SourceUrl { get; set; }
 

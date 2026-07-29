@@ -21,7 +21,7 @@ public class OperationDefinition
     public string? RequestReference { get; set; }
 
     /// <summary>
-    /// Gets or setss the response reference/ referenced object.
+    /// Gets or sets the response reference/ referenced object.
     /// </summary>
     public string? ResponseReference { get; set; }
 }

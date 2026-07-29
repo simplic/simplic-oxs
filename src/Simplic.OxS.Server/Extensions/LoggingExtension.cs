@@ -14,6 +14,18 @@ namespace Simplic.OxS.Server.Extensions;
 public static class LoggingExtension
 {
     /// <summary>
+    /// Shared <see cref="EventId"/> for the convenience log methods below.
+    /// </summary>
+    /// <remarks>
+    /// These helpers previously built <c>new EventId(-1, Guid.NewGuid().ToString())</c> on every
+    /// call, which allocated a <see cref="Guid"/> and its string form per log line. An
+    /// <see cref="EventId"/> identifies a <i>kind</i> of event, so a per-call random name also
+    /// made it useless for grouping or filtering. Per-entry identity now comes from the
+    /// correlation id and trace id attached to every request.
+    /// </remarks>
+    private static readonly EventId DefaultEventId = new(-1);
+
+    /// <summary>
     /// Add serilog to the logging pipeline.
     /// </summary>
     /// <param name="logging"></param>
@@ -34,7 +46,7 @@ public static class LoggingExtension
     /// <param name="args">Format arguments for message</param>
     public static void Verb(this ILogger logger, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogTrace(eventId, message, args);
@@ -44,7 +56,7 @@ public static class LoggingExtension
     /// <inheritdoc cref="Verb"/>
     public static void Verb(this ILogger logger, Exception e, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogTrace(eventId, e, message, args);
@@ -59,7 +71,7 @@ public static class LoggingExtension
     /// <param name="args">Format arguments for message</param>
     public static void Debug(this ILogger logger, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogDebug(eventId, message, args);
@@ -69,7 +81,7 @@ public static class LoggingExtension
     /// <inheritdoc cref="Debug(ILogger,string?,object?[])"/>
     public static void Debug(this ILogger logger, Exception e, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogDebug(eventId, e, message, args);
@@ -84,7 +96,7 @@ public static class LoggingExtension
     /// <param name="args">Format arguments for message</param>
     public static void Info(this ILogger logger, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogInformation(eventId, message, args);
@@ -94,7 +106,7 @@ public static class LoggingExtension
     /// <inheritdoc cref="Info(ILogger,string?,object?[])"/>
     public static void Info(this ILogger logger, Exception e, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogInformation(eventId, e, message, args);
@@ -109,7 +121,7 @@ public static class LoggingExtension
     /// <param name="args">Format arguments for message</param>
     public static void Warn(this ILogger logger, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogWarning(eventId, message, args);
@@ -119,7 +131,7 @@ public static class LoggingExtension
     /// <inheritdoc cref="Warn(ILogger,string?,object?[])"/>
     public static void Warn(this ILogger logger, Exception e, string? message, params object?[] args)
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogWarning(eventId, e, message, args);
@@ -138,7 +150,7 @@ public static class LoggingExtension
         params object?[] args
     )
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogError(eventId, message, args);
@@ -153,7 +165,7 @@ public static class LoggingExtension
         params object?[] args
     )
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogError(eventId, e, message, args);
@@ -173,7 +185,7 @@ public static class LoggingExtension
         params object?[] args
     )
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogCritical(eventId, message, args);
@@ -188,7 +200,7 @@ public static class LoggingExtension
         params object?[] args
     )
     {
-        var eventId = new EventId(-1, Guid.NewGuid().ToString());
+        var eventId = DefaultEventId;
         using (CallerScope())
         {
             logger.LogCritical(eventId, e, message, args);

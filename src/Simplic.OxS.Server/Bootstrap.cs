@@ -23,6 +23,7 @@ using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.ModelDefinition.Extension;
+using Simplic.OxS.Server.Exceptions;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
@@ -195,6 +196,8 @@ namespace Simplic.OxS.Server
             {
                 o.Filters.Add<RequestContextActionFilter>();
                 o.Filters.Add<ValidationActionFilter>();
+                o.Filters.Add<BadRequestExceptionFilterAttribute>();
+                o.Filters.Add<ResourceNotFoundExceptionFilterAttribute>();
             }));
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());

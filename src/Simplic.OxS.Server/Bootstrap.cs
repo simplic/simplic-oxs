@@ -223,7 +223,7 @@ namespace Simplic.OxS.Server
             var basePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}";
             app.UsePathBase(basePath);
 
-            if (env.IsDevelopment() || env.EnvironmentName.ToLower() == "local")
+            if (env.IsDevelopment() || env.IsStaging() || env.EnvironmentName.ToLower() == "local")
             {
                 app.UseDeveloperExceptionPage();
             }

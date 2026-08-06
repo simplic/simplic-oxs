@@ -55,9 +55,6 @@ public class ResourceNotFoundException : OxSException
     public override string? Title => "Not Found";
 
     /// <inheritdoc/>
-    public override string? ProblemType => "https://simplic.biz/problems/not-found";
-
-    /// <inheritdoc/>
     public override void PopulateProblemDetails(IDictionary<string, object?> extensions)
     {
         // Preserve the legacy "Type@id" identifier while also exposing the parts separately.

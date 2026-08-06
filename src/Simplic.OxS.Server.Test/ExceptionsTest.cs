@@ -120,7 +120,7 @@ namespace Simplic.OxS.Server.Test
             problemDetails.Status.Should().Be(400);
             problemDetails.Title.Should().Be("Bad Request");
             problemDetails.Detail.Should().Be("invalid request");
-            problemDetails.Type.Should().Be("https://simplic.biz/problems/bad-request");
+            problemDetails.Type.Should().Be("about:blank");
         }
 
         [Fact]

@@ -22,4 +22,7 @@ public class ConflictException : OxSException
 
     /// <inheritdoc/>
     public override string? Title => "Conflict";
+
+    /// <inheritdoc/>
+    public override string? ProblemType => "urn:simplic-oxs:problem:conflict";
 }

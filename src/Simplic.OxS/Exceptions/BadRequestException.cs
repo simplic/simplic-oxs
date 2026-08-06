@@ -62,6 +62,9 @@ public class BadRequestException : OxSException
     /// <inheritdoc/>
     public override string? Title => "Bad Request";
 
+    /// <inheritdoc/>
+    public override string? ProblemType => "urn:simplic-oxs:problem:bad-request";
+
     /// <summary>
     /// Adds a field-level validation error. Multiple problems can be added for the same property path.
     /// </summary>

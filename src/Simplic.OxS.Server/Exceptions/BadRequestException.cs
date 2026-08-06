@@ -7,7 +7,7 @@
     /// <see cref="Simplic.OxS.Exceptions.BadRequestException"/> (and the other
     /// <see cref="Simplic.OxS.Exceptions.OxSException"/> derivatives) directly. This type derives
     /// from it, so it is still handled by the unified exception filter and produces the same
-    /// <c>400 Bad Request</c> RFC 7807 problem details response.
+    /// <c>400 Bad Request</c> RFC 9457 problem details response.
     /// </para>
     /// </summary>
     public class BadRequestException : Simplic.OxS.Exceptions.BadRequestException

@@ -4,7 +4,7 @@ namespace Simplic.OxS.Exceptions;
 /// Base class for all exceptions that carry their own HTTP response metadata.
 /// <para>
 /// A dedicated exception filter in the server layer reads this metadata and builds the
-/// matching HTTP response (RFC 7807 <c>ProblemDetails</c> or a plain message body). This
+/// matching HTTP response (RFC 9457 <c>ProblemDetails</c> or a plain message body). This
 /// keeps the exception type free of any ASP.NET / MVC dependency, so it can be thrown from
 /// any layer (domain, service, controller).
 /// </para>
@@ -27,7 +27,7 @@ public abstract class OxSException : Exception
     public abstract int StatusCode { get; }
 
     /// <summary>
-    /// When <see langword="true"/> (default) the response is an RFC 7807 <c>ProblemDetails</c> body.
+    /// When <see langword="true"/> (default) the response is an RFC 9457 <c>ProblemDetails</c> body.
     /// When <see langword="false"/> the plain <see cref="Exception.Message"/> is written as the body.
     /// </summary>
     public virtual bool IncludeProblemDetails => true;

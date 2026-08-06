@@ -21,4 +21,7 @@ public class UnauthorizedException : OxSException
 
     /// <inheritdoc/>
     public override string? Title => "Unauthorized";
+
+    /// <inheritdoc/>
+    public override string? ProblemType => "urn:simplic-oxs:problem:unauthorized";
 }

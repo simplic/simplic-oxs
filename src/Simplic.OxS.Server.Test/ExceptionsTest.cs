@@ -120,7 +120,7 @@ namespace Simplic.OxS.Server.Test
             problemDetails.Status.Should().Be(400);
             problemDetails.Title.Should().Be("Bad Request");
             problemDetails.Detail.Should().Be("invalid request");
-            problemDetails.Type.Should().Be("about:blank");
+            problemDetails.Type.Should().Be("urn:simplic-oxs:problem:bad-request");
         }
 
         [Fact]
@@ -147,6 +147,7 @@ namespace Simplic.OxS.Server.Test
 
             var problemDetails = AssertProblemDetails(context, 404);
             problemDetails.Title.Should().Be("Not Found");
+            problemDetails.Type.Should().Be("urn:simplic-oxs:problem:not-found");
             problemDetails.Extensions.Should().ContainKey("resource");
             problemDetails.Extensions["resource"].Should().Be($"{nameof(ExceptionsTest)}@{id}");
             problemDetails.Extensions["resourceType"].Should().Be(nameof(ExceptionsTest));

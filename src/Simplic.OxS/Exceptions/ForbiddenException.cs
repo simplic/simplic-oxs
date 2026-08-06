@@ -21,4 +21,7 @@ public class ForbiddenException : OxSException
 
     /// <inheritdoc/>
     public override string? Title => "Forbidden";
+
+    /// <inheritdoc/>
+    public override string? ProblemType => "urn:simplic-oxs:problem:forbidden";
 }

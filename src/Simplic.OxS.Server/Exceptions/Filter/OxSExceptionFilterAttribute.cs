@@ -11,7 +11,7 @@ namespace Simplic.OxS.Server.Exceptions;
 /// <para>
 /// Reads the HTTP response metadata carried by the exception (status code, whether to emit
 /// problem details, title, type and any extension members) and builds the matching response —
-/// an RFC 7807 <c>ProblemDetails</c> body by default, or the plain message when the exception
+/// an RFC 9457 <c>ProblemDetails</c> body by default, or the plain message when the exception
 /// opts out.
 /// </para>
 /// </summary>

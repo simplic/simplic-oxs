@@ -1,11 +1,13 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Simplic.OxS.Exceptions;
 
 namespace Simplic.OxS;
 
 /// <summary>
 /// Exception thrown when a referenced resource does not exist.
+/// Maps to an HTTP <c>404 Not Found</c> response.
 /// </summary>
-public class ResourceNotFoundException : Exception
+public class ResourceNotFoundException : OxSException
 {
     /// <summary>
     /// Helper to check for null resources. Throws if <paramref name="resource"/> is null.
@@ -44,6 +46,24 @@ public class ResourceNotFoundException : Exception
     {
         Type = type;
         Id = id;
+    }
+
+    /// <inheritdoc/>
+    public override int StatusCode => 404;
+
+    /// <inheritdoc/>
+    public override string? Title => "Not Found";
+
+    /// <inheritdoc/>
+    public override string? ProblemType => "https://simplic.biz/problems/not-found";
+
+    /// <inheritdoc/>
+    public override void PopulateProblemDetails(IDictionary<string, object?> extensions)
+    {
+        // Preserve the legacy "Type@id" identifier while also exposing the parts separately.
+        extensions["resource"] = Id is null ? Type : $"{Type}@{Id}";
+        extensions["resourceType"] = Type;
+        extensions["resourceId"] = Id;
     }
 
     /// <summary>

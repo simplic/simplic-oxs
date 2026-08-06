@@ -1,0 +1,92 @@
+namespace Simplic.OxS.Exceptions;
+
+/// <summary>
+/// Exception that maps to an HTTP <c>400 Bad Request</c> response.
+/// Throw when the request is malformed or violates a business validation rule.
+/// <para>
+/// Can optionally carry field-level validation errors. When present, they are emitted under the
+/// <c>errors</c> member of the problem details, mirroring the shape of ASP.NET Core's
+/// <c>ValidationProblemDetails</c> (a map of property path to one or more problem messages).
+/// </para>
+/// </summary>
+public class BadRequestException : OxSException
+{
+    private readonly Dictionary<string, List<string>> errors = new();
+
+    /// <summary>
+    /// Initializes a new <see cref="BadRequestException"/> with a plain message.
+    /// </summary>
+    /// <param name="message">The exception message.</param>
+    /// <param name="innerException">Optional inner exception.</param>
+    public BadRequestException(string? message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="BadRequestException"/> for a single failed field.
+    /// </summary>
+    /// <param name="propertyPath">The path of the property that failed (e.g. <c>customer.name</c>).</param>
+    /// <param name="problem">A human-readable description of why the field is invalid.</param>
+    /// <param name="innerException">Optional inner exception.</param>
+    public BadRequestException(string propertyPath, string problem, Exception? innerException = null)
+        : base($"Validation failed for '{propertyPath}': {problem}", innerException)
+    {
+        AddError(propertyPath, problem);
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="BadRequestException"/> from a set of field errors.
+    /// </summary>
+    /// <param name="errors">A map of property path to one or more problem messages.</param>
+    /// <param name="message">
+    /// Optional detail message. Defaults to <c>"One or more validation errors occurred."</c>.
+    /// </param>
+    /// <param name="innerException">Optional inner exception.</param>
+    public BadRequestException(
+        IReadOnlyDictionary<string, string[]> errors,
+        string? message = null,
+        Exception? innerException = null)
+        : base(message ?? "One or more validation errors occurred.", innerException)
+    {
+        foreach (var (propertyPath, problems) in errors)
+        {
+            foreach (var problem in problems)
+                AddError(propertyPath, problem);
+        }
+    }
+
+    /// <inheritdoc/>
+    public override int StatusCode => 400;
+
+    /// <inheritdoc/>
+    public override string? Title => "Bad Request";
+
+    /// <inheritdoc/>
+    public override string? ProblemType => "https://simplic.biz/problems/bad-request";
+
+    /// <summary>
+    /// Adds a field-level validation error. Multiple problems can be added for the same property path.
+    /// </summary>
+    /// <param name="propertyPath">The path of the property that failed (e.g. <c>customer.name</c>).</param>
+    /// <param name="problem">A human-readable description of why the field is invalid.</param>
+    /// <returns>The same instance, to allow fluent chaining.</returns>
+    public BadRequestException AddError(string propertyPath, string problem)
+    {
+        if (!errors.TryGetValue(propertyPath, out var problems))
+        {
+            problems = new List<string>();
+            errors[propertyPath] = problems;
+        }
+
+        problems.Add(problem);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public override void PopulateProblemDetails(IDictionary<string, object?> extensions)
+    {
+        if (errors.Count > 0)
+            extensions["errors"] = errors.ToDictionary(e => e.Key, e => e.Value.ToArray());
+    }
+}

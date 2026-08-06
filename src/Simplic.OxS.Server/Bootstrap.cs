@@ -196,8 +196,7 @@ namespace Simplic.OxS.Server
             {
                 o.Filters.Add<RequestContextActionFilter>();
                 o.Filters.Add<ValidationActionFilter>();
-                o.Filters.Add<BadRequestExceptionFilterAttribute>();
-                o.Filters.Add<ResourceNotFoundExceptionFilterAttribute>();
+                o.Filters.Add<OxSExceptionFilterAttribute>();
             }));
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());

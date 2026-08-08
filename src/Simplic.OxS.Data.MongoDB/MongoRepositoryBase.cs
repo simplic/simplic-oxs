@@ -1,6 +1,7 @@
-﻿using System.Threading.Tasks;
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using Simplic.OxS.Data;
+using Simplic.OxS.Data.Security;
+using System.Threading.Tasks;
 
 namespace Simplic.OxS.Data.MongoDB
 {
@@ -18,11 +19,11 @@ namespace Simplic.OxS.Data.MongoDB
         /// Initialize base repository
         /// </summary>
         /// <param name="context"></param>
-        protected MongoRepositoryBase(IMongoContext context) : base(context)
+        protected MongoRepositoryBase(IMongoContext context, INoSqlPolicyService? noSqlPolicyService = null) : base(context, noSqlPolicyService)
         {
         }
 
-        protected MongoRepositoryBase(IMongoContext context, string configurationKey) : base(context, configurationKey)
+        protected MongoRepositoryBase(IMongoContext context, string configurationKey, INoSqlPolicyService? noSqlPolicyService = null) : base(context, configurationKey, noSqlPolicyService)
         {
         }
 
@@ -43,7 +44,7 @@ namespace Simplic.OxS.Data.MongoDB
         public virtual async Task UpdateAsync(TDocument document)
         {
             await Initialize();
-            Context.AddCommand(() => Collection.ReplaceOneAsync(GetFilterById(document.Id), document));
+            Context.AddCommand(() => Collection.ReplaceOneAsync(GetFilterById(document.Id, "update"), document));
         }
 
         /// <summary>
@@ -71,7 +72,7 @@ namespace Simplic.OxS.Data.MongoDB
         {
             await Initialize();
 
-            var filterQuery = BuildFilterQuery(filter);
+            var filterQuery = BuildFilterQuery(filter, "create");
 
             Context.AddCommand(() => Collection.ReplaceOneAsync(filterQuery, entity, new ReplaceOptions { IsUpsert = true }));
         }
@@ -89,13 +90,14 @@ namespace Simplic.OxS.Data.MongoDB
         /// Gets base filter using an entity id
         /// </summary>
         /// <param name="id">Unique entity id</param>
+        /// <param name="action">Policy filter action</param>
         /// <returns>Filter instance</returns>
-        protected FilterDefinition<TDocument> GetFilterById(TId id)
+        protected FilterDefinition<TDocument> GetFilterById(TId id, string action)
         {
             return BuildFilterQuery(new TFilter
             {
                 Id = id
-            });
+            }, action);
         }
 
         /// <summary>
@@ -132,7 +134,7 @@ namespace Simplic.OxS.Data.MongoDB
             if (transaction is MongoTransaction mongoTransaction)
                 await Collection.ReplaceOneAsync(
                     mongoTransaction.Session,
-                    GetFilterById(document.Id),
+                    GetFilterById(document.Id, "update"),
                     document
                 );
             else

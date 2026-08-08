@@ -44,5 +44,11 @@ namespace Simplic.OxS.Data
         /// <param name="collation">Collation options</param>
         /// <returns>Number of expected elements</returns>
         Task<long> CountAsync(TFilter predicate, Collation collation = null);
+
+        /// <summary>
+        /// Gets a urn for the resource represented by this repository.
+        /// E.g. oxs:logistics.orders
+        /// </summary>
+        public string? ResourceUrn { get; }
     }
 }

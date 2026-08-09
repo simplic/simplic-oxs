@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <Version>3.1.326.731</Version>
+    <Version>3.1.426.809</Version>
   </PropertyGroup>
   
   <ItemGroup>

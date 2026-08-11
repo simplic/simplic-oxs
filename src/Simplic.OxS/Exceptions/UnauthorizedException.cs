@@ -24,4 +24,14 @@ public class UnauthorizedException : OxSException
 
     /// <inheritdoc/>
     public override string? ProblemType => "urn:simplic-oxs:problem:unauthorized";
+
+    /// <summary>
+    /// Emits the <c>WWW-Authenticate</c> header required by RFC 9110 on a 401 response.
+    /// Defaults to the platform's <c>Bearer</c> (JWT) scheme.
+    /// </summary>
+    /// <inheritdoc/>
+    public override void PopulateHeaders(IDictionary<string, string> headers)
+    {
+        headers["WWW-Authenticate"] = "Bearer";
+    }
 }

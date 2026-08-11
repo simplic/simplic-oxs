@@ -4,10 +4,15 @@ using Simplic.OxS.Exceptions;
 namespace Simplic.OxS;
 
 /// <summary>
-/// Exception thrown when a referenced resource does not exist.
-/// Maps to an HTTP <c>404 Not Found</c> response.
+/// Exception thrown when a referenced resource does not exist and the caller is allowed to know
+/// which resource. Maps to an HTTP <c>404 Not Found</c> response and publishes the resource type and
+/// id as machine-readable problem-details members.
+/// <para>
+/// For tenant-scoped reads where the existence of a foreign resource must stay hidden, throw the
+/// anonymous <see cref="Simplic.OxS.Exceptions.NotFoundException"/> base instead.
+/// </para>
 /// </summary>
-public class ResourceNotFoundException : OxSException
+public class ResourceNotFoundException : Simplic.OxS.Exceptions.NotFoundException
 {
     /// <summary>
     /// Helper to check for null resources. Throws if <paramref name="resource"/> is null.
@@ -42,20 +47,12 @@ public class ResourceNotFoundException : OxSException
     /// </summary>
     /// <param name="type">The type of the missing resource.</param>
     /// <param name="id">The id of the missing resource.</param>
-    public ResourceNotFoundException(string type, object? id) : base($"Resource of type '{type}' with id '{id}' could not be found.")
+    public ResourceNotFoundException(string type, object? id)
+        : base($"Resource of type '{type}' with id '{id}' could not be found.")
     {
         Type = type;
         Id = id;
     }
-
-    /// <inheritdoc/>
-    public override int StatusCode => 404;
-
-    /// <inheritdoc/>
-    public override string? Title => "Not Found";
-
-    /// <inheritdoc/>
-    public override string? ProblemType => "urn:simplic-oxs:problem:not-found";
 
     /// <inheritdoc/>
     public override void PopulateProblemDetails(IDictionary<string, object?> extensions)

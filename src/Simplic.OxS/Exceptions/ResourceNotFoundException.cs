@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using Simplic.OxS.Exceptions;
 
-namespace Simplic.OxS;
+namespace Simplic.OxS.Exceptions;
 
 /// <summary>
 /// Exception thrown when a referenced resource does not exist and the caller is allowed to know
@@ -9,10 +8,10 @@ namespace Simplic.OxS;
 /// id as machine-readable problem-details members.
 /// <para>
 /// For tenant-scoped reads where the existence of a foreign resource must stay hidden, throw the
-/// anonymous <see cref="Simplic.OxS.Exceptions.NotFoundException"/> base instead.
+/// anonymous <see cref="NotFoundException"/> base instead.
 /// </para>
 /// </summary>
-public class ResourceNotFoundException : Simplic.OxS.Exceptions.NotFoundException
+public class ResourceNotFoundException : NotFoundException
 {
     /// <summary>
     /// Helper to check for null resources. Throws if <paramref name="resource"/> is null.

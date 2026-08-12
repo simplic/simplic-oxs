@@ -7,7 +7,7 @@ namespace Simplic.OxS.Exceptions;
 /// Use this for tenant-scoped reads where "the resource does not exist" and "it exists but is not
 /// yours" must be indistinguishable, so an attacker cannot probe for the existence of foreign ids.
 /// When the caller is allowed to know the concrete resource (e.g. an owner-verified or administrative
-/// lookup), throw <see cref="Simplic.OxS.ResourceNotFoundException"/> instead, which additionally
+/// lookup), throw <see cref="ResourceNotFoundException"/> instead, which additionally
 /// publishes the resource type and id.
 /// </para>
 /// </summary>

@@ -122,7 +122,7 @@ namespace Simplic.OxS.Server.Test
             var context = CreateContext();
             var id = Guid.NewGuid();
 
-            var handled = await CreateOxSHandler().TryHandleAsync(context, ResourceNotFoundException.FromType<ExceptionsTest>(id), default);
+            var handled = await CreateOxSHandler().TryHandleAsync(context, global::Simplic.OxS.Exceptions.ResourceNotFoundException.FromType<ExceptionsTest>(id), default);
 
             handled.Should().BeTrue();
             context.Response.StatusCode.Should().Be(404);
@@ -133,6 +133,24 @@ namespace Simplic.OxS.Server.Test
             body.GetProperty("resource").GetString().Should().Be($"{nameof(ExceptionsTest)}@{id}");
             body.GetProperty("resourceType").GetString().Should().Be(nameof(ExceptionsTest));
             body.GetProperty("resourceId").GetString().Should().Be(id.ToString());
+        }
+
+        [Fact]
+        public async Task OxSExceptionHandler_ObsoleteShims_StillHandled()
+        {
+            var context = CreateContext();
+
+#pragma warning disable CS0618 // obsolete shims are covered on purpose
+            var badRequest = new Server.BadRequestException("bad");
+            var notFound = Simplic.OxS.ResourceNotFoundException.FromType<ExceptionsTest>(Guid.NewGuid());
+#pragma warning restore CS0618
+
+            badRequest.Should().BeAssignableTo<global::Simplic.OxS.Exceptions.BadRequestException>();
+            notFound.Should().BeAssignableTo<global::Simplic.OxS.Exceptions.ResourceNotFoundException>();
+
+            var handled = await CreateOxSHandler().TryHandleAsync(context, badRequest, default);
+            handled.Should().BeTrue();
+            context.Response.StatusCode.Should().Be(400);
         }
 
         [Fact]

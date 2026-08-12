@@ -31,8 +31,8 @@ Handled exceptions are logged automatically, with severity by status class: **5x
 | [`BadRequestException`](BadRequestException.cs) | 400 | `…:bad-request` | optional `errors` (field map) |
 | [`UnauthorizedException`](UnauthorizedException.cs) | 401 | `…:unauthorized` | `WWW-Authenticate: Bearer` header |
 | [`ForbiddenException`](ForbiddenException.cs) | 403 | `…:forbidden` | — |
-| [`NotFoundException`](NotFoundException.cs) | 404 | `…:not-found` | **anonymous** — no resource info |
-| [`ResourceNotFoundException`](ResourceNotFoundException.cs) | 404 | `…:not-found` | `resource` / `resourceType` / `resourceId` |
+| [`NotFoundException`](NotFoundException.cs) | 404 | `…:not-found` | **preferred** — anonymous, no resource info |
+| [`ResourceNotFoundException`](ResourceNotFoundException.cs) | 404 | `…:not-found` | **deprecated** — `resource` / `resourceType` / `resourceId` |
 | [`ConflictException`](ConflictException.cs) | 409 | `…:conflict` | — |
 | [`PayloadTooLargeException`](PayloadTooLargeException.cs) | 413 | `…:payload-too-large` | — |
 | [`UnsupportedMediaTypeException`](UnsupportedMediaTypeException.cs) | 415 | `…:unsupported-media-type` | — |
@@ -59,28 +59,30 @@ throw new ConflictException("The document was modified by someone else.");
 throw new ForbiddenException("You may not delete organization-owned records.");
 ```
 
-### Not found: pick anonymous vs. identified deliberately
-
-This is the most important choice in this set.
+### Not found: always prefer the anonymous `NotFoundException`
 
 ```csharp
-// Tenant-scoped read: "doesn't exist" and "exists but isn't yours" MUST be indistinguishable,
-// so a caller cannot probe for foreign ids. Reveals nothing about the resource.
+// Preferred everywhere: reveals nothing — "doesn't exist", "isn't yours" and "invalid route"
+// are indistinguishable, so a caller cannot probe for foreign ids.
 var order = await repository.GetForOrganizationAsync(id, ct);
 if (order is null)
     throw new NotFoundException();
-
-// Owner-verified / administrative lookup where echoing the missing id is fine:
-var article = await repository.GetAsync(id, ct)
-    ?? throw ResourceNotFoundException.FromType<Article>(id);
-
-// Or the null-guard helper (throws ResourceNotFoundException when null, returns the value otherwise):
-var article = ResourceNotFoundException.ExpectNotNull(await repository.GetAsync(id, ct), id);
 ```
 
-> Rule of thumb: **default to the anonymous `NotFoundException` for organization-scoped reads.**
-> Only use `ResourceNotFoundException` when the caller is already allowed to know the resource
-> exists.
+`ResourceNotFoundException` is **deprecated** because echoing the resource type and id leaks whether
+a resource exists. It remains only for administrative/owner-verified lookups that already prove the
+caller may know the resource, and will be removed in a future major version:
+
+```csharp
+// Deprecated — only for lookups where the caller is already allowed to know the resource exists.
+#pragma warning disable CS0618
+var article = await repository.GetAsync(id, ct)
+    ?? throw ResourceNotFoundException.FromType<Article>(id);
+#pragma warning restore CS0618
+```
+
+> Rule of thumb: **use the anonymous `NotFoundException` for every not-found.** Reach for
+> `ResourceNotFoundException` only in an administrative context, and expect it to go away.
 
 ### Field-level validation errors (`errors` member)
 
@@ -166,7 +168,7 @@ Prefer reusing the exceptions above. Only add a new type for a status/shape not 
 
 ## Guidelines & conventions
 
-- **Never** `BadRequest("… not found")` — throw a `NotFoundException` / `ResourceNotFoundException`.
+- **Never** `BadRequest("… not found")` — throw a `NotFoundException` (preferred, anonymous).
 - **Never** `Console.WriteLine` for errors — these exceptions are logged centrally.
 - Problem-type URNs use the single scheme `urn:simplic-oxs:problem:*`. Service-specific extensions
   should follow `urn:simplic-oxs:problem:<service>-<slug>`.

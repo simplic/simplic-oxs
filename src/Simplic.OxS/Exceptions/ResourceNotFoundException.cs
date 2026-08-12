@@ -3,14 +3,18 @@
 namespace Simplic.OxS.Exceptions;
 
 /// <summary>
-/// Exception thrown when a referenced resource does not exist and the caller is allowed to know
-/// which resource. Maps to an HTTP <c>404 Not Found</c> response and publishes the resource type and
-/// id as machine-readable problem-details members.
+/// Exception thrown when a referenced resource does not exist and publishes the resource type and id
+/// as machine-readable problem-details members. Maps to an HTTP <c>404 Not Found</c> response.
 /// <para>
-/// For tenant-scoped reads where the existence of a foreign resource must stay hidden, throw the
-/// anonymous <see cref="NotFoundException"/> base instead.
+/// Deprecated: prefer the anonymous <see cref="NotFoundException"/>. Echoing the resource type and id
+/// back to the caller lets an unauthorized client distinguish "this resource does not exist" from
+/// "it exists but is not yours" (or from an invalid route), which leaks the existence of foreign ids.
+/// A plain <see cref="NotFoundException"/> keeps those cases indistinguishable. This type is retained
+/// only for administrative/owner-verified lookups that already prove the caller may know the resource,
+/// and will be removed in a future major version.
 /// </para>
 /// </summary>
+[Obsolete("Prefer the anonymous NotFoundException, which does not reveal whether a resource exists or a route is invalid. ResourceNotFoundException will be removed in a future major version.")]
 public class ResourceNotFoundException : NotFoundException
 {
     /// <summary>

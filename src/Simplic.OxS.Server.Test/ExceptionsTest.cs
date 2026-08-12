@@ -122,7 +122,10 @@ namespace Simplic.OxS.Server.Test
             var context = CreateContext();
             var id = Guid.NewGuid();
 
-            var handled = await CreateOxSHandler().TryHandleAsync(context, global::Simplic.OxS.Exceptions.ResourceNotFoundException.FromType<ExceptionsTest>(id), default);
+#pragma warning disable CS0618 // ResourceNotFoundException is obsolete; covered here on purpose
+            var exception = global::Simplic.OxS.Exceptions.ResourceNotFoundException.FromType<ExceptionsTest>(id);
+#pragma warning restore CS0618
+            var handled = await CreateOxSHandler().TryHandleAsync(context, exception, default);
 
             handled.Should().BeTrue();
             context.Response.StatusCode.Should().Be(404);

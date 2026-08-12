@@ -4,11 +4,11 @@ namespace Simplic.OxS.Exceptions;
 /// Exception that maps to an HTTP <c>404 Not Found</c> response with an intentionally anonymous body —
 /// it carries no information about the missing resource.
 /// <para>
-/// Use this for tenant-scoped reads where "the resource does not exist" and "it exists but is not
-/// yours" must be indistinguishable, so an attacker cannot probe for the existence of foreign ids.
-/// When the caller is allowed to know the concrete resource (e.g. an owner-verified or administrative
-/// lookup), throw <see cref="ResourceNotFoundException"/> instead, which additionally
-/// publishes the resource type and id.
+/// This is the preferred 404: use it for tenant-scoped reads (and generally) so that "the resource
+/// does not exist", "it exists but is not yours" and "the route is invalid" stay indistinguishable,
+/// preventing an attacker from probing for the existence of foreign ids. The identified
+/// <see cref="ResourceNotFoundException"/> variant, which additionally publishes the resource type and
+/// id, is deprecated and should only be used for administrative/owner-verified lookups.
 /// </para>
 /// </summary>
 public class NotFoundException : OxSException

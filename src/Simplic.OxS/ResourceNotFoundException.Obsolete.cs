@@ -13,7 +13,9 @@ namespace Simplic.OxS;
 /// </para>
 /// </summary>
 [Obsolete("Use Simplic.OxS.Exceptions.ResourceNotFoundException instead. This alias will be removed in a future major version.")]
+#pragma warning disable CS0618 // canonical base is itself obsolete; this alias forwards to it during the deprecation cycle
 public class ResourceNotFoundException : Simplic.OxS.Exceptions.ResourceNotFoundException
+#pragma warning restore CS0618
 {
     /// <summary>
     /// Create a new <see cref="ResourceNotFoundException"/>.

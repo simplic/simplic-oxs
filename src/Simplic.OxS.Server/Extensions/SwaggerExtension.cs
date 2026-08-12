@@ -27,6 +27,9 @@ namespace Simplic.OxS.Server.Extensions
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc(apiVersion, new OpenApiInfo { Title = $"Simplic.OxS.{serviceName}", Version = apiVersion });
+
+                // Declare the standard problem+json error responses on every operation.
+                c.OperationFilter<ProblemDetailsOperationFilter>();
                 
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {

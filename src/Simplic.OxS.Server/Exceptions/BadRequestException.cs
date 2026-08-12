@@ -3,13 +3,14 @@
     /// <summary>
     /// Exception to throw when the request is bad, or not as it should be.
     /// <para>
-    /// Retained for backward compatibility. New code should prefer
-    /// <see cref="Simplic.OxS.Exceptions.BadRequestException"/> (and the other
-    /// <see cref="Simplic.OxS.Exceptions.OxSException"/> derivatives) directly. This type derives
-    /// from it, so it is still handled by the unified exception filter and produces the same
-    /// <c>400 Bad Request</c> RFC 9457 problem details response.
+    /// Deprecated: new code should use <see cref="Simplic.OxS.Exceptions.BadRequestException"/> (and
+    /// the other <see cref="Simplic.OxS.Exceptions.OxSException"/> derivatives) directly. This alias
+    /// derives from it, so it is still handled by the global exception-handler chain and produces the
+    /// same <c>400 Bad Request</c> RFC 9457 problem details response. It will be removed in a future
+    /// major version.
     /// </para>
     /// </summary>
+    [Obsolete("Use Simplic.OxS.Exceptions.BadRequestException instead. This alias will be removed in a future major version.")]
     public class BadRequestException : Simplic.OxS.Exceptions.BadRequestException
     {
         /// <summary>

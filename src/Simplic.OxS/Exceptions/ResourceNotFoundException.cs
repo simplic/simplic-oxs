@@ -1,13 +1,21 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using Simplic.OxS.Exceptions;
 
-namespace Simplic.OxS;
+namespace Simplic.OxS.Exceptions;
 
 /// <summary>
-/// Exception thrown when a referenced resource does not exist.
-/// Maps to an HTTP <c>404 Not Found</c> response.
+/// Exception thrown when a referenced resource does not exist and publishes the resource type and id
+/// as machine-readable problem-details members. Maps to an HTTP <c>404 Not Found</c> response.
+/// <para>
+/// Deprecated: prefer the anonymous <see cref="NotFoundException"/>. Echoing the resource type and id
+/// back to the caller lets an unauthorized client distinguish "this resource does not exist" from
+/// "it exists but is not yours" (or from an invalid route), which leaks the existence of foreign ids.
+/// A plain <see cref="NotFoundException"/> keeps those cases indistinguishable. This type is retained
+/// only for administrative/owner-verified lookups that already prove the caller may know the resource,
+/// and will be removed in a future major version.
+/// </para>
 /// </summary>
-public class ResourceNotFoundException : OxSException
+[Obsolete("Prefer the anonymous NotFoundException, which does not reveal whether a resource exists or a route is invalid. ResourceNotFoundException will be removed in a future major version.")]
+public class ResourceNotFoundException : NotFoundException
 {
     /// <summary>
     /// Helper to check for null resources. Throws if <paramref name="resource"/> is null.
@@ -42,20 +50,12 @@ public class ResourceNotFoundException : OxSException
     /// </summary>
     /// <param name="type">The type of the missing resource.</param>
     /// <param name="id">The id of the missing resource.</param>
-    public ResourceNotFoundException(string type, object? id) : base($"Resource of type '{type}' with id '{id}' could not be found.")
+    public ResourceNotFoundException(string type, object? id)
+        : base($"Resource of type '{type}' with id '{id}' could not be found.")
     {
         Type = type;
         Id = id;
     }
-
-    /// <inheritdoc/>
-    public override int StatusCode => 404;
-
-    /// <inheritdoc/>
-    public override string? Title => "Not Found";
-
-    /// <inheritdoc/>
-    public override string? ProblemType => "urn:simplic-oxs:problem:not-found";
 
     /// <inheritdoc/>
     public override void PopulateProblemDetails(IDictionary<string, object?> extensions)

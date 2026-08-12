@@ -166,6 +166,82 @@ Derive from [`OxSException`](OxSException.cs) and override what you need:
 
 Prefer reusing the exceptions above. Only add a new type for a status/shape not already covered.
 
+## Handling third-party exceptions
+
+Exceptions from libraries you don't own (a database driver, an HTTP/SDK client, a payment gateway)
+don't derive from `OxSException`, so by default they fall through the handler chain to the
+**`FallbackExceptionHandler`** → a generic **500** in production (the developer exception page in
+Development/Staging/Local). That's safe — no internal detail leaks — but it carries no meaningful
+status or problem-type. Map them into the format in one of two ways.
+
+### 1. Translate at the boundary (occasional call sites)
+
+Catch the third-party exception where you call it and rethrow an `OxSException`, keeping the original
+as the inner exception so it's still logged:
+
+```csharp
+try
+{
+    await paymentGateway.ChargeAsync(request, ct);
+}
+catch (StripeException ex)
+{
+    // Client gets a clean problem+json; the StripeException is preserved for the log.
+    throw new ServiceUnavailableException("Payment provider is unavailable.", innerException: ex);
+}
+```
+
+> Bonus: `OxSExceptionHandler` unwraps inner exceptions (`ExceptionUnpacker`), so if a third-party
+> wrapper exception already *contains* an `OxSException` in its `InnerException` chain, it is
+> surfaced correctly with no extra work.
+
+### 2. A dedicated `IExceptionHandler` (a whole library, cross-cutting)
+
+When a library throws the same exception types across many call sites, map them once in a global
+handler — this is exactly what the built-in
+[`FrameworkExceptionHandler`](../../Simplic.OxS.Server/Exceptions/Handlers/FrameworkExceptionHandler.cs)
+does for Kestrel/multipart exceptions. Add your own handler and register it in `Bootstrap` **before**
+the `FallbackExceptionHandler`:
+
+```csharp
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Simplic.OxS.Server.Exceptions;   // ProblemDetailsResponseWriter
+
+public sealed class MongoExceptionHandler(ILogger<MongoExceptionHandler> logger) : IExceptionHandler
+{
+    public async ValueTask<bool> TryHandleAsync(HttpContext ctx, Exception exception, CancellationToken ct)
+    {
+        var mapped = exception switch
+        {
+            MongoConnectionException   => (503, "Storage is temporarily unavailable.", "urn:simplic-oxs:problem:service-unavailable"),
+            MongoDuplicateKeyException => (409, "The record already exists.",           "urn:simplic-oxs:problem:conflict"),
+            _ => ((int Status, string Detail, string Type)?)null
+        };
+
+        if (mapped is null)
+            return false;   // not ours — let the next handler try
+
+        var (status, detail, type) = mapped.Value;
+        logger.LogWarning(exception, "Mapped {ExceptionType} to {Status}", exception.GetType().Name, status);
+
+        var problem = ProblemDetailsResponseWriter.Create(ctx, status, title: null, type: type, detail);
+        await ProblemDetailsResponseWriter.WriteAsync(ctx, problem, headers: null, ct);
+        return true;
+    }
+}
+```
+
+Register it (order matters — first handler that returns `true` wins, and the fallback must stay last):
+
+```csharp
+services.AddExceptionHandler<MongoExceptionHandler>();   // before AddExceptionHandler<FallbackExceptionHandler>()
+```
+
+Return `false` for anything you don't recognise so the exception continues down the chain to the
+fallback. Never put a third-party exception's raw `Message` into `detail` unless you're sure it's
+client-safe — translate it to a fixed, non-leaking string.
+
 ## Guidelines & conventions
 
 - **Never** `BadRequest("… not found")` — throw a `NotFoundException` (preferred, anonymous).

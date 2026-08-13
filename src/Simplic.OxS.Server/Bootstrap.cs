@@ -23,6 +23,8 @@ using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
 using Simplic.OxS.ModelDefinition.Extension;
+using Simplic.OxS.Server.Exceptions;
+using Simplic.OxS.Server.Exceptions.Handlers;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
@@ -197,6 +199,18 @@ namespace Simplic.OxS.Server
                 o.Filters.Add<ValidationActionFilter>();
             }));
 
+            // Global exception handling: a single problem+json contract for every error, built by an
+            // ordered IExceptionHandler chain (OxSException -> known framework -> fallback) behind
+            // UseExceptionHandler. Replaces the per-request MVC exception filter.
+            services.AddProblemDetails();
+            services.AddExceptionHandler<OxSExceptionHandler>();
+            services.AddExceptionHandler<FrameworkExceptionHandler>();
+            services.AddExceptionHandler<FallbackExceptionHandler>();
+
+            // Suppress the [ApiController] automatic 400 so ValidationActionFilter produces the single
+            // BadRequestException problem+json contract for model-state failures on every controller.
+            services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
+
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 
             // Add signalr
@@ -227,6 +241,13 @@ namespace Simplic.OxS.Server
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            // Global exception handler chain (OxSException -> framework -> fallback) plus status-code
+            // pages, so every error — including ones that never reach MVC — returns a consistent
+            // problem+json body. In dev-facing environments the fallback declines, letting the
+            // developer exception page above render the stack trace.
+            app.UseExceptionHandler();
+            app.UseStatusCodePages();
 
             app.UseSwagger(c =>
             {
@@ -264,7 +285,6 @@ namespace Simplic.OxS.Server
 
             app.UseMiddleware<CorrelationIdMiddleware>();
             app.UseMiddleware<PutJsonContextMiddleware>();
-            app.UseMiddleware<ErrorLoggingMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

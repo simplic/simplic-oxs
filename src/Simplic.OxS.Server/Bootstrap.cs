@@ -434,3 +434,4 @@ namespace Simplic.OxS.Server
         private IWebHostEnvironment CurrentEnvironment { get; set; }
     }
 }
+

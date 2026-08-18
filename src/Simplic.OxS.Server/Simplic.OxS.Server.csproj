@@ -34,7 +34,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="1.14.0-beta.1" />
     <PackageReference Include="OxQL.AspNetCore" Version="1.1.726.813" />
     <PackageReference Include="OxQL.Core" Version="1.1.526.813" />
-    <PackageReference Include="OxQL.Mongo" Version="1.1.526.813" />
+    <PackageReference Include="OxQL.Mongo" Version="1.1.626.818" />
     <PackageReference Include="OxQL.Studio" Version="1.1.326.813" />
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />

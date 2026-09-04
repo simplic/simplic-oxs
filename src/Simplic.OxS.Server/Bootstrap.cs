@@ -22,13 +22,13 @@ using OxQL.Studio;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
-using Simplic.OxS.ModelDefinition.Extension;
 using Simplic.OxS.Server.Exceptions;
 using Simplic.OxS.Server.Exceptions.Handlers;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.OxQL;
+using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.Server.Services;
 using Simplic.OxS.Server.Settings;
@@ -147,8 +147,26 @@ namespace Simplic.OxS.Server
             Console.WriteLine("Add OxQL core");
             services.AddOxQLCore(options =>
             {
-                options.MaxPageSize = 500;
+                // Only the fleet's deliberate override. Everything else - the page ceiling
+                // included - stays the engine's own default, and /schema publishes this very
+                // options object, so there is nowhere for the two to drift apart.
                 options.DefaultPageSize = 100;
+            });
+
+            // ── Ox schema ───────────────────────────────────────────────────────────
+            // Built while the host starts, held in memory, never written to disk.
+            var typeAssemblies = (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+
+            services.AddOxSchema(schema =>
+            {
+                schema.ServiceName = ServiceName;
+                schema.ApiName = ApiName;
+                schema.ApiVersion = ApiVersion;
+                schema.TypeAssemblies = typeAssemblies;
+                schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
+                schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
+
+                ConfigureOxSchema(schema);
             });
 
             // ── OxQL MongoDB adapter ────────────────────────────────────────────────
@@ -164,8 +182,7 @@ namespace Simplic.OxS.Server
                     options.ConnectionString = mongodb.ConnectionString;
                     options.DatabaseName = mongodb.Database;
 
-                    var types = (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
-                    options.ScanAssemblies(types);
+                    options.ScanAssemblies(typeAssemblies);
                 });
             }
 
@@ -187,7 +204,7 @@ namespace Simplic.OxS.Server
             Console.WriteLine("Add OxQL Studio");
             services.AddOxQLStudio(options =>
             {
-                options.RoutePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}/oxql";
+                options.RoutePath = $"/{ApiName}/{ApiVersion}/oxql";
                 options.ApiBasePath = "/oxql";  // full browser-visible path (includes path base)
                 options.Title = "OxQL Studio";
             });
@@ -234,7 +251,7 @@ namespace Simplic.OxS.Server
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             // Allow paths like /<service-name>-api/v1
-            var basePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}";
+            var basePath = $"/{ApiName}/{ApiVersion}";
             app.UsePathBase(basePath);
 
             if (env.IsDevelopment() || env.IsStaging() || env.EnvironmentName.ToLower() == "local")
@@ -268,10 +285,6 @@ namespace Simplic.OxS.Server
             {
                 c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
             });
-
-            var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
-            if (modelDefinitionBuilderConfig.Count != 0)
-                app.AddControllerDefinitions(env, basePath, modelDefinitionBuilderConfig);
 
             app.UseHttpsRedirection();
 
@@ -396,6 +409,12 @@ namespace Simplic.OxS.Server
         protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
 
         /// <summary>
+        /// Adjusts the inputs of the schema document beyond what the host already declares, for
+        /// example to publish the ids an entity retired when it was renamed.
+        /// </summary>
+        protected virtual void ConfigureOxSchema(OxSchemaOptionsBuilder schema) { }
+
+        /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.
         /// </summary>
         /// <returns>List of assemblies containing OxQL types</returns>
@@ -422,6 +441,17 @@ namespace Simplic.OxS.Server
         /// Gets the actual service version. Default is v1.
         /// </summary>
         protected virtual string ApiVersion { get; } = "v1";
+
+        /// <summary>
+        /// Gets the first segment of the service's base path, e.g. <c>vehicle-api</c>.
+        /// </summary>
+        /// <remarks>
+        /// One definition of the convention, because three places now need it - the path base,
+        /// the OxQL Studio route and the <c>api</c> member of the schema document, which is a
+        /// published claim about where this service answers. A second copy of the convention is
+        /// a document that can come to describe a route the host does not serve.
+        /// </remarks>
+        protected string ApiName => $"{ServiceName.ToLowerInvariant()}-api";
 
         /// <summary>
         /// Gets the current configuration service.

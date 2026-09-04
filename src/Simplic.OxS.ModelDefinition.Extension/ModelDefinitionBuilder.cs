@@ -7,6 +7,12 @@ namespace Simplic.OxS.ModelDefinition.Extension
 {
     public static class ModelDefinitionBuilder
     {
+        /// <summary>
+        /// Writes the model definition document to <c>ModelDefinition/ModelDefinition.json</c>.
+        /// Nothing reads that file: the document is built into memory by the Ox schema registry
+        /// and served from there.
+        /// </summary>
+        [Obsolete("The model definition document is built and served by the Ox schema registry (AddOxSchema); nothing reads the file this writes.")]
         public static void AddControllerDefinitions(
             this IApplicationBuilder app,
             IWebHostEnvironment env,

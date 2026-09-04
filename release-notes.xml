@@ -1,4 +1,10 @@
 <ReleaseNotes>
+  <ChangeSet>
+    <Change type="feature">Add the Ox schema: every service publishes GET /schema, an organisation-independent document describing its queryable entities, their types, keys, relationships and REST operations, with a content-derived revision and ETag.</Change>
+    <Change type="enhancement">Serve /ModelDefinition from memory. The document is built once at startup from the same controller list and nothing writes ModelDefinition/ModelDefinition.json any more; the endpoint now answers GET only.</Change>
+    <Change type="feature">Add Bootstrap.ConfigureOxSchema so a host can declare the ids an entity retired when it was renamed; they are published as aliases of the entity.</Change>
+    <Change type="enhancement">Mark ModelDefinitionBuilder.AddControllerDefinitions obsolete; the registry replaces it.</Change>
+  </ChangeSet>
   <ChangeSet guid="g6d48f4a-b886-260c-bf73-3aa3c4d7a54f" version="1.2.623.523" date="2023-05-23">
     <Change type="feature">Update the Patchhelper to patch list of guid, string or something else.</Change>
   </ChangeSet>

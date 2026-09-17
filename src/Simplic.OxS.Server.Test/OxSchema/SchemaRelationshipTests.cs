@@ -2,7 +2,10 @@ using Simplic.OxS.Server.OxSchema;
 
 namespace Simplic.OxS.Server.Test.OxSchema
 {
-    /// <summary>Foreign keys, the field they resolve to, and embedded snapshots.</summary>
+    /// <summary>
+    /// Foreign keys and embedded snapshots. A reference is a declaration on the model, never a
+    /// guess from a member's name: the query engine follows exactly what the document publishes.
+    /// </summary>
     [Collection(SchemaCollection.Name)]
     public sealed class SchemaRelationshipTests
     {
@@ -16,24 +19,13 @@ namespace Simplic.OxS.Server.Test.OxSchema
             reference.Inferred.Should().BeFalse();
         }
 
-        [Fact]
-        public void Build_ConventionalIdName_ResolvesOnTheNameAloneAndIsInferred()
+        [Theory]
+        [InlineData("widgetId")]
+        [InlineData("thingGuid")]
+        public void Build_ConventionalIdName_IsNoLongerAReference(string name)
         {
-            var reference = SchemaBuild.Degraded.Document.Property("probe.link", "widgetId").References;
-
-            reference.Should().NotBeNull();
-            reference!.Entity.Should().Be("probe.widget");
-            reference.Inferred.Should().BeTrue();
-        }
-
-        [Fact]
-        public void Build_GuidSuffix_ResolvesLikeTheIdSuffix()
-        {
-            var reference = SchemaBuild.Degraded.Document.Property("probe.link", "thingGuid").References;
-
-            reference.Should().NotBeNull();
-            reference!.Entity.Should().Be("probe.thing");
-            reference.Inferred.Should().BeTrue();
+            // The naming convention is retired: an id member references an entity only when declared.
+            SchemaBuild.Degraded.Document.Property("probe.link", name).References.Should().BeNull();
         }
 
         [Theory]
@@ -42,9 +34,22 @@ namespace Simplic.OxS.Server.Test.OxSchema
         [InlineData("registratorId")]
         [InlineData("subsetId")]
         [InlineData("id")]
-        public void Build_UnresolvableStem_PublishesNoReference(string name)
+        public void Build_UndeclaredIdMember_PublishesNoReference(string name)
         {
             SchemaBuild.Degraded.Document.Property("probe.link", name).References.Should().BeNull();
+        }
+
+        [Fact]
+        public void Build_NoInferredReference_ExistsAnywhere()
+        {
+            var references = SchemaBuild.Degraded.Document.Types
+                .SelectMany(entry => entry.Value.Properties ?? [])
+                .Select(property => property.References)
+                .Where(reference => reference is not null)
+                .ToList();
+
+            references.Should().NotBeEmpty();
+            references.Should().OnlyContain(reference => !reference!.Inferred);
         }
 
         [Fact]
@@ -53,6 +58,13 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var names = SchemaBuild.Degraded.Document.PropertyNames("probe.link");
 
             names.Should().NotContain("missingId");
+        }
+
+        [Fact]
+        public void Build_DeclarationNamingAnAbsentProperty_IsReported()
+        {
+            SchemaBuild.Degraded.Findings.Should().Contain(finding =>
+                finding.Code == OxSchemaCodes.ReferenceDeclarationUnresolved && finding.Target == "probe.link#absent");
         }
 
         [Fact]
@@ -65,20 +77,15 @@ namespace Simplic.OxS.Server.Test.OxSchema
             navigation.Target().Should().Be("t_thingSubset");
             navigation.SnapshotOf.Should().BeNull();
             navigation.References.Should().BeNull();
+            document.Property("probe.link", "subsetId").References.Should().BeNull();
         }
 
         [Fact]
-        public void Build_ReferenceField_ComesFromTheTargetsOwnKey()
+        public void Build_ReferenceField_IsTheTargetsStoredKey()
         {
-            SchemaBuild.Degraded.Document.Property("probe.link", "widgetId").References!.Field.Should().Be("id");
-        }
-
-        [Theory]
-        [InlineData("thingId")]
-        [InlineData("thingGuid")]
-        public void Build_ReferenceToAnEntityWithNoKey_PublishesNoField(string name)
-        {
-            SchemaBuild.Degraded.Document.Property("probe.link", name).References!.Field.Should().BeNull();
+            // The engine joins on the target's `_id`, wire `id`, whether or not the target
+            // declares an identity interface; the document publishes the field the engine uses.
+            SchemaBuild.Degraded.Document.Property("probe.link", "thingId").References!.Field.Should().Be("id");
         }
 
         [Fact]

@@ -1,8 +1,11 @@
+using OxQL.Model;
+
 namespace Simplic.OxS.Server.OxSchema
 {
     /// <summary>
-    /// Everything a host serves about its schema, built once at startup: the document, its
-    /// serialised body and revision, the validation findings, and the legacy document beside it.
+    /// Everything a host serves about its schema, built once at startup: the entity model the
+    /// query engine binds against, the document, its serialised body and revision, the
+    /// validation findings, and the legacy document beside it.
     /// </summary>
     public sealed class OxSchemaRegistry
     {
@@ -10,6 +13,7 @@ namespace Simplic.OxS.Server.OxSchema
 
         private OxSchemaRegistry(OxSchemaBuildResult result)
         {
+            Model = result.Model;
             Document = result.Document;
             Body = result.Body;
             Findings = result.Findings;
@@ -19,6 +23,9 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>Builds the registry from a host's inputs.</summary>
         /// <exception cref="InvalidOperationException">The document is ambiguous and the options fail fast.</exception>
         public static OxSchemaRegistry Build(OxSchemaBuildOptions options) => new(OxSchemaBuilder.Build(options));
+
+        /// <summary>The entity model: the one the document is projected from and the query engine executes against.</summary>
+        public EntityModel Model { get; }
 
         /// <summary>The schema document.</summary>
         public OxSchemaDocument Document { get; }

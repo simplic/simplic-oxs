@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using OxQL.Core.Engine;
 using OxQL.Core.Models;
+using OxQL.Model;
 
 namespace Simplic.OxS.Server.OxSchema
 {
@@ -13,7 +15,9 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>
         /// Registers the registry as a singleton and installs a startup filter that builds it
         /// before the first request, so a fail-fast refusal is a failed start rather than a failed
-        /// request and the findings are logged exactly once. A second call is a no-op.
+        /// request and the findings are logged exactly once. The entity model the registry builds
+        /// is handed to the query engine as its <see cref="IEntityModelProvider"/>, so the engine
+        /// binds against exactly the model the document describes. A second call is a no-op.
         /// </summary>
         public static IServiceCollection AddOxSchema(this IServiceCollection services, Action<OxSchemaOptionsBuilder> configure)
         {
@@ -34,6 +38,11 @@ namespace Simplic.OxS.Server.OxSchema
             services.TryAddSingleton(provider =>
                 OxSchemaRegistry.Build(options with { QueryLimits = QueryLimits(provider) ?? options.QueryLimits }));
 
+            // The engine's model is the registry's: built in the startup filter, after every
+            // serializer registration, and never a second walk of the same assemblies. Replaces
+            // any provider a backend registered as its fallback.
+            services.Replace(ServiceDescriptor.Singleton<IEntityModelProvider, OxSchemaEntityModelProvider>());
+
             services.TryAddEnumerable(ServiceDescriptor.Transient<IStartupFilter, OxSchemaStartupFilter>());
 
             return services;
@@ -50,6 +59,12 @@ namespace Simplic.OxS.Server.OxSchema
                     OxSchemaStartupLogger.Log(app.ApplicationServices);
                     next(app);
                 };
+        }
+
+        /// <summary>The engine's model provider over the registry: resolving it builds the registry when nothing else has yet.</summary>
+        private sealed class OxSchemaEntityModelProvider(OxSchemaRegistry registry) : IEntityModelProvider
+        {
+            public EntityModel Model { get; } = registry.Model;
         }
     }
 }

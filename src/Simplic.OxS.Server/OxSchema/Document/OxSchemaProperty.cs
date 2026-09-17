@@ -71,6 +71,25 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The member's deprecation, when the model declares one.</summary>
         [JsonPropertyOrder(12)]
         public OxSchemaDeprecation? Deprecated { get; init; }
+
+        /// <summary>
+        /// A closed value list with labels. Only an addon definition descriptor
+        /// (<c>GET /schema/addons</c>) carries it; never a member of the schema document.
+        /// </summary>
+        [JsonPropertyOrder(13)]
+        public IReadOnlyList<OxSchemaValue>? Values { get; init; }
+    }
+
+    /// <summary>One entry of a closed value list.</summary>
+    public sealed record OxSchemaValue
+    {
+        /// <summary>The value, as the bag stores it: a string, or the decimal digits of an int.</summary>
+        [JsonPropertyOrder(0)]
+        public required string Value { get; init; }
+
+        /// <summary>The label shown for the value.</summary>
+        [JsonPropertyOrder(1)]
+        public string? Label { get; init; }
     }
 
     /// <summary>Value constraints of a property. Bounds travel as strings because a JSON number is a double.</summary>

@@ -16,7 +16,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             if (ifNoneMatch is not null)
                 context.Request.Headers.IfNoneMatch = ifNoneMatch;
 
-            return new SchemaController(registry)
+            return new SchemaController(registry, global::OxQL.Model.Addon.EmptyAddonDefinitionSource.Instance, new Simplic.OxS.Server.Services.RequestContext())
             {
                 ControllerContext = new ControllerContext { HttpContext = context },
             };

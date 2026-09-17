@@ -1,20 +1,29 @@
+using System.Collections.Immutable;
 using System.Text;
+using OxQL.Model;
+using OxQL.Model.Build;
 
 namespace Simplic.OxS.Server.OxSchema
 {
-    /// <summary>What one build produces: the schema document, its body, every finding, and the legacy document.</summary>
+    /// <summary>What one build produces: the entity model, the schema document, its body, every finding, and the legacy document.</summary>
     internal sealed record OxSchemaBuildResult(
+        EntityModel Model,
         OxSchemaDocument Document,
         byte[] Body,
         IReadOnlyList<OxSchemaFinding> Findings,
         ModelDefinitionDocument? ModelDefinition);
 
-    /// <summary>Builds the schema document and the legacy document from a host's inputs, in one pass at startup.</summary>
+    /// <summary>Builds the entity model, the schema document and the legacy document from a host's inputs, in one pass at startup.</summary>
     internal static class OxSchemaBuilder
     {
         /// <summary>
         /// Builds the documents.
         /// </summary>
+        /// <remarks>
+        /// The entity model is walked through the MongoDB driver's serializer registry, so this
+        /// must run after every serializer and class-map registration of the host and never
+        /// during service registration; the startup filter guarantees it.
+        /// </remarks>
         /// <exception cref="InvalidOperationException">
         /// The document is ambiguous and the options fail fast. Every other finding is logged and,
         /// where a client could not detect it from absence, published in <c>diagnostics</c>.
@@ -31,30 +40,24 @@ namespace Simplic.OxS.Server.OxSchema
             // publishes are used. The direction is one-way; nothing here moves a byte of it.
             var legacy = ModelDefinitionDocument.Build(options.ControllerTypes);
 
-            var entities = EntityDiscovery.Discover(options.TypeAssemblies, service, findings);
-            var keys = new Dictionary<Type, string>();
-            var pool = new Dictionary<string, OxSchemaType>(StringComparer.Ordinal);
+            // One declaration set, one model, one published document: the engine binds against
+            // this model and the document is its wire view.
+            var model = ClrModelBuilder.Build(options.TypeAssemblies, options.RetiredEntityIds);
 
-            // Every entity is in the pool before any member is walked, so a member typed as
-            // another entity points at that entity rather than at a second, structural copy.
-            foreach (var entity in entities)
-            {
-                keys[entity.ClrType] = entity.Id;
-                pool[entity.Id] = new OxSchemaType { Entity = true, Properties = [] };
-            }
+            ModelFindings.Import(model, service, findings);
 
-            var walker = new TypePoolWalker(keys, pool, findings, Relationships.EntityIndex(entities.Select(entity => entity.Id)));
+            var entities = EntityDiscovery.Declarations(model);
+            var pool = TypePoolWalker.Project(model);
             var link = new ControllerLink(options.ControllerTypes);
             var controllers = link.Link(entities, findings);
 
             foreach (var entity in entities)
             {
-                var properties = walker.DescribeProperties(entity.ClrType);
+                var properties = pool[entity.Id].Properties ?? [];
                 var controller = controllers.GetValueOrDefault(entity.ClrType);
 
                 pool[entity.Id] = pool[entity.Id] with
                 {
-                    Properties = properties,
                     DisplayName = EntityMetadata.TypeLabel(entity.ClrType),
                     Key = EntityMetadata.KeyOf(entity.ClrType, properties),
                     Display = EntityMetadata.DisplayOf(properties),
@@ -69,13 +72,11 @@ namespace Simplic.OxS.Server.OxSchema
                 };
             }
 
-            // Item collections and reference fields read the finished pool.
+            // Item collections read the finished pool.
             foreach (var entity in entities)
                 pool[entity.Id] = pool[entity.Id] with { Items = ItemCollections.Of(pool, entity.Id, legacy) };
 
-            pool = Relationships.ResolveFields(pool);
-
-            var types = StructuralIds.Assign(pool, keys);
+            var types = ImmutableSortedDictionary.CreateRange(StringComparer.Ordinal, pool);
 
             DocumentValidator.Inspect(types, findings);
 
@@ -109,7 +110,7 @@ namespace Simplic.OxS.Server.OxSchema
 
             document = document with { Revision = OxSchemaJson.Revision(document) };
 
-            return new OxSchemaBuildResult(document, OxSchemaJson.Serialize(document), sorted, legacy);
+            return new OxSchemaBuildResult(model, document, OxSchemaJson.Serialize(document), sorted, legacy);
         }
 
         /// <summary>The ids an entity retired, ordinally sorted: the list is inside the revision, so the host's declaration order must not reach it.</summary>

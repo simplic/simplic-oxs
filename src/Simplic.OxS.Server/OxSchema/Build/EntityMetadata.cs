@@ -67,7 +67,7 @@ namespace Simplic.OxS.Server.OxSchema
             clrName == Pascalize(wireName) ? null : clrName;
 
         /// <summary>Upper-cases the first character and changes nothing else.</summary>
-        private static string Pascalize(string wireName) =>
+        public static string Pascalize(string wireName) =>
             string.IsNullOrEmpty(wireName) ? wireName : char.ToUpperInvariant(wireName[0]) + wireName[1..];
 
         private static string StripLabelSuffix(string name)

@@ -17,6 +17,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OxQL.AspNetCore;
 using OxQL.Core;
+using OxQL.Core.Engine;
+using OxQL.Model.Addon;
 using OxQL.Mongo;
 using OxQL.Studio;
 using Simplic.OxS.Data;
@@ -130,6 +132,7 @@ namespace Simplic.OxS.Server
             services.AddScoped<IInternalClient, InternalClientBase>();
             services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
             services.AddScoped<IAddonFieldRepository, AddonFieldRepository>();
+            services.AddScoped<IAddonDefinitionRepository, AddonDefinitionRepository>();
             services.AddSingleton<ServiceDefinitionService>((x) =>
             {
                 var f = new ServiceDefinitionService(x, x.GetRequiredService<ILogger<ServiceDefinitionService>>())
@@ -143,14 +146,21 @@ namespace Simplic.OxS.Server
                 return f;
             });
 
-            // Register oxql
+            // ── OxQL core ───────────────────────────────────────────────────────────
+            // Every option of the engine comes from the host's `OxQL` section (compat mode,
+            // explain, limits, timeouts, representation tolerance, caches); /schema publishes
+            // this very options object, so there is nowhere for the two to drift apart. The
+            // cursor signing key is derived from the auth token unless the section names one.
             Console.WriteLine("Add OxQL core");
-            services.AddOxQLCore(options =>
+
+            // The engine reads an organisation's addon definitions per request through this
+            // source; registered before the core so the engine's empty default does not win.
+            services.AddSingleton<AddonDefinitionCache>();
+            services.AddScoped<IAddonDefinitionSource, AddonDefinitionSource>();
+
+            services.AddOxQLCore(Configuration.GetSection("OxQL"), options =>
             {
-                // Only the fleet's deliberate override. Everything else - the page ceiling
-                // included - stays the engine's own default, and /schema publishes this very
-                // options object, so there is nowhere for the two to drift apart.
-                options.DefaultPageSize = 100;
+                options.Cursor.SigningKey ??= Configuration.GetSection("Auth").Get<OxS.Settings.AuthSettings>()?.Token;
             });
 
             // ── Ox schema ───────────────────────────────────────────────────────────
@@ -182,31 +192,46 @@ namespace Simplic.OxS.Server
                     options.ConnectionString = mongodb.ConnectionString;
                     options.DatabaseName = mongodb.Database;
 
+                    // Engine faults carry their message only where a developer reads it.
+                    options.IncludeErrorDetails = CurrentEnvironment.IsDevelopment()
+                        || string.Equals(CurrentEnvironment.EnvironmentName, "local", StringComparison.OrdinalIgnoreCase);
+
+                    // The schema's startup filter hands the engine its model; this list is the
+                    // engine's own fallback for a host that never builds a schema.
                     options.ScanAssemblies(typeAssemblies);
                 });
             }
 
             // ── OxQL ASP.NET Core controller ────────────────────────────────────────
+            // Routes: POST /oxql/query, POST /oxql/batch, GET /oxql/health, POST /oxql/explain
+            // (404 unless OxQL:Explain:Enabled). Authenticated like every other controller.
             Console.WriteLine("Add OxQL ASP.NET Core");
             services.AddOxQLAspNetCore<BsonDocument>(options =>
             {
-                options.RoutePrefix = "oxql";
-                options.IncludeErrorDetails = true; // CurrentEnvironment.IsDevelopment();
-
                 options.RequireAuthorization = true;
             });
 
-            // ── Multi-tenant query injection (example) ────────────────────────────── 
-            // Forces an OrganizationId filter onto every OxQL query using a root-level
-            services.AddOxQLQueryFilter<OxQLOrganizationFilter>();
+            // ── The organisation scope ──────────────────────────────────────────────
+            // The engine applies `organizationId eq <request context>` at every entry into an
+            // entity and refuses to start without a provider; this one reads the request
+            // context, filled from the bearer token or, on an internal call, from the headers.
+            services.AddOxQLScope<OxQLScopeProvider>();
 
-            // OxQL Studio
+            // ── Remote resolve ──────────────────────────────────────────────────────
+            // Resolves and semi-joins into an entity another service owns go to that owner's
+            // internal batch route (InternalHosts / InternalApiVersions), one message per call.
+            services.AddHttpClient(RemoteQueryClient.HttpClientName);
+            services.AddSingleton<IRemoteQueryClient, RemoteQueryClient>();
+
+            // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
             Console.WriteLine("Add OxQL Studio");
             services.AddOxQLStudio(options =>
             {
                 options.RoutePath = $"/{ApiName}/{ApiVersion}/oxql";
                 options.ApiBasePath = "/oxql";  // full browser-visible path (includes path base)
+                options.SchemaBasePath = "/schema";
                 options.Title = "OxQL Studio";
+                options.EnableExplain = Configuration.GetValue<bool>("OxQL:Explain:Enabled");
             });
 
             // Register web-api controller. Must be executed before creating swagger configuration

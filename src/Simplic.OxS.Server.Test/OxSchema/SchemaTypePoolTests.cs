@@ -23,7 +23,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 .Select(entry => entry.Key);
 
             entities.Should().BeEquivalentTo(
-                "badid", "probe.bag", "probe.base", "probe.gadget", "probe.link", "probe.thing", "probe.widget", "spare.gadget");
+                "badid", "probe.bag", "probe.bagless", "probe.base", "probe.gadget", "probe.link", "probe.thing", "probe.widget", "spare.gadget");
         }
 
         [Fact]
@@ -48,7 +48,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         [Fact]
         public void Build_Pool_HasNoOtherEntries()
         {
-            SchemaBuild.Degraded.Document.Types.Should().HaveCount(20);
+            SchemaBuild.Degraded.Document.Types.Should().HaveCount(21);
         }
 
         [Fact]

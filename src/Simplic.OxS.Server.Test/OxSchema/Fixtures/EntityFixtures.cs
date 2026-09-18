@@ -31,6 +31,28 @@ namespace Simplic.OxS.Server.Test.OxSchema.Fixtures
 
         /// <summary>A collection of an unkeyed item type.</summary>
         public List<Tag> Tags { get; set; } = [];
+
+        /// <summary>
+        /// The addon bag an extendable entity is extended through. The flag without this
+        /// member is the F-COR-002 shape: a definition can be stored and published on it and
+        /// can never be read, so the rules now require the member rather than the flag.
+        /// </summary>
+        public Dictionary<string, object> Addon { get; set; } = [];
+    }
+
+    /// <summary>
+    /// Declared extendable and carrying no bag — the two entities in the fleet that are
+    /// exactly this (<c>erp.transaction</c>, <c>vehicle.equipment</c>) are what F-COR-002 and
+    /// F-ENT-004 were measured on.
+    /// </summary>
+    [OxQLType("probe.bagless", "probe.bagless", Extendable = true)]
+    public class BaglessModel : IDocument<Guid>
+    {
+        public Guid Id { get; set; }
+
+        public bool IsDeleted { get; set; }
+
+        public string? Name { get; set; }
     }
 
     /// <summary>

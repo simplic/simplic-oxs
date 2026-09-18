@@ -12,7 +12,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var names = SchemaBuild.Degraded.Document.PropertyNames("probe.widget");
 
             names.Should().Equal(
-                "id", "isDeleted", "label", "qrCode", "externalReference", "caption", "slots", "tags");
+                "id", "isDeleted", "label", "qrCode", "externalReference", "caption", "slots", "tags", "addon");
         }
 
         [Theory]

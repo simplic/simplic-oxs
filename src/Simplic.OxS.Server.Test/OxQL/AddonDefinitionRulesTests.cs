@@ -29,9 +29,32 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Fact]
-        public void CheckEntity_RefusesAnEntityWithoutAnAddonBag()
+        public void CheckEntity_RefusesAnEntityThatIsNotExtendable()
         {
             AddonDefinitionRules.CheckEntity(SchemaBuild.Degraded.Model, "probe.thing").Should().Contain("not extendable");
+        }
+
+        /// <summary>
+        /// F-COR-002: the flag alone was the test, so <c>erp.transaction</c> and
+        /// <c>vehicle.equipment</c> — extendable with no <c>addon</c> member — accepted a
+        /// definition (201), published it under <c>/schema/addons</c>, and then refused every
+        /// read of it with <c>UNKNOWN_PATH</c>, because with no bag the path index has no
+        /// addon root to bind. A service must not publish a key it can never answer.
+        /// </summary>
+        [Fact]
+        public void CheckEntity_RefusesAnExtendableEntityThatCarriesNoAddonBag()
+        {
+            AddonDefinitionRules.CheckEntity(SchemaBuild.Degraded.Model, "probe.bagless").Should().Contain("no 'addon' member");
+        }
+
+        [Fact]
+        public void HasBag_DistinguishesTheBagMemberFromTheExtendableFlag()
+        {
+            var model = SchemaBuild.Degraded.Model;
+
+            model.Entities["probe.bagless"].Extendable.Should().BeTrue();
+            AddonDefinitionRules.HasBag(model.Entities["probe.bagless"]).Should().BeFalse();
+            AddonDefinitionRules.HasBag(model.Entities["probe.widget"]).Should().BeTrue();
         }
 
         [Theory]

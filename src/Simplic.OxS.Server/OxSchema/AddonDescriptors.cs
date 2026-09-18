@@ -18,7 +18,12 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The body and its entity tag for one organisation.</summary>
         public sealed record Result(byte[] Body, string ETag);
 
-        /// <summary>Builds the body for every extendable entity of the model, in entity id order.</summary>
+        /// <summary>
+        /// Builds the body for every extendable entity of the model that carries the bag, in
+        /// entity id order. The flag alone used to be the test, so an entity declared
+        /// extendable with no <c>addon</c> member appeared here with a list a caller could add
+        /// to and never read back — every filter built from it refused <c>UNKNOWN_PATH</c>.
+        /// </summary>
         public static async Task<Result> BuildAsync(EntityModel model, IAddonDefinitionSource source, Guid organisation, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(model);
@@ -28,7 +33,7 @@ namespace Simplic.OxS.Server.OxSchema
 
             foreach (var entity in model.Entities.Values)
             {
-                if (!entity.Extendable)
+                if (!entity.Extendable || !OxQL.AddonDefinitionRules.HasBag(entity))
                     continue;
 
                 var definitions = await source.ForEntityAsync(entity.Id, organisation, cancellationToken);

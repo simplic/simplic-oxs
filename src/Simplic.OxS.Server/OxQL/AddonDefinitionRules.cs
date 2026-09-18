@@ -41,7 +41,21 @@ public static class AddonDefinitionRules
     /// <summary>The wire spelling of a kind.</summary>
     public static string KindName(AddonKind kind) => NamesByKind[kind];
 
-    /// <summary>The entity must be one the host declares and it must carry an addon bag.</summary>
+    /// <summary>
+    /// The entity must be one the host declares and it must carry an addon bag — the member,
+    /// not just the flag.
+    /// <para>
+    /// The flag alone was not enough. Two entities in the fleet declare
+    /// <c>Extendable = true</c> and have no <c>Addon</c> property
+    /// (<c>erp.transaction</c>, <c>vehicle.equipment</c>), so a definition could be created and
+    /// stored on them, appeared under <c>GET /schema/addons</c> — which is the endpoint a UI
+    /// builds its filter list from — and then refused <c>UNKNOWN_PATH</c> on every read,
+    /// because with no bag member the path index has no <c>addon</c> root at all. Measured
+    /// against the live <c>erp</c> host: 201 on the create, published by the schema endpoint,
+    /// 400 on <c>match</c>, on <c>exists</c> and on <c>sort</c>. A service must not publish a
+    /// key it can never answer.
+    /// </para>
+    /// </summary>
     public static string? CheckEntity(EntityModel model, string? entity)
     {
         if (string.IsNullOrWhiteSpace(entity))
@@ -53,7 +67,18 @@ public static class AddonDefinitionRules
         if (!definition.Extendable)
             return $"'{entity}' is not extendable, so it has no addon bag to define keys under.";
 
+        if (!HasBag(definition))
+            return $"'{entity}' is declared extendable but has no 'addon' member to define keys under, so a definition on it could never be read. Add the addon bag to the model or drop the extendable flag.";
+
         return null;
+    }
+
+    /// <summary>Whether the entity carries the <c>addon</c> bag member a definition is read through.</summary>
+    public static bool HasBag(EntityDef entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+
+        return entity.Paths.Any(path => path.IsAddonRoot);
     }
 
     /// <summary>

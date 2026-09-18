@@ -93,8 +93,14 @@ namespace Simplic.OxS.Server.Test.OxSchema
             using var body = JsonDocument.Parse(result.Body);
             var entities = body.RootElement.EnumerateObject().Select(property => property.Name).ToList();
 
-            entities.Should().Equal(SchemaBuild.Degraded.Model.Entities.Values.Where(entity => entity.Extendable).Select(entity => entity.Id));
+            entities.Should().Equal(SchemaBuild.Degraded.Model.Entities.Values
+                .Where(entity => entity.Extendable && Simplic.OxS.Server.OxQL.AddonDefinitionRules.HasBag(entity))
+                .Select(entity => entity.Id));
             entities.Should().Contain("probe.widget").And.NotContain("probe.thing");
+
+            // F-COR-002: declared extendable with no addon member. Listing it would publish a
+            // key every read refuses with UNKNOWN_PATH, because there is no addon root to bind.
+            entities.Should().NotContain("probe.bagless");
             body.RootElement.GetProperty("probe.widget").GetArrayLength().Should().Be(1);
             body.RootElement.GetProperty("probe.widget")[0].GetProperty("name").GetString().Should().Be("weight");
             body.RootElement.GetProperty("probe.widget")[0].GetProperty("kind").GetString().Should().Be("decimal");

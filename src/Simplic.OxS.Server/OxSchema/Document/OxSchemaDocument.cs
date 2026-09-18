@@ -90,6 +90,25 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The longest regex pattern a filter operand may carry, in characters.</summary>
         [JsonPropertyOrder(7)]
         public required int RegexMaxLength { get; init; }
+
+        /// <summary>
+        /// The largest <c>offset</c> a page may skip to; beyond it the caller pages by cursor.
+        /// A grid decides where its jump stops on this.
+        /// </summary>
+        [JsonPropertyOrder(8)]
+        public required int MaxOffset { get; init; }
+
+        /// <summary>How many resolve stages one pipeline may carry.</summary>
+        [JsonPropertyOrder(9)]
+        public required int MaxResolveStages { get; init; }
+
+        /// <summary>The most queries one batch may carry.</summary>
+        [JsonPropertyOrder(10)]
+        public required int MaxBatchQueries { get; init; }
+
+        /// <summary>The most rows one lookup returns per parent.</summary>
+        [JsonPropertyOrder(11)]
+        public required int MaxLookupLimit { get; init; }
     }
 
     /// <summary>One thing the build could not describe. Only findings that removed an entity or the whole pool are published; none names a CLR type.</summary>

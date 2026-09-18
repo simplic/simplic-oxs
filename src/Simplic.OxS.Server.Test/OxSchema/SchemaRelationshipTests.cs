@@ -89,7 +89,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
-        public void Build_Reference_IsNeverJoinable()
+        public void Build_Reference_IsDeclaredAndJoinable()
         {
             var document = SchemaBuild.Degraded.Document;
 
@@ -99,7 +99,10 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 .Where(reference => reference is not null);
 
             references.Should().NotBeEmpty();
-            references.Should().OnlyContain(reference => !reference!.Joinable);
+
+            // A declared reference is what makes a lookup or a resolve legal under contract 2,
+            // and name inference is gone, so every reference in the document is both.
+            references.Should().OnlyContain(reference => reference!.Joinable && !reference.Inferred);
         }
 
         [Fact]

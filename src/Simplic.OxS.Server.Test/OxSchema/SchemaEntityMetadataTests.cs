@@ -11,11 +11,14 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
-        public void Build_EntityWithoutADeclaredIdentity_PublishesNoKey()
+        public void Build_EntityWithoutADeclaredIdentity_PublishesTheKeyTheModelHolds()
         {
             var document = SchemaBuild.Degraded.Document;
 
-            document.Entry("probe.thing").Key.Should().BeNull();
+            // The key is the model's - the root member stored under _id - not a second
+            // derivation from the identity interfaces. The engine answers for that one, and a
+            // reference's `field` defaults to it, so the document has to name the same member.
+            document.Entry("probe.thing").Key.Should().Equal("id");
             document.PropertyNames("probe.thing").Should().Contain("id");
         }
 
@@ -73,15 +76,23 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
-        public void Build_CapabilityExceptions_ArePresentAndEmpty()
+        public void Build_NotFilterable_NamesEveryScalarThatIsNotStored()
         {
             var document = SchemaBuild.Degraded.Document;
 
             foreach (var (_, entry) in document.Types.Where(entry => entry.Value.Entity == true))
             {
-                entry.NotFilterable.Should().NotBeNull().And.BeEmpty();
+                entry.NotFilterable.Should().NotBeNull();
+
+                // Everything that makes a stored scalar unsortable is visible in the
+                // descriptors, so this one stays empty and consumers derive it.
                 entry.NotSortable.Should().NotBeNull().And.BeEmpty();
             }
+
+            // `label` is in the wire view and has no storage, so the engine refuses a filter on
+            // it with NOT_STORED. A consumer that reads only the descriptors would offer it.
+            document.Entry("probe.widget").NotFilterable.Should().Contain("label");
+            document.PropertyNames("probe.widget").Should().Contain("label", "an unstored member stays in the wire view");
         }
 
         [Fact]

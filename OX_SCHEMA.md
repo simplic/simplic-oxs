@@ -25,7 +25,8 @@ declares, how the document is built, and how the build fails. The code is in
   "limits": {
     "maxPageSize": 500, "defaultPageSize": 100,
     "maxPipelineStages": 20, "maxLookupStages": 5, "maxUnwindStages": 5,
-    "maxGroupFields": 20, "maxProjectionFields": 500, "regexMaxLength": 200
+    "maxGroupFields": 20, "maxProjectionFields": 500, "regexMaxLength": 200,
+    "maxOffset": 5000, "maxResolveStages": 2, "maxBatchQueries": 10, "maxLookupLimit": 100
   },
   "diagnostics": [ … ],                 // absent unless the build was degraded
   "types": { "<type id>": { … } }       // one flat pool: entities and structural types
@@ -38,7 +39,7 @@ declares, how the document is built, and how the build fails. The code is in
 | `service` | The service name, lower-case. |
 | `api` | The two segments of the service's API base path, verbatim, the `v` included. The environment is not part of it; the origin is the caller's own. |
 | `revision` | `sha256:` plus the digest of this document's canonical form with the `revision` member absent. Stable across restarts; identical for identical content. |
-| `limits` | What a client can check a request against before sending it. Every value is the one the query engine enforces. |
+| `limits` | What a client can check a request against before sending it. Every value is the one the query engine enforces. The engine holds more limits than these - resolve chunking, the semi-join cap, the count cap - which a caller cannot act on in advance; `GET /oxql/health` publishes the whole set for diagnosis. |
 | `diagnostics` | What the build could not describe. Absent on a clean build. |
 | `types` | The type pool, keyed by type id, sorted ordinally. |
 
@@ -152,8 +153,13 @@ it carries `kind`, `type`, `of`, `value` and `snapshotOf` only.
 absent in the ordinary case, and absence means "derive it". camelCasing is lossy over an acronym
 run: `QRCode` is served as `qrCode`, from which a consumer derives the storage name `QrCode`
 (which matches no rows) and the label "Qr Code". On such a member the document publishes
-`"storageName": "QRCode"` and `"displayName": "QR Code"`. A filter path has to be written in the
-storage spelling, so a consumer that ignores `storageName` gets no rows and no error.
+`"storageName": "QRCode"` and `"displayName": "QR Code"`. A query is written in **wire** spelling
+at every depth; the storage name is published for consumers that address storage themselves, and
+the query engine refuses a storage-spelled path outside compatibility mode.
+
+The kind vocabulary is **closed within a major version**: a reader may refuse a document
+carrying a kind it does not know, so a new kind is a major bump and `unknown` is the escape hatch
+for anything the model cannot describe.
 
 ### 1.7 Kinds and wire encoding
 
@@ -233,13 +239,13 @@ unreliable, so the document says nothing. An absent `displayName` is not "no lab
 A pointer whose target is an entity entry is a snapshot by construction: an entity is a
 top-level document, so an instance of one inside another document is a copy of that row.
 
-`references` is emitted on a guid property (an array of guids included) when a target entity of
-this document resolves: declared through `[ReferenceId]` on the navigation property that names
-the id property (`inferred: false`), or by naming convention (`inferred: true`), where the wire
-name minus an `Id` or `Guid` suffix equals the last segment of exactly one entity id. Nothing is
-emitted where no entity resolves. `field` is the target's key when it is a single path, read
-from the finished document; absent otherwise, and a reader must not substitute `id`.
-`joinable` is `false` on every reference the current version publishes.
+`references` is emitted on a guid property (an array of guids included) that **declares** a
+target: `[OxQLReference]` on the id member, or `[ReferenceId]` on the navigation property that
+names it. Name inference is gone, so `inferred` is `false` on every reference; the member is kept
+because removing it is a format break. `field` is the member of the target the value matches, and
+defaults to the target's key. `joinable` is `true`: a declared reference is exactly what makes a
+`lookup` or a `resolve` legal, and one that is not declared is refused with `LOOKUP_NOT_DECLARED`
+or `RESOLVE_NOT_DECLARED`.
 
 ### 1.11 Paths
 
@@ -316,9 +322,12 @@ The array is inside the revision hash. Every other finding is logged at startup 
   pointing property gains `snapshotOf`, and a value that was the parent's own data becomes a
   copy that can be stale.
 
-Out of scope in this version: writes (the document describes read shapes only), and
-per-organisation declarations of addon fields (the addon bag is a `dictionary` that accepts
-anything, and its keys are not paths).
+Out of scope in this version: writes — the document describes read shapes only.
+
+Addon keys are per organisation, so they are not in the document, but they are no longer
+undescribed: `GET /schema/addons` returns the calling organisation's definitions per entity in
+this same descriptor format, and a consumer merges them under the entity's `addon` member. A
+defined key is typed and filterable; an undefined one stays opaque.
 
 ---
 
@@ -349,8 +358,10 @@ protected override void ConfigureOxSchema(OxSchemaOptionsBuilder schema)
 }
 ```
 
-The retired id appears first in the entity's `aliases`. It is an alias for configuration
-resolvers, not a queryable entity type: the query engine accepts the current id only.
+The retired id appears first in the entity's `aliases`. The query engine answers it as the
+current entity and says so with an `ENTITY_ID_RETIRED` diagnostic carrying `params.currentId`, so
+a stored configuration keeps working while it is migrated. The legacy `$ClassName` model ids in
+the same list are not queryable; they are for the configuration resolvers only.
 
 ---
 

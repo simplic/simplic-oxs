@@ -59,14 +59,27 @@ namespace Simplic.OxS.Server.OxSchema
                 pool[entity.Id] = pool[entity.Id] with
                 {
                     DisplayName = EntityMetadata.TypeLabel(entity.ClrType),
-                    Key = EntityMetadata.KeyOf(entity.ClrType, properties),
+
+                    // The key is the model's, not a second derivation from the identity
+                    // interfaces: the engine answers for the one the model holds, and a
+                    // reference's `field` already defaults to it.
+                    Key = model.Entities[entity.Id].Key is { } key
+                        ? [key.Wire]
+                        : EntityMetadata.KeyOf(entity.ClrType, properties),
                     Display = EntityMetadata.DisplayOf(properties),
 
                     // The ids this entity retired first, then the legacy model ids its controller publishes.
                     Aliases = [.. RetiredIdsOf(options, entity.Id), .. link.AliasesOf(entity.ClrType, controller)],
                     Extendable = entity.Extendable,
                     Queryable = true,
-                    NotFilterable = [],
+
+                    // A member the driver does not store is in the wire view and refused by the
+                    // engine with NOT_STORED. Saying so here is what keeps a consumer from
+                    // offering a filter the service will not answer.
+                    NotFilterable = UnstoredScalarPaths(model, entity.Id),
+
+                    // Everything that makes a stored scalar unsortable - crossing a collection -
+                    // is already visible in the descriptors, and every consumer derives it.
                     NotSortable = [],
                     Operations = controller is null ? null : ControllerLink.OperationsOf(controller),
                 };
@@ -103,6 +116,13 @@ namespace Simplic.OxS.Server.OxSchema
                     MaxGroupFields = limits.MaxGroupFields,
                     MaxProjectionFields = limits.MaxProjectionFields,
                     RegexMaxLength = limits.RegexMaxLength,
+
+                    // The rest of the engine's limits are published on /oxql/health; these are
+                    // the ones a caller checks a request against before it sends one.
+                    MaxOffset = limits.Limits.MaxOffset,
+                    MaxResolveStages = limits.Limits.MaxResolveStages,
+                    MaxBatchQueries = limits.Limits.MaxBatchQueries,
+                    MaxLookupLimit = limits.Limits.MaxLookupLimit,
                 },
                 Diagnostics = published.Count > 0 ? published : null,
                 Types = types,
@@ -112,6 +132,15 @@ namespace Simplic.OxS.Server.OxSchema
 
             return new OxSchemaBuildResult(model, document, OxSchemaJson.Serialize(document), sorted, legacy);
         }
+
+        /// <summary>
+        /// The scalar paths of an entity the driver does not store: in the wire view, refused by
+        /// the query engine. Ordinally sorted, because the list is inside the revision.
+        /// </summary>
+        private static IReadOnlyList<string> UnstoredScalarPaths(EntityModel model, string entityId) =>
+            model.Entities.TryGetValue(entityId, out var entity)
+                ? [.. entity.Paths.Where(path => !path.Stored && Kinds.IsScalar(path.LeafKind)).Select(path => path.Wire).Order(StringComparer.Ordinal)]
+                : [];
 
         /// <summary>The ids an entity retired, ordinally sorted: the list is inside the revision, so the host's declaration order must not reach it.</summary>
         private static IEnumerable<string> RetiredIdsOf(OxSchemaBuildOptions options, string entityId) =>

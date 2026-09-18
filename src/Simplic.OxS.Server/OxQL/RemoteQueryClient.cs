@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OxQL.AspNetCore;
+using OxQL.AspNetCore.Scope;
 using OxQL.Core.Engine;
 using OxQL.Core.Models;
 using Simplic.OxS.Settings;
@@ -81,7 +82,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
             Content = JsonContent.Create(request, options: global::OxQL.AspNetCore.Controllers.JsonOptions.Wire),
         };
 
-        Forward(message);
+        await ForwardAsync(message, cancellationToken);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -134,22 +135,35 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
         return $"http://{host}/{serviceKey}-api/{version}/{path}";
     }
 
-    /// <summary>The internal key, the current request's context and the contract header.</summary>
-    private void Forward(HttpRequestMessage message)
+    /// <summary>
+    /// The internal key, the caller's identity and the contract header.
+    /// <para>
+    /// The identity is read from the <see cref="IOxQLScopeProvider"/> the engine scoped the
+    /// parent query with, not from the request context directly: the owner then answers under
+    /// the same organisation the parent rows were selected under, by construction rather than
+    /// by both sides happening to read the same thing. The key authorises the call; the
+    /// forwarded user is who it is made for, and the owner scopes on that.
+    /// </para>
+    /// </summary>
+    private async Task ForwardAsync(HttpRequestMessage message, CancellationToken cancellationToken)
     {
         message.Headers.Authorization = new AuthenticationHeaderValue(Constants.HttpAuthorizationSchemeInternalKey, internalApiKey);
         message.Headers.TryAddWithoutValidation(OxQLQueryService.ContractHeader, EngineCapabilities.Contract.ToString());
 
-        var context = httpContextAccessor.HttpContext?.RequestServices.GetService<IRequestContext>();
+        var httpContext = httpContextAccessor.HttpContext;
+        var scope = httpContext?.RequestServices.GetService<IOxQLScopeProvider>();
 
-        if (context?.UserId is { } user)
-            message.Headers.TryAddWithoutValidation(Constants.HttpHeaderUserIdKey, user.ToString());
+        if (scope is null)
+            return;
 
-        if (context?.OrganizationId is { } organisation)
+        if (await scope.OrganisationAsync(httpContext, cancellationToken) is { } organisation)
             message.Headers.TryAddWithoutValidation(Constants.HttpHeaderOrganizationIdKey, organisation.ToString());
 
-        if (context?.CorrelationId is { } correlation)
-            message.Headers.TryAddWithoutValidation(Constants.HttpHeaderCorrelationIdKey, correlation.ToString());
+        if (scope.UserId(httpContext) is { Length: > 0 } user)
+            message.Headers.TryAddWithoutValidation(Constants.HttpHeaderUserIdKey, user);
+
+        if (scope.CorrelationId(httpContext) is { Length: > 0 } correlation)
+            message.Headers.TryAddWithoutValidation(Constants.HttpHeaderCorrelationIdKey, correlation);
     }
 
     private static IReadOnlyDictionary<string, string> Map(IConfiguration configuration, string section)

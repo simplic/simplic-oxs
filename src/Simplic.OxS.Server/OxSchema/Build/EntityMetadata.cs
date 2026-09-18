@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using OxQL.Model.Build;
 using Simplic.OxS.Data;
 
 namespace Simplic.OxS.Server.OxSchema
@@ -14,7 +15,12 @@ namespace Simplic.OxS.Server.OxSchema
         public static readonly JsonNamingPolicy WireNames = JsonNamingPolicy.CamelCase;
 
         /// <summary>The properties that name an instance, in preference order.</summary>
-        private static readonly string[] DisplayCandidates = ["name", "matchCode", "number"];
+        /// <summary>
+        /// The members a display name is taken from, in order. The same list as the model's
+        /// <see cref="WireNames.DisplayCandidates"/>; a parity test keeps the two copies equal,
+        /// since they live in different packages and both reach the wire.
+        /// </summary>
+        internal static readonly string[] DisplayCandidates = ["name", "matchCode", "number"];
 
         /// <summary>
         /// Suffixes stripped from a type name before it becomes a label. Deliberately not the DTO

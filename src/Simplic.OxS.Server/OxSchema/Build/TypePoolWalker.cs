@@ -57,7 +57,9 @@ namespace Simplic.OxS.Server.OxSchema
                     StorageName = EntityMetadata.StorageNameOf(clrName, member.WireName),
                     DisplayName = member.DisplayName,
                     References = member.Reference is { } reference
-                        ? new OxSchemaReference { Entity = reference.TargetEntity, Field = reference.TargetField, Joinable = false, Inferred = false }
+                        // A declared reference is exactly what makes a lookup or a resolve
+                        // legal under contract 2; inference is gone, so nothing is inferred.
+                        ? new OxSchemaReference { Entity = reference.TargetEntity, Field = reference.TargetField, Joinable = true, Inferred = false }
                         : null,
                 });
             }

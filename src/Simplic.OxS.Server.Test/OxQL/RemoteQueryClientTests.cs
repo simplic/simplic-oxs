@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OxQL.Core.Models;
+using OxQL.AspNetCore.Scope;
 using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.Services;
 using Simplic.OxS.Settings;
@@ -54,8 +55,12 @@ namespace Simplic.OxS.Server.Test.OxQL
             if (context is null)
                 return new HttpContextAccessor();
 
+            // The same wiring the host has: the scope provider over the request context. The
+            // client forwards what the provider answers, so the owner is asked under the very
+            // organisation the engine scoped the parent query with.
             var services = new ServiceCollection();
             services.AddSingleton(context);
+            services.AddSingleton<IOxQLScopeProvider, OxQLScopeProvider>();
 
             return new HttpContextAccessor { HttpContext = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() } };
         }

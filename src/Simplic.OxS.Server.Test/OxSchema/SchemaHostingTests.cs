@@ -55,7 +55,12 @@ namespace Simplic.OxS.Server.Test.OxSchema
         public void AddOxSchema_PublishesTheLimitsOfTheRegisteredQueryEngineOptions()
         {
             var services = Services();
-            services.AddSingleton(new OxQLOptions { MaxPageSize = 11, DefaultPageSize = 12, MaxPipelineStages = 13, MaxLookupStages = 14, MaxUnwindStages = 15, MaxGroupFields = 16, MaxProjectionFields = 17, RegexMaxLength = 18 });
+            services.AddSingleton(new OxQLOptions
+            {
+                MaxPageSize = 11, DefaultPageSize = 12, MaxPipelineStages = 13, MaxLookupStages = 14, MaxUnwindStages = 15,
+                MaxGroupFields = 16, MaxProjectionFields = 17, RegexMaxLength = 18,
+                Limits = { MaxOffset = 19, MaxResolveStages = 20, MaxBatchQueries = 21, MaxLookupLimit = 22 },
+            });
             services.AddOxSchema(Configure);
 
             var limits = services.BuildServiceProvider().GetRequiredService<OxSchemaRegistry>().Document.Limits;
@@ -64,6 +69,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             {
                 MaxPageSize = 11, DefaultPageSize = 12, MaxPipelineStages = 13, MaxLookupStages = 14,
                 MaxUnwindStages = 15, MaxGroupFields = 16, MaxProjectionFields = 17, RegexMaxLength = 18,
+                MaxOffset = 19, MaxResolveStages = 20, MaxBatchQueries = 21, MaxLookupLimit = 22,
             });
         }
 

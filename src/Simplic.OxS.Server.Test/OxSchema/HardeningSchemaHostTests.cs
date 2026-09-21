@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
@@ -30,7 +29,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             schema.TypeAssemblies = new ThrowingList();
         }
 
-        private static Task<IHost> StartAsync(Action<OxSchemaOptionsBuilder> configure, CapturedLog? log = null) =>
+        private static Task<IHost> StartAsync(Action<OxSchemaOptionsBuilder> configure, HardeningCapturedLog? log = null) =>
             HardeningTestHost.StartAsync(Controllers, services =>
             {
                 services.AddSchemaControllerServices();
@@ -99,7 +98,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         [Fact]
         public async Task AThrowingBuild_OutsideFailFast_IsLoggedCriticalWithTheException()
         {
-            var log = new CapturedLog();
+            var log = new HardeningCapturedLog();
 
             using var host = await StartAsync(Throwing, log);
 
@@ -151,28 +150,6 @@ namespace Simplic.OxS.Server.Test.OxSchema
             public IEnumerator<Assembly> GetEnumerator() => throw new NotSupportedException(Secret);
 
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-        }
-
-        private sealed class CapturedLog : ILoggerProvider
-        {
-            public ConcurrentQueue<(LogLevel Level, Exception? Exception)> Entries { get; } = new();
-
-            public ILogger CreateLogger(string categoryName) => new Sink(this);
-
-            public void Dispose()
-            {
-            }
-
-            private sealed class Sink(CapturedLog owner) : ILogger
-            {
-                public IDisposable? BeginScope<TState>(TState state)
-                    where TState : notnull => null;
-
-                public bool IsEnabled(LogLevel logLevel) => true;
-
-                public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                    owner.Entries.Enqueue((logLevel, exception));
-            }
         }
     }
 }

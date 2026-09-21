@@ -32,7 +32,7 @@ namespace Simplic.OxS.Server.OxSchema
 
             foreach (var finding in registry.Findings)
                 logger.Log(
-                    finding.Refuses || finding.Published ? LogLevel.Error : LogLevel.Warning,
+                    LevelOf(finding),
                     "Ox schema finding: {Code} {Target} - {Detail} (refuses={Refuses} published={Published}){ClrDetail}",
                     finding.Code,
                     finding.Target,
@@ -52,6 +52,19 @@ namespace Simplic.OxS.Server.OxSchema
 
             foreach (var failure in legacy.Failures)
                 logger.LogWarning("Ox schema model definition dropped a controller: {Failure}", failure);
+        }
+
+        /// <summary>
+        /// A refusing or published finding is an error of the host, with one exception: a
+        /// service that has no entities names no assemblies on purpose, so its published
+        /// <c>entity-assemblies-missing</c> is a warning on every start, not an error.
+        /// </summary>
+        private static LogLevel LevelOf(OxSchemaFinding finding)
+        {
+            if (string.Equals(finding.Code, OxSchemaCodes.EntityAssembliesMissing, StringComparison.Ordinal))
+                return LogLevel.Warning;
+
+            return finding.Refuses || finding.Published ? LogLevel.Error : LogLevel.Warning;
         }
     }
 }

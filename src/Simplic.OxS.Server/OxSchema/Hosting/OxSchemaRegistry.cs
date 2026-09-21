@@ -24,6 +24,14 @@ namespace Simplic.OxS.Server.OxSchema
         /// <exception cref="InvalidOperationException">The document is ambiguous and the options fail fast.</exception>
         public static OxSchemaRegistry Build(OxSchemaBuildOptions options) => new(OxSchemaBuilder.Build(options));
 
+        /// <summary>
+        /// Builds the registry of a host whose build threw: a document without types that
+        /// carries the <c>entity-scan-failed</c> diagnostic, an empty entity model, and the
+        /// legacy document where it can still be generated.
+        /// </summary>
+        internal static OxSchemaRegistry BuildDegraded(OxSchemaBuildOptions options, Exception cause) =>
+            new(OxSchemaBuilder.BuildDegraded(options, cause));
+
         /// <summary>The entity model: the one the document is projected from and the query engine executes against.</summary>
         public EntityModel Model { get; }
 

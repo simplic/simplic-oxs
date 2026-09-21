@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 using OxQL.Model;
 using OxQL.Model.Build;
+using ModelDeclaration = OxQL.Model.Build.EntityDeclaration;
 
 namespace Simplic.OxS.Server.OxSchema
 {
@@ -99,6 +100,55 @@ namespace Simplic.OxS.Server.OxSchema
             if (refusing.Count > 0 && options.FailFast)
                 throw new InvalidOperationException(RefusalMessage(service, refusing));
 
+            return Compose(options, service, model, types, sorted, legacy);
+        }
+
+        /// <summary>
+        /// Builds the documents of a host whose build threw: no types, the
+        /// <c>entity-scan-failed</c> diagnostic, and the legacy document where it can still be
+        /// generated. Reads none of the host's entity declarations, so the input that made the
+        /// build throw cannot make this throw.
+        /// </summary>
+        /// <param name="options">The inputs of the build that threw.</param>
+        /// <param name="cause">What the build threw; it reaches the log only, never the wire.</param>
+        public static OxSchemaBuildResult BuildDegraded(OxSchemaBuildOptions options, Exception cause)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            ArgumentNullException.ThrowIfNull(cause);
+
+            var service = options.ServiceName.ToLowerInvariant();
+            var findings = new FindingCollector();
+
+            findings.Add(OxSchemaCodes.EntityScanFailed, service, ModelFindings.ScanFailedDetail, $"{cause.GetType().Name}: {cause.Message}");
+
+            var model = ClrModelBuilder.Build(Array.Empty<ModelDeclaration>());
+            var types = ImmutableSortedDictionary.Create<string, OxSchemaType>(StringComparer.Ordinal);
+
+            return Compose(options, service, model, types, findings.Sorted(), LegacyOrNull(options));
+        }
+
+        /// <summary>The legacy document, or null when even that cannot be generated; the endpoint then answers 404.</summary>
+        private static ModelDefinitionDocument? LegacyOrNull(OxSchemaBuildOptions options)
+        {
+            try
+            {
+                return ModelDefinitionDocument.Build(options.ControllerTypes);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Assembles the document from a finished pool, stamps its revision and serialises it.</summary>
+        private static OxSchemaBuildResult Compose(
+            OxSchemaBuildOptions options,
+            string service,
+            EntityModel model,
+            ImmutableSortedDictionary<string, OxSchemaType> types,
+            IReadOnlyList<OxSchemaFinding> sorted,
+            ModelDefinitionDocument? legacy)
+        {
             var published = sorted.Where(finding => finding.Published).Select(finding => finding.ToDiagnostic()).ToList();
             var limits = options.QueryLimits;
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OxQL.Core.Engine;
 using OxQL.Core.Models;
@@ -35,8 +36,7 @@ namespace Simplic.OxS.Server.OxSchema
 
             // The query engine's own options, so the document publishes the limits the engine
             // enforces. Resolved when the registry is built, so registration order does not matter.
-            services.TryAddSingleton(provider =>
-                OxSchemaRegistry.Build(options with { QueryLimits = QueryLimits(provider) ?? options.QueryLimits }));
+            services.TryAddSingleton(provider => BuildRegistry(provider, options));
 
             // The engine's model is the registry's: built in the startup filter, after every
             // serializer registration, and never a second walk of the same assemblies. Replaces
@@ -46,6 +46,32 @@ namespace Simplic.OxS.Server.OxSchema
             services.TryAddEnumerable(ServiceDescriptor.Transient<IStartupFilter, OxSchemaStartupFilter>());
 
             return services;
+        }
+
+        /// <summary>
+        /// Builds the registry. Outside fail-fast nothing the build throws leaves this method:
+        /// the build runs while the host starts, in every service, over types this package has
+        /// never seen, and a metadata defect must not take a service down. The host then serves
+        /// a document without types that says so in <c>diagnostics</c>, the query engine binds
+        /// against an empty model, and every other route is unaffected. Everything that
+        /// resolves the registry - the startup filter here, the engine's model provider - goes
+        /// through this one factory.
+        /// </summary>
+        private static OxSchemaRegistry BuildRegistry(IServiceProvider provider, OxSchemaBuildOptions options)
+        {
+            try
+            {
+                return OxSchemaRegistry.Build(options with { QueryLimits = QueryLimits(provider) ?? options.QueryLimits });
+            }
+            catch (Exception exception) when (!options.FailFast)
+            {
+                provider.GetService<ILoggerFactory>()?.CreateLogger("Simplic.OxS.Server.OxSchema").LogCritical(
+                    exception,
+                    "Ox schema build failed for service={Service}: the host serves a schema document without types and the query engine knows no entities until the defect is fixed",
+                    options.ServiceName);
+
+                return OxSchemaRegistry.BuildDegraded(options, exception);
+            }
         }
 
         private static OxQLOptions? QueryLimits(IServiceProvider provider) =>

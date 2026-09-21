@@ -59,7 +59,9 @@ namespace Simplic.OxS.Server.OxSchema
                 }
                 catch (Exception exception)
                 {
-                    failures.Add($"{controller.FullName}: {exception.GetType().Name}: {exception.Message}");
+                    // A null entry arrives here too, so the name is read null-safely: this
+                    // handler must never throw.
+                    failures.Add($"{controller?.FullName ?? "(null)"}: {exception.GetType().Name}: {exception.Message}");
                 }
             }
 

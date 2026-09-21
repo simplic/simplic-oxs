@@ -12,6 +12,9 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The model findings whose target is the whole host rather than one entity or member.</summary>
         private static readonly string[] HostWide = [BuildCodes.EntityAssembliesMissing, BuildCodes.EntityScanFailed];
 
+        /// <summary>The published sentence of <c>entity-scan-failed</c>.</summary>
+        internal const string ScanFailedDetail = "The entity scan failed, so this document describes no types at all.";
+
         /// <summary>Records every model finding, in the document's wording where the code is shared.</summary>
         public static void Import(EntityModel model, string service, FindingCollector findings)
         {
@@ -26,7 +29,7 @@ namespace Simplic.OxS.Server.OxSchema
         private static string Detail(BuildFinding finding) => finding.Code switch
         {
             BuildCodes.EntityAssembliesMissing => "No assemblies were named to scan, so this document describes no types at all.",
-            BuildCodes.EntityScanFailed => "The entity scan failed, so this document describes no types at all.",
+            BuildCodes.EntityScanFailed => ScanFailedDetail,
             _ => finding.Message,
         };
     }

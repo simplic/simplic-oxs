@@ -11,8 +11,9 @@ namespace Simplic.OxS.Server.OxSchema
     {
         private int logged;
 
-        private OxSchemaRegistry(OxSchemaBuildResult result)
+        private OxSchemaRegistry(OxSchemaBuildResult result, OxSchemaBuildOptions options)
         {
+            RequireAuthorization = options.RequireAuthorization;
             Model = result.Model;
             Document = result.Document;
             Body = result.Body;
@@ -22,7 +23,7 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>Builds the registry from a host's inputs.</summary>
         /// <exception cref="InvalidOperationException">The document is ambiguous and the options fail fast.</exception>
-        public static OxSchemaRegistry Build(OxSchemaBuildOptions options) => new(OxSchemaBuilder.Build(options));
+        public static OxSchemaRegistry Build(OxSchemaBuildOptions options) => new(OxSchemaBuilder.Build(options), options);
 
         /// <summary>
         /// Builds the registry of a host whose build threw: a document without types that
@@ -30,7 +31,7 @@ namespace Simplic.OxS.Server.OxSchema
         /// legacy document where it can still be generated.
         /// </summary>
         internal static OxSchemaRegistry BuildDegraded(OxSchemaBuildOptions options, Exception cause) =>
-            new(OxSchemaBuilder.BuildDegraded(options, cause));
+            new(OxSchemaBuilder.BuildDegraded(options, cause), options);
 
         /// <summary>The entity model: the one the document is projected from and the query engine executes against.</summary>
         public EntityModel Model { get; }
@@ -46,6 +47,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>The response body of <c>GET /schema</c>, serialised once.</summary>
         public byte[] Body { get; }
+
+        /// <inheritdoc cref="OxSchemaBuildOptions.RequireAuthorization"/>
+        public bool RequireAuthorization { get; }
 
         /// <summary>Every validation finding, in the order the log and the diagnostics use.</summary>
         public IReadOnlyList<OxSchemaFinding> Findings { get; }

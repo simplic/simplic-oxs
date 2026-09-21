@@ -9,9 +9,11 @@ namespace Simplic.OxS.Server.Controller
 {
     /// <summary>
     /// Serves the schema document under <c>GET /schema</c> and the organisation's addon
-    /// definitions under <c>GET /schema/addons</c>. The document is anonymous, because it is
-    /// organisation-independent; the definitions are per organisation and need the caller's.
-    /// Hidden from the API explorer so no service's swagger moves.
+    /// definitions under <c>GET /schema/addons</c>. The document is organisation-independent
+    /// and anonymous unless the host requires authorization for it
+    /// (<see cref="OxSchemaBuildOptions.RequireAuthorization"/>); the definitions are per
+    /// organisation and need the caller's. Both routes are hidden from the API explorer: the
+    /// document is its own description and no generated client is meant to call it.
     /// </summary>
     [ApiController]
     [Route("/schema")]
@@ -21,6 +23,7 @@ namespace Simplic.OxS.Server.Controller
         /// <summary>The schema document, or 304 when <c>If-None-Match</c> names its revision.</summary>
         [HttpGet]
         [AllowAnonymous]
+        [OxSchemaAuthorization]
         public IActionResult Get(CancellationToken ct) =>
             Serve(registry.Body, registry.ETag);
 

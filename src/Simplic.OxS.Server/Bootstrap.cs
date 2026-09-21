@@ -175,6 +175,7 @@ namespace Simplic.OxS.Server
                 schema.TypeAssemblies = typeAssemblies;
                 schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
                 schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
+                schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
 
                 ConfigureOxSchema(schema);
             });

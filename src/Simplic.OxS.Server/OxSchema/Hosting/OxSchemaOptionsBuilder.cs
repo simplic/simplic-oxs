@@ -28,6 +28,9 @@ namespace Simplic.OxS.Server.OxSchema
         /// <inheritdoc cref="OxSchemaBuildOptions.ContinuousIntegration"/>
         public bool ContinuousIntegration { get; set; }
 
+        /// <inheritdoc cref="OxSchemaBuildOptions.RequireAuthorization"/>
+        public bool RequireAuthorization { get; set; }
+
         /// <summary>
         /// Declares that <paramref name="currentId"/> replaced <paramref name="retiredIds"/>. The
         /// retired ids are published as aliases of the entity, normalised the way every entity id
@@ -62,6 +65,7 @@ namespace Simplic.OxS.Server.OxSchema
                 ControllerTypes = ControllerTypes,
                 EnvironmentName = EnvironmentName,
                 ContinuousIntegration = ContinuousIntegration,
+                RequireAuthorization = RequireAuthorization,
                 RetiredEntityIds = new Dictionary<string, IReadOnlyList<string>>(retired, StringComparer.Ordinal),
             };
         }

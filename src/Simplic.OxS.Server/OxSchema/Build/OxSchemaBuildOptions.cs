@@ -30,6 +30,14 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>Whether the host runs under a continuous-integration system: the <c>CI</c> or the <c>TF_BUILD</c> environment variable is set.</summary>
         public bool ContinuousIntegration { get; init; }
 
+        /// <summary>
+        /// Whether <c>GET /schema</c> requires an authenticated caller. Off by default: the
+        /// document is organisation-independent and is fetched without credentials by build
+        /// tooling and client generators, the same posture as <c>/ModelDefinition</c>. It never
+        /// changes a byte of the document.
+        /// </summary>
+        public bool RequireAuthorization { get; init; }
+
         /// <summary>Current entity id to the ids it retired, for the entities of this service that renamed theirs.</summary>
         public IReadOnlyDictionary<string, IReadOnlyList<string>> RetiredEntityIds { get; init; } =
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);

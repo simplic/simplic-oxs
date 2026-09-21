@@ -36,6 +36,12 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     private const string DefaultApiVersion = "v1";
     private static readonly TimeSpan HealthBudget = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// The bound of a batch whose caller names no positive budget: the query engine's default
+    /// ceiling for one request. No outbound call waits on the HTTP client's own timeout.
+    /// </summary>
+    internal TimeSpan FallbackBudget { get; set; } = TimeSpan.FromSeconds(10);
+
     private readonly IHttpClientFactory clients;
     private readonly IHttpContextAccessor httpContextAccessor;
     private readonly ILogger<RemoteQueryClient> logger;
@@ -43,6 +49,15 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     private readonly IReadOnlyDictionary<string, string> hosts;
     private readonly IReadOnlyDictionary<string, string> versions;
 
+    /// <summary>
+    /// Creates the client. The hosts, the api versions and the internal key are read once,
+    /// here; a change to the configuration needs a restart, as it does for the internal client.
+    /// </summary>
+    /// <param name="clients">The factory of the named client every call goes through.</param>
+    /// <param name="auth">The settings holding the internal api key.</param>
+    /// <param name="configuration">The host's configuration, for <see cref="HostsSection"/> and <see cref="ApiVersionsSection"/>.</param>
+    /// <param name="httpContextAccessor">The current request, whose scope provider names the identity to forward.</param>
+    /// <param name="logger">The logger.</param>
     public RemoteQueryClient(
         IHttpClientFactory clients,
         IOptions<AuthSettings> auth,
@@ -77,7 +92,16 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
 
         var url = BatchUrl(serviceKey) ?? throw new InvalidOperationException($"No '{HostsSection}' entry for '{serviceKey}'; the service is not configured on this host.");
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, url)
+        // A host entry that does not form an address is an owner that cannot be reached, and
+        // surfaces as the transport failure every other unreachable owner surfaces as.
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var address))
+        {
+            logger.LogWarning("OxQL remote batch to {Service} was not sent: its '{Section}' entry does not form a valid address", serviceKey, HostsSection);
+
+            throw new HttpRequestException($"The '{HostsSection}' entry for '{serviceKey}' does not form a valid address.");
+        }
+
+        using var message = new HttpRequestMessage(HttpMethod.Post, address)
         {
             Content = JsonContent.Create(request, options: global::OxQL.AspNetCore.Controllers.JsonOptions.Wire),
         };
@@ -86,8 +110,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        if (budget > TimeSpan.Zero)
-            timeout.CancelAfter(budget);
+        timeout.CancelAfter(budget > TimeSpan.Zero ? budget : FallbackBudget);
 
         using var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
 
@@ -105,7 +128,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     /// <inheritdoc/>
     public async Task<bool> IsReachableAsync(string serviceKey, CancellationToken cancellationToken)
     {
-        if (HealthUrl(serviceKey) is not { } url)
+        if (HealthUrl(serviceKey) is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out var address))
             return false;
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -114,7 +137,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
 
         try
         {
-            using var message = new HttpRequestMessage(HttpMethod.Get, url);
+            using var message = new HttpRequestMessage(HttpMethod.Get, address);
             using var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
 
             return response.IsSuccessStatusCode;

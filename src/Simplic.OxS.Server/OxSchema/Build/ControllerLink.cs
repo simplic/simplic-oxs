@@ -249,7 +249,8 @@ namespace Simplic.OxS.Server.OxSchema
                 .Select(route => route.Template)
                 .FirstOrDefault(template => !string.IsNullOrWhiteSpace(template)) ?? name;
 
-            return Trim(template.Replace(ControllerToken, name, StringComparison.Ordinal));
+            // Route tokens are case-insensitive to the framework, so `[Controller]` names the same route.
+            return Trim(template.Replace(ControllerToken, name, StringComparison.OrdinalIgnoreCase));
         }
 
         private static string Route(string prefix, string template)

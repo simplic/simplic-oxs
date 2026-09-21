@@ -472,7 +472,7 @@ namespace Simplic.OxS.Server
         /// Gets the first segment of the service's base path, e.g. <c>vehicle-api</c>.
         /// </summary>
         /// <remarks>
-        /// One definition of the convention, because three places now need it - the path base,
+        /// One definition of the convention, because three places need it - the path base,
         /// the OxQL Studio route and the <c>api</c> member of the schema document, which is a
         /// published claim about where this service answers. A second copy of the convention is
         /// a document that can come to describe a route the host does not serve.

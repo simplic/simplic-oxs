@@ -21,9 +21,15 @@ namespace Simplic.OxS.Server.OxSchema
         /// Builds the documents.
         /// </summary>
         /// <remarks>
-        /// The entity model is walked through the MongoDB driver's serializer registry, so this
-        /// must run after every serializer and class-map registration of the host and never
-        /// during service registration; the startup filter guarantees it.
+        /// The entity model is walked through the MongoDB driver's serializer registry: the
+        /// build looks up the serializer of every entity and of every type reachable from one,
+        /// and the first lookup of a type creates its class map and freezes it. The build
+        /// therefore never runs during service registration. The startup filter runs it after
+        /// <c>ConfigureServices</c> and before the first request, which covers every class map a
+        /// host registers while it registers its services, and nothing later: a registration in
+        /// a repository's static constructor, in a hosted service or on first use meets a frozen
+        /// map, where <c>RegisterClassMap</c> throws and a registration guarded by
+        /// <c>IsClassMapRegistered</c> is skipped.
         /// </remarks>
         /// <exception cref="InvalidOperationException">
         /// The document is ambiguous and the options fail fast. Every other finding is logged and,

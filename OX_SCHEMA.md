@@ -7,8 +7,10 @@ REST operations, and the limits a query has to respect. It is built once at star
 service's own code, held in memory, and served with a content-derived revision and entity tag.
 
 This file is the contract of that document (**format version 1.0**), followed by what a service
-declares, how the document is built, and how the build fails. The code is in
-`src/Simplic.OxS.Server/OxSchema/`; the tests in `src/Simplic.OxS.Server.Test/OxSchema/`.
+declares, how the document is built and how the build fails, how a host is configured
+(section 4), and what a service gets and has to do when it upgrades to this package version
+(section 5). The code is in `src/Simplic.OxS.Server/OxSchema/` and `src/Simplic.OxS.Server/OxQL/`;
+the tests in `src/Simplic.OxS.Server.Test/OxSchema/` and `src/Simplic.OxS.Server.Test/OxQL/`.
 
 ---
 
@@ -114,7 +116,8 @@ An entity is a structural type that additionally carries entity metadata. Member
 | `display` | entities | The property that names an instance: the first of `name`, `matchCode`, `number` the entity has as a string. Absent when it has none. |
 | `extendable` | entities | Whether the entity accepts an organisation's declared addon fields. |
 | `queryable` | entities | `true`: every entity in the pool is accepted as a query's entity type. |
-| `notFilterable`, `notSortable` | entities | Paths the entity refuses to filter or sort on. Always present; empty in this version, which declares no exceptions. |
+| `notFilterable` | entities | The scalar paths the entity refuses to filter on: members the service returns and does not store, which the query engine refuses with `NOT_STORED`. Ordinally sorted. Always present, possibly empty. |
+| `notSortable` | entities | Paths the entity refuses to sort on. Always present; empty in this version: what makes a stored scalar unsortable, crossing a collection, is visible in the descriptors. |
 | `operations` | entities | The REST operations by slot. Absent when no controller is linked. |
 | `items` | entities | The item collections under the entity. Always present, possibly empty. |
 | `properties` | object entries | The property list. Absent on an enum entry; an object entry always carries it, empty included. |
@@ -342,7 +345,7 @@ nothing else is declared.
 |---|---|
 | an entity | `[OxQLType]` on the class; `Extendable = true` publishes `extendable` |
 | the entity's REST operations and legacy aliases | list its controller in `ConfigureModelDefinitions()`; the controller is linked to the entity whose response DTO carries `[SearchKey("<entity id>")]`, or whose name is `<Entity>Model` / `<Entity>Response` among that controller's declared responses |
-| a foreign key the convention cannot infer | `[ReferenceId("<id property>")]` on the navigation property, whose type is the target entity |
+| a foreign key | `[OxQLReference("<entity id>")]` on the id member, or `[ReferenceId("<id property>")]` on the navigation property, whose type is the target entity; nothing is inferred from a name |
 | a retired id, after renaming an entity's id | override `ConfigureOxSchema` in `Startup` (section 2.1) |
 | a key on an embedded item type | implement `IItemId` |
 
@@ -367,50 +370,69 @@ the same list are not queryable; they are for the configuration resolvers only.
 
 ## 3 · How the document is built
 
-`AddOxSchema` (called by `Bootstrap`) registers `OxSchemaRegistry` as a singleton and installs a
-startup filter that builds it before the first request. The build runs once, on the startup
-thread, and is one pass in `OxSchemaBuilder`:
+`AddOxSchema` (called by `Bootstrap`) registers `OxSchemaRegistry` as a singleton, hands the
+registry's entity model to the query engine as its `IEntityModelProvider`, and installs a
+startup filter that resolves the registry before the first request. The build runs once, on the
+startup thread, and is one pass in `OxSchemaBuilder`:
 
-1. **Legacy document.** `/ModelDefinition` is generated from the declared controllers exactly as
-   before and held beside the schema; the schema reads its published model ids for `items`.
-2. **Discovery.** The query engine's registry scans the declared assemblies; duplicate ids are
-   read off the declarations, where the collision is still visible, and every claimant of a
-   duplicated id is dropped.
-3. **Walk.** Each entity's public instance properties are described, most derived type first and
-   in declaration order within a type; every type reached is pooled once under a working key,
-   registered before its own members are walked so cycles need no depth limit.
-4. **Metadata, link, items, references.** Key, display, label and aliases per entity; the
-   controller link and the operations read off it; the item collections and the reference
-   fields, both over the finished pool.
-5. **Structural ids.** Working keys are replaced by `t_` ids, tails assigned where a CLR name is
-   shared, and every pointer rewritten through the one descriptor visitor.
+1. **Legacy document.** `/ModelDefinition` is generated from the declared controllers by the
+   same generator as before and held beside the schema; the schema reads its published model
+   ids for `items`. A controller the generator cannot describe is dropped and logged; the
+   others are served.
+2. **Entity model.** The query engine's model builder (`ClrModelBuilder` in `OxQL.Model`) scans
+   the declared assemblies for `[OxQLType]`, drops every claimant of a duplicated id, and
+   describes each entity through the MongoDB driver's serializer registry: wire names, storage
+   names, whether a member is stored at all, nullability, declared references and snapshots.
+   Every type reached is pooled once, and the structural types get their `t_` ids there, tails
+   included. The model's findings become the document's.
+3. **Projection.** `TypePoolWalker` turns the model's pool into pool entries under the model's
+   ids, members in the model's order. Nothing is walked a second time: the engine binds against
+   this model, and the document is its wire view.
+4. **Entity metadata.** Per entity: the label, the key (the model's), the display property, the
+   aliases (the retired ids, then the legacy ids of the linked controller), `extendable`, the
+   unstored scalar paths as `notFilterable`, and the operations read off the linked controller.
+5. **Item collections**, over the finished pool.
 6. **Validation.** Id grammar, property-name grammar and pointer integrity, over the finished
    pool.
-7. **Posture, serialisation, revision.** See section 3.3. The document is serialised canonically once
-   for the revision and once for the body.
+7. **Posture, serialisation, revision.** See section 3.3. The document is serialised canonically
+   once for the revision and once for the body.
 
-Nothing is written to disk. `OxSchemaRegistry` exposes the document, the body, the revision, the
-entity tag, every finding and the legacy document; the two controllers read from it. Both
-controller actions are synchronous and take a cancellation token they never await, because they
-serve bytes built at startup.
+Because step 2 looks up a serializer for every reachable type, the build creates and freezes
+the MongoDB class map of each of them. Section 5.2 says what that asks of a service.
+
+Nothing is written to disk. `OxSchemaRegistry` exposes the entity model, the document, the body,
+the revision, the entity tag, every finding, the legacy document and whether `/schema` requires
+authorization. Three controllers read from it: `SchemaController`, `ModelDefinitionController`,
+and `AddonDefinitionController`, which checks an entity id against the model. The actions behind
+`GET /schema` and `GET /ModelDefinition` are synchronous and take a cancellation token they
+never await, because they serve bytes built at startup; `GET /schema/addons` reads the calling
+organisation's definitions per request, through a cache.
 
 ### 3.1 Layout
 
 ```
 OxSchema/
+  AddonDescriptors.cs  the body of GET /schema/addons: an organisation's definitions as descriptors
   Document/   the wire contract as immutable records, one file per section, no dependency on the rest
-  Build/      reflection → document: options, discovery, walker, metadata, controller link, items,
-              relationships, structural ids, the descriptor visitor, the validator, the findings
+  Build/      model → document: options, entity discovery, the pool projection, entity metadata,
+              controller link, item collections, the descriptor visitor, the validator, the
+              findings and their codes
   Legacy/     the frozen /ModelDefinition document
-  Hosting/    the registry singleton, AddOxSchema, the startup logger
-Controller/   SchemaController (GET /schema), ModelDefinitionController (GET /ModelDefinition)
+  Hosting/    the registry singleton, AddOxSchema, the options builder, the startup logger, the
+              authorization filter of GET /schema
+OxQL/         the host's side of the query engine: the organisation scope provider, the internal
+              batch route, the remote query client, the addon definition rules, source and cache
+Controller/   SchemaController (GET /schema, GET /schema/addons),
+              ModelDefinitionController (GET /ModelDefinition)
+Controllers/  AddonDefinitionController (the /AddonDefinition operations)
 ```
 
 ### 3.2 Byte rules the code keeps
 
 - Member order of every record is explicit, because it is inside the revision.
-- Property order is the most derived type first, then each base type, declaration order within
-  a type, read from the metadata token. Reflection's own order is not used.
+- Property order is the model's member order: the most derived type first, then each base type,
+  declaration order within a type. The engine's model builder reads it from the metadata token,
+  not from reflection's own order, and the projection keeps the order it is given.
 - Every map is ordinally sorted; every list is in generator order.
 - The canonical serializer options, escaper included, are inside the revision.
 - The legacy document is serialised with CRLF line endings on every platform.
@@ -453,7 +475,160 @@ legacy generator could not describe.
 
 ---
 
-## 4 · Comments in this code
+## 4 · Configuration
+
+Everything below is read from the host's configuration (`appsettings.json`, environment
+variables) when the host starts. A host that sets none of it keeps the defaults named here.
+
+### 4.1 Who may read `/schema`
+
+| key | type | default |
+|---|---|---|
+| `OxSchema:RequireAuthorization` | bool | `false` |
+
+`GET /schema` is anonymous by default, the same posture as `GET /ModelDefinition`: the document
+is organisation-independent, and build tooling and client generators fetch it without
+credentials. What it discloses is the persisted shape of every entity: property names and kinds,
+storage names where they differ from the wire name, enum members, keys, declared references, the
+REST routes of the linked controllers and the query limits. It carries no CLR namespace or
+assembly name, no data, and nothing about an organisation. It does describe the *stored* entity,
+where `/ModelDefinition` describes response models and honours `[InternalProperty]`; no attribute
+keeps a member out of the schema.
+
+With the option on, `GET /schema` applies the host's default authorization policy (a bearer
+token or an API key) and refuses every other caller the way `GET /schema/addons` does. The bytes
+an admitted caller gets are the same. A consumer that fetched the document without credentials
+has to send them then; the OxQL Studio already sends its token with the schema request.
+`GET /schema/addons` always requires an authenticated caller with an organisation, and
+`GET /ModelDefinition` stays anonymous either way. A service can also set the option in code,
+`schema.RequireAuthorization = true` in `ConfigureOxSchema`, which runs after the configuration
+is read and therefore wins.
+
+### 4.2 Resolving into another service
+
+A `resolve` stage, or a condition on a referenced entity another service owns, makes the query
+engine call that owner: `POST http://{host}/{service}-api/{version}/internal/oxql/batch`, where
+`service` is the namespace of the target entity id (`vehicle` of `vehicle.vehicle`).
+
+| key | meaning | default |
+|---|---|---|
+| `InternalHosts:<service>` | The owner's host and port, the same section the internal client reads. | none |
+| `InternalApiVersions:<service>` | The api version segment the owner answers on. | `v1` |
+| `Auth:InternalApiKey` | The key every internal route of the cluster admits, sent on the call and checked by the owner. | a random value per process |
+
+- **`InternalHosts`.** A declared reference into a service without an entry is logged as an
+  error when the host starts, and stops the start in `Development`, `Local` and under the `CI`
+  environment variable. The check reads the configuration only; nothing is called at startup. An
+  entry that does not form an address is treated as an owner that cannot be reached.
+- **`InternalApiVersions`.** An owner that answers on another version than `v1` needs an entry
+  on every *calling* service (`InternalApiVersions__vehicle=v2`). Without it the call goes to
+  `/vehicle-api/v1/…`, the owner answers 404, and the caller sees an unreachable owner: the
+  resolved members are null on the page with a `RESOLVE_UNREACHABLE` diagnostic, and a condition
+  on the referenced entity is refused with `RESOLVE_UNAVAILABLE`. No startup check covers this
+  key. `GET /OxQL/health` lists each remotely referenced service with its reachability.
+- **The internal api key.** The owner's route is `POST internal/oxql/batch`, admitted by the key
+  alone like every `OxSInternalController`, and scoped by the forwarded user and organisation
+  headers. Caller and owner must be configured with the same key. A key that is not configured
+  is a random value, and a key configured as blank admits nobody.
+
+### 4.3 The `OxQL` section
+
+The query engine binds its options from the host's `OxQL` section, and `/schema` publishes the
+limits of those very options. A host without the section keeps the engine's defaults, which
+include the page sizes this package used to set in code (`MaxPageSize` 500, `DefaultPageSize`
+100).
+
+| key | meaning | default |
+|---|---|---|
+| `OxQL:Limits:*` | Every cap a request is checked against (`MaxPageSize`, `DefaultPageSize`, `MaxOffset`, `MaxBatchQueries`, …). | the engine's |
+| `OxQL:Execution:MaxTimeMs`, `OxQL:Execution:ResolveTimeoutMs` | The time ceiling of one query and the budget of one call to another service. | 10000, 2000 |
+| `OxQL:Compat:Enabled` | Whether a request without the contract header is answered as contract 1. | `true` |
+| `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` answers, and whether the OxQL Studio offers it; 404 otherwise. | `false` |
+| `OxQL:Cursor:SigningKey` | The secret paging cursors are signed with. | `Auth:Token` |
+
+The cursor key is never used as it is: the engine derives the signing key from the secret with
+HKDF-SHA256 under its own label, so reusing the auth token does not expose it. When the section
+names no key the package falls back to `Auth:Token`. A host with no `Auth` section at all
+starts, and answers the first OxQL request with an error, because the engine refuses to sign
+with nothing; a host whose `Auth` section names no token signs with a random value per process.
+Every replica of a service needs the same secret, or a cursor issued by one is refused by the
+next.
+
+Engine faults carry their message in `Development` and `local` only.
+
+---
+
+## 5 · Upgrading a service to this package version
+
+### 5.1 What a service gets by bumping the package
+
+Nothing below needs a line of code in the service.
+
+- `GET /schema` and `GET /schema/addons` (sections 1 and 4.1), both hidden from the API explorer.
+- `GET /ModelDefinition` served from memory. The document is generated by the same generator from
+  the same controller list; it is built once at startup, nothing writes
+  `ModelDefinition/ModelDefinition.json` any more, and the route answers `GET` only. A
+  controller the generator cannot describe is left out instead of replacing the whole document.
+- The query engine in version 2: the organisation scope on every entry into an entity (a
+  request without an organisation is refused with 403), `POST /OxQL/batch`, resolves into other
+  services, and `POST internal/oxql/batch` for the services resolving into this one (hidden from
+  the API explorer). Callers written against contract 1 keep working at runtime while
+  `OxQL:Compat:Enabled` is on, which is the default.
+- `/AddonDefinition`: `GET {entity}`, `GET by-id/{id}`, `POST`, `PUT {id}`, `DELETE {id}`, for an
+  organisation's typed addon keys. The definitions are stored in the service's own database, in
+  the collection `model_definition.addon_definition`.
+
+### 5.2 What a service has to do
+
+- **Register MongoDB class maps and serializers while services are registered.** The schema
+  build looks up the serializer of every entity and of every type reachable from one, when the
+  host starts. The first lookup of a type creates its class map and freezes it. A class map
+  registered in `RegisterServices` is in place by then. One registered later (in a repository's
+  static constructor, a hosted service, on first use) meets a frozen map: `RegisterClassMap`
+  throws, and a registration guarded by `IsClassMapRegistered` is silently skipped, which loses
+  the customisation (`SetIgnoreExtraElements`, discriminators, member maps) and surfaces as a
+  deserialisation error later. Move such registrations into `RegisterServices`.
+- **`ConfigureModelDefinitions()` and `GetOxQLTypeAssemblies()` are called during
+  `ConfigureServices`**, not from `Configure` and not only when MongoDB is configured. They must
+  not depend on anything that is set up later.
+- **`ModelDefinitionBuilder.AddControllerDefinitions` is `[Obsolete]`.** `Bootstrap` no longer
+  calls it and nothing reads the file it writes. A service that calls it itself gets CS0618,
+  which is a build break under `TreatWarningsAsErrors`; delete the call.
+- **`OxQLOrganizationFilter` is removed.** `Bootstrap` registers the scope provider
+  (`AddOxQLScope<OxQLScopeProvider>()`) in its place, and the engine applies the organisation at
+  every entry into an entity rather than once at the root. A service that registered the filter
+  itself no longer compiles; delete the registration.
+- **`ModelDefinitionController` is sealed**, derives from `OxSController` and takes the
+  `OxSchemaRegistry` alone. A service that subclassed or constructed it has to stop.
+- **`[AuthorizeInternalApiKey]` belongs on a controller that derives from
+  `OxSInternalController`.** On any other controller the call is answered with 400 and the action
+  does not run. A host whose `Auth:InternalApiKey` is configured as blank admits no internal
+  call at all.
+- **A renamed entity id** needs `ConfigureOxSchema` (section 2.1), so configurations that
+  persisted the old id keep resolving.
+- **Resolving into another service** needs the keys of section 4.2 on the calling service.
+- **A service that references an `OxQL.*` package itself** has to move that reference to the
+  version this package references.
+
+### 5.3 What changes in the service's swagger
+
+The OxQL controller and `/AddonDefinition` are part of every service's OpenAPI document, so the
+document changes with the bump, and so does every API client generated from it, on its next
+regeneration:
+
+- `GET /OxQL/types` is removed; `/schema` replaces it.
+- `POST /OxQL/batch` is added.
+- The request and result schemas of `POST /OxQL/query` and `POST /OxQL/explain` are the ones of
+  contract 2, and the refusals are typed.
+- The five `/AddonDefinition` operations and their request and response models are added.
+
+A generated client changes shape only when it is regenerated. Until then a caller built on the
+contract 1 shapes keeps working at runtime, through the engine's compatibility binder
+(`OxQL:Compat:Enabled`).
+
+---
+
+## 6 · Comments in this code
 
 A comment documents the code as it is, for a reader who has only the code: no references to
 documents outside this repository, no history, no narrative of how the code came to be. A

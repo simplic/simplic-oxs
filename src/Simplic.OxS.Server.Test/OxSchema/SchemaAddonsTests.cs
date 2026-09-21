@@ -98,7 +98,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 .Select(entity => entity.Id));
             entities.Should().Contain("probe.widget").And.NotContain("probe.thing");
 
-            // F-COR-002: declared extendable with no addon member. Listing it would publish a
+            // Declared extendable with no addon member. Listing it would publish a
             // key every read refuses with UNKNOWN_PATH, because there is no addon root to bind.
             entities.Should().NotContain("probe.bagless");
             body.RootElement.GetProperty("probe.widget").GetArrayLength().Should().Be(1);

@@ -1,10 +1,6 @@
-using System.Linq;
-using FluentAssertions;
 using OxQL.Model;
 using OxQL.Model.Build;
 using Simplic.OxS.Server.OxSchema;
-
-using Xunit;
 
 namespace Simplic.OxS.Server.Test.OxSchema
 {
@@ -13,6 +9,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
     /// packages and both reach the wire, so a copy that drifts is a format break nobody sees
     /// until a consumer refuses a document.
     /// </summary>
+    [Collection(SchemaCollection.Name)]
     public class SchemaParityTests
     {
         [Fact]

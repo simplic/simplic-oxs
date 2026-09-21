@@ -45,15 +45,13 @@ public static class AddonDefinitionRules
     /// The entity must be one the host declares and it must carry an addon bag — the member,
     /// not just the flag.
     /// <para>
-    /// The flag alone was not enough. Two entities in the fleet declare
-    /// <c>Extendable = true</c> and have no <c>Addon</c> property
-    /// (<c>erp.transaction</c>, <c>vehicle.equipment</c>), so a definition could be created and
-    /// stored on them, appeared under <c>GET /schema/addons</c> — which is the endpoint a UI
-    /// builds its filter list from — and then refused <c>UNKNOWN_PATH</c> on every read,
-    /// because with no bag member the path index has no <c>addon</c> root at all. Measured
-    /// against the live <c>erp</c> host: 201 on the create, published by the schema endpoint,
-    /// 400 on <c>match</c>, on <c>exists</c> and on <c>sort</c>. A service must not publish a
-    /// key it can never answer.
+    /// <c>Extendable = true</c> on an entity without an <c>Addon</c> property is a legal
+    /// declaration, and the flag alone does not make a key readable: with no bag member the
+    /// path index has no <c>addon</c> root, so the query engine refuses every path below it
+    /// with <c>UNKNOWN_PATH</c>. A definition stored on such an entity would be published
+    /// under <c>GET /schema/addons</c>, which a client builds its filter list from, and could
+    /// never be filtered, tested for existence or sorted on. A service must not publish a key
+    /// it can never answer.
     /// </para>
     /// </summary>
     public static string? CheckEntity(EntityModel model, string? entity)

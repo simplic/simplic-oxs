@@ -35,11 +35,10 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         /// <summary>
-        /// F-COR-002: the flag alone was the test, so <c>erp.transaction</c> and
-        /// <c>vehicle.equipment</c> — extendable with no <c>addon</c> member — accepted a
-        /// definition (201), published it under <c>/schema/addons</c>, and then refused every
-        /// read of it with <c>UNKNOWN_PATH</c>, because with no bag the path index has no
-        /// addon root to bind. A service must not publish a key it can never answer.
+        /// The flag is not enough: an entity declared extendable with no <c>addon</c> member
+        /// has no addon root in the path index, so a definition stored on it would be
+        /// published under <c>/schema/addons</c> and refused with <c>UNKNOWN_PATH</c> on every
+        /// read. A service must not publish a key it can never answer.
         /// </summary>
         [Fact]
         public void CheckEntity_RefusesAnExtendableEntityThatCarriesNoAddonBag()

@@ -10,8 +10,8 @@ namespace Simplic.OxS.Server.OxSchema
     /// The model is built once per host through the MongoDB driver's serializer registry, so
     /// the document describes exactly the types and members the engine binds against. What the
     /// document derives beyond the model (keys from the identity interfaces, storage-name and
-    /// label exceptions) keeps the rules of <see cref="EntityMetadata"/>, so the published bytes
-    /// move only where the model itself differs from the former CLR walk.
+    /// label exceptions) follows the rules of <see cref="EntityMetadata"/> and nothing else, so
+    /// a byte of the document moves only when the model or one of those rules does.
     /// </remarks>
     internal static class TypePoolWalker
     {

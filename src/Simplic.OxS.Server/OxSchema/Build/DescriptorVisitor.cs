@@ -1,8 +1,8 @@
 namespace Simplic.OxS.Server.OxSchema
 {
     /// <summary>
-    /// The one walk over a property descriptor and everything nested inside it, used by the
-    /// pointer-integrity check, the structural-id rename and the item-collection walk alike.
+    /// The one walk over a property descriptor and everything nested inside it, which the
+    /// document validator checks pointers and snapshot sources with.
     /// </summary>
     internal static class DescriptorVisitor
     {
@@ -34,26 +34,6 @@ namespace Simplic.OxS.Server.OxSchema
             if (descriptor.Value is not null)
                 foreach (var source in SnapshotSources(descriptor.Value))
                     yield return source;
-        }
-
-        /// <summary>A copy of the descriptor with every pool key it points at passed through <paramref name="rename"/>.</summary>
-        public static OxSchemaProperty Repoint(OxSchemaProperty descriptor, Func<string, string> rename) =>
-            descriptor with
-            {
-                Type = descriptor.Type is null ? null : OxSchemaPointer.To(rename(OxSchemaPointer.Strip(descriptor.Type))),
-                Of = descriptor.Of is null ? null : Repoint(descriptor.Of, rename),
-                Value = descriptor.Value is null ? null : Repoint(descriptor.Value, rename),
-            };
-
-        /// <summary>The descriptor's kind once array traversal is accounted for, so an array of guids is a guid member.</summary>
-        public static string LeafKind(OxSchemaProperty descriptor)
-        {
-            var current = descriptor;
-
-            while (current.Kind == OxSchemaKinds.Array && current.Of is not null)
-                current = current.Of;
-
-            return current.Kind;
         }
     }
 }

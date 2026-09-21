@@ -20,9 +20,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>
         /// Builds the body for every extendable entity of the model that carries the bag, in
-        /// entity id order. The flag alone used to be the test, so an entity declared
-        /// extendable with no <c>addon</c> member appeared here with a list a caller could add
-        /// to and never read back — every filter built from it refused <c>UNKNOWN_PATH</c>.
+        /// entity id order. An entity declared extendable without an <c>addon</c> member is
+        /// left out: the query engine refuses every addon path on it with
+        /// <c>UNKNOWN_PATH</c>, so a list published for it could be added to and never read.
         /// </summary>
         public static async Task<Result> BuildAsync(EntityModel model, IAddonDefinitionSource source, Guid organisation, CancellationToken cancellationToken)
         {

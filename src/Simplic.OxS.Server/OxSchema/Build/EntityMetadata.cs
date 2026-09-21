@@ -14,9 +14,8 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The naming policy that produces the REST response body; every wire name comes from it.</summary>
         public static readonly JsonNamingPolicy WireNames = JsonNamingPolicy.CamelCase;
 
-        /// <summary>The properties that name an instance, in preference order.</summary>
         /// <summary>
-        /// The members a display name is taken from, in order. The same list as the model's
+        /// The properties that name an instance, in preference order. The same list as the model's
         /// <see cref="WireNames.DisplayCandidates"/>; a parity test keeps the two copies equal,
         /// since they live in different packages and both reach the wire.
         /// </summary>
@@ -59,14 +58,6 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>The label of an entity: its CLR name with a known suffix stripped, then de-PascalCased.</summary>
         public static string TypeLabel(Type type) => Humanize(StripLabelSuffix(type.Name));
-
-        /// <summary>The label of a property, or null when it equals the one a consumer derives from the wire name.</summary>
-        public static string? PropertyLabelOf(string clrName, string wireName)
-        {
-            var label = Humanize(clrName);
-
-            return label == Humanize(Pascalize(wireName)) ? null : label;
-        }
 
         /// <summary>The storage name of a property, or null when it equals the wire name with its first letter upper-cased.</summary>
         public static string? StorageNameOf(string clrName, string wireName) =>

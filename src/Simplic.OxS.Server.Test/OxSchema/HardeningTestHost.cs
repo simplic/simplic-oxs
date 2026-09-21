@@ -40,8 +40,8 @@ namespace Simplic.OxS.Server.Test.OxSchema
                     .UseEnvironment(environment)
                     .ConfigureServices(collection =>
                     {
-                        collection.AddAuthentication(TestAuthentication.Scheme)
-                            .AddScheme<AuthenticationSchemeOptions, TestAuthentication>(TestAuthentication.Scheme, null);
+                        collection.AddAuthentication(TestAuthentication.SchemeName)
+                            .AddScheme<AuthenticationSchemeOptions, TestAuthentication>(TestAuthentication.SchemeName, null);
                         collection.AddAuthorization();
 
                         collection.AddControllers().ConfigureApplicationPartManager(manager =>
@@ -103,16 +103,16 @@ namespace Simplic.OxS.Server.Test.OxSchema
         private sealed class TestAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
             : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
         {
-            internal const string Scheme = "Test";
+            internal const string SchemeName = "Test";
 
             protected override Task<AuthenticateResult> HandleAuthenticateAsync()
             {
                 if (Request.Headers[UserHeader].ToString() is not { Length: > 0 } user)
                     return Task.FromResult(AuthenticateResult.NoResult());
 
-                var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, user)], Scheme));
+                var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, user)], SchemeName));
 
-                return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme)));
+                return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));
             }
         }
     }

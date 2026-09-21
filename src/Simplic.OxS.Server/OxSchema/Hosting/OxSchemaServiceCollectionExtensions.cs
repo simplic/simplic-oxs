@@ -27,7 +27,7 @@ namespace Simplic.OxS.Server.OxSchema
 
             var builder = new OxSchemaOptionsBuilder
             {
-                ContinuousIntegration = OxSchemaBuildOptions.ReadContinuousIntegration(Environment.GetEnvironmentVariable("CI")),
+                ContinuousIntegration = OxSchemaBuildOptions.ReadContinuousIntegration(Environment.GetEnvironmentVariable),
             };
 
             configure(builder);

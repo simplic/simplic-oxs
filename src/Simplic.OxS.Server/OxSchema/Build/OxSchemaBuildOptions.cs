@@ -27,7 +27,7 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The host environment name.</summary>
         public string EnvironmentName { get; init; } = "";
 
-        /// <summary>Whether the host runs under a continuous-integration system.</summary>
+        /// <summary>Whether the host runs under a continuous-integration system: the <c>CI</c> or the <c>TF_BUILD</c> environment variable is set.</summary>
         public bool ContinuousIntegration { get; init; }
 
         /// <summary>Current entity id to the ids it retired, for the entities of this service that renamed theirs.</summary>
@@ -43,7 +43,17 @@ namespace Simplic.OxS.Server.OxSchema
 
         private static readonly string[] StrictEnvironments = ["Development", "Local"];
 
-        /// <summary>Reads the conventional <c>CI</c> environment variable: set and neither <c>0</c> nor <c>false</c> means a continuous-integration host.</summary>
+        /// <summary>
+        /// The environment variables that mark a continuous-integration host: the conventional
+        /// <c>CI</c>, and <c>TF_BUILD</c>, which is the one Azure Pipelines sets.
+        /// </summary>
+        internal static readonly string[] ContinuousIntegrationVariables = ["CI", "TF_BUILD"];
+
+        /// <summary>Whether any of <see cref="ContinuousIntegrationVariables"/> marks a continuous-integration host, read through <paramref name="read"/>.</summary>
+        internal static bool ReadContinuousIntegration(Func<string, string?> read) =>
+            ContinuousIntegrationVariables.Any(name => ReadContinuousIntegration(read(name)));
+
+        /// <summary>Reads one continuous-integration variable: set and neither <c>0</c> nor <c>false</c> means a continuous-integration host.</summary>
         public static bool ReadContinuousIntegration(string? variable) =>
             !string.IsNullOrWhiteSpace(variable)
             && !string.Equals(variable, "0", StringComparison.Ordinal)

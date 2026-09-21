@@ -305,8 +305,8 @@ OpenAPI document types them.
 
 Published only for findings a client could not detect from absence: an entity dropped for an
 ambiguous id (`duplicate-entity-id`), a pointer with no target (`dangling-type-pointer`), and a
-pool that is empty because the scan threw (`entity-scan-failed`) or because the host named no
-assemblies (`entity-assemblies-missing`). `target` is in wire terms; nothing names a CLR type.
+pool that is empty because the scan, or the build after it, threw (`entity-scan-failed`) or
+because the host named no assemblies (`entity-assemblies-missing`). `target` is in wire terms; nothing names a CLR type.
 The array is inside the revision hash. Every other finding is logged at startup only (section 3.3).
 
 ### 1.15 Compatibility
@@ -432,9 +432,17 @@ independent costs:
 
 **Refusing** is for ambiguity, where no reading of the document is correct. A host **fails
 fast** on a refusing finding in the `Development` and `Local` environments and under continuous
-integration (the `CI` environment variable), so the defect is found by building; everywhere else
-the host logs the findings and serves the document, with the published ones in `diagnostics`, so
-a metadata defect cannot take a running service down.
+integration (the `CI` environment variable, or `TF_BUILD`, which Azure Pipelines sets). The
+check runs when the host starts, not when it is compiled: a developer meets the defect on the
+first local start, and a pipeline meets it only where it starts the host, for example in an
+integration test. Everywhere else the host logs the findings and serves the document, with the
+published ones in `diagnostics`, so a metadata defect cannot take a running service down.
+
+The same holds for a build that throws instead of reporting a finding. A fail-fast host lets
+the exception stop the start. Every other host logs it at `Critical` and serves a document
+without types that carries `entity-scan-failed`; the query engine then knows no entities, the
+legacy document is still served where it can be generated, and every other route of the service
+is unaffected.
 
 **Published** findings are the ones a client could not detect from absence. Every other finding
 is logged at startup and never reaches the wire: publishing it would make consumers refuse a

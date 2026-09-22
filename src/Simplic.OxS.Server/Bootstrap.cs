@@ -12,7 +12,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
-using MongoDB.Bson;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OxQL.AspNetCore;
@@ -207,7 +206,7 @@ namespace Simplic.OxS.Server
             // Routes: POST /oxql/query, POST /oxql/batch, GET /oxql/health, POST /oxql/explain
             // (404 unless OxQL:Explain:Enabled). Authenticated like every other controller.
             Console.WriteLine("Add OxQL ASP.NET Core");
-            services.AddOxQLAspNetCore<BsonDocument>(options =>
+            services.AddOxQLAspNetCore(options =>
             {
                 options.RequireAuthorization = true;
             });

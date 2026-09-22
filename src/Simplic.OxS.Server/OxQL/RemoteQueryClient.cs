@@ -79,8 +79,12 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     /// <summary>The owner's batch route for a service key, or null when the host does not know the service.</summary>
     public string? BatchUrl(string serviceKey) => Url(serviceKey, "internal/oxql/batch");
 
-    /// <summary>The owner's health route for a service key, or null when the host does not know the service.</summary>
-    public string? HealthUrl(string serviceKey) => Url(serviceKey, "OxQL/health");
+    /// <summary>
+    /// The owner's health route for a service key, or null when the host does not know the
+    /// service. The shallow form: the owner answers without its own remote state and starts no
+    /// measurement of its own, so a probe never sets off the probed service's probes.
+    /// </summary>
+    public string? HealthUrl(string serviceKey) => Url(serviceKey, "OxQL/health?shallow=true");
 
     /// <inheritdoc/>
     public bool IsConfigured(string serviceKey) => serviceKey is not null && hosts.ContainsKey(serviceKey);
@@ -103,7 +107,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
 
         using var message = new HttpRequestMessage(HttpMethod.Post, address)
         {
-            Content = JsonContent.Create(request, options: global::OxQL.AspNetCore.Controllers.JsonOptions.Wire),
+            Content = JsonContent.Create(request, options: OxQLJson.Wire),
         };
 
         await ForwardAsync(message, cancellationToken);
@@ -121,7 +125,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
             throw new HttpRequestException($"The owner of '{serviceKey}' answered {(int)response.StatusCode} to the internal batch.", null, response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<BatchResponse>(global::OxQL.AspNetCore.Controllers.JsonOptions.Wire, timeout.Token)
+        return await response.Content.ReadFromJsonAsync<BatchResponse>(OxQLJson.Wire, timeout.Token)
             ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal batch with an empty body.");
     }
 

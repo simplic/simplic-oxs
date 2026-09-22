@@ -81,7 +81,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             client.IsConfigured("hr").Should().BeFalse();
             client.BatchUrl("vehicle").Should().Be("http://localhost:8080/vehicle-api/v2/internal/oxql/batch");
             client.BatchUrl("erp").Should().Be("http://simplic_erp/erp-api/v1/internal/oxql/batch", "a service without a version entry is v1");
-            client.HealthUrl("vehicle").Should().Be("http://localhost:8080/vehicle-api/v2/OxQL/health");
+            client.HealthUrl("vehicle").Should().Be("http://localhost:8080/vehicle-api/v2/OxQL/health?shallow=true", "a probe asks the shallow form so the owner starts no probes of its own");
             client.BatchUrl("hr").Should().BeNull();
         }
 
@@ -168,7 +168,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task Reachable_IsTheHealthRouteAnsweringSuccess()
         {
-            var handler = new RecordingHandler(request => new HttpResponseMessage(request.RequestUri!.AbsolutePath.EndsWith("/OxQL/health") ? HttpStatusCode.OK : HttpStatusCode.NotFound));
+            var handler = new RecordingHandler(request => new HttpResponseMessage(request.RequestUri!.PathAndQuery.EndsWith("/OxQL/health?shallow=true") ? HttpStatusCode.OK : HttpStatusCode.NotFound));
             var client = Client(new Factory(handler), Configuration(("InternalHosts:vehicle", "localhost:8080"), ("InternalHosts:erp", "simplic_erp")));
 
             (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue();

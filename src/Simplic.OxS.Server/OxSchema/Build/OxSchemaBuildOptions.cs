@@ -27,7 +27,11 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The host environment name.</summary>
         public string EnvironmentName { get; init; } = "";
 
-        /// <summary>Whether the host runs under a continuous-integration system: the <c>CI</c> or the <c>TF_BUILD</c> environment variable is set.</summary>
+        /// <summary>
+        /// Whether the host runs under a continuous-integration system: the <c>CI</c> or the
+        /// <c>TF_BUILD</c> environment variable is set. The query engine's startup check of the
+        /// model's remote references decides its own fail-fast from this value too.
+        /// </summary>
         public bool ContinuousIntegration { get; init; }
 
         /// <summary>

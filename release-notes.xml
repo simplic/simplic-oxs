@@ -42,5 +42,6 @@
     <Change type="enhancement">The OpenAPI document of every service changes: GET /OxQL/types is removed (GET /schema replaces it), POST /OxQL/batch is added, the request and result schemas of the OxQL routes are those of contract 2, and the five AddonDefinition operations are added. Generated API clients change on their next regeneration. Callers written against contract 1 keep working at runtime through the engine's compatibility binder while OxQL:Compat:Enabled is on, which is the default.</Change>
     <Change type="enhancement">OxQL engine faults carry their message in the Development and local environments only.</Change>
     <Change type="enhancement">AuthorizeInternalApiKey compares the key in constant time, refuses every call when the configured Auth:InternalApiKey is blank, and answers a controller that does not derive from OxSInternalController with 400 without running the action.</Change>
+    <Change type="enhancement">The query engine's startup check of the model's remote references fails fast on the same continuous-integration value as the schema build: the CI or the TF_BUILD environment variable, or what a host states through ConfigureOxSchema. A host is strict in both checks or in neither.</Change>
   </ChangeSet>
 </ReleaseNotes>

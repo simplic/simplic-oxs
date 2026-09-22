@@ -205,6 +205,8 @@ namespace Simplic.OxS.Server
             // ── OxQL ASP.NET Core controller ────────────────────────────────────────
             // Routes: POST /oxql/query, POST /oxql/batch, GET /oxql/health, POST /oxql/explain
             // (404 unless OxQL:Explain:Enabled). Authenticated like every other controller.
+            // Whether its remote reference check stops the host under continuous integration
+            // is the schema's decision (AddOxSchema), so both checks fail fast on one value.
             Console.WriteLine("Add OxQL ASP.NET Core");
             services.AddOxQLAspNetCore(options =>
             {

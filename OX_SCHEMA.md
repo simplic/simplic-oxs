@@ -517,9 +517,11 @@ engine call that owner: `POST http://{host}/{service}-api/{version}/internal/oxq
 | `Auth:InternalApiKey` | The key every internal route of the cluster admits, sent on the call and checked by the owner. | a random value per process |
 
 - **`InternalHosts`.** A declared reference into a service without an entry is logged as an
-  error when the host starts, and stops the start in `Development`, `Local` and under the `CI`
-  environment variable. The check reads the configuration only; nothing is called at startup. An
-  entry that does not form an address is treated as an owner that cannot be reached.
+  error when the host starts, and stops the start in `Development`, `Local` and under continuous
+  integration, decided from the same value the schema build fails fast on (section 3.3: the `CI`
+  or the `TF_BUILD` variable, or what `ConfigureOxSchema` states). The check reads the
+  configuration only; nothing is called at startup. An entry that does not form an address is
+  treated as an owner that cannot be reached.
 - **`InternalApiVersions`.** An owner that answers on another version than `v1` needs an entry
   on every *calling* service (`InternalApiVersions__vehicle=v2`). Without it the call goes to
   `/vehicle-api/v1/…`, the owner answers 404, and the caller sees an unreachable owner: the

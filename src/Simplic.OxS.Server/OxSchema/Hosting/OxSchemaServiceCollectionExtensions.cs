@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OxQL.AspNetCore;
 using OxQL.Core.Engine;
 using OxQL.Core.Models;
 using OxQL.Model;
@@ -18,12 +19,17 @@ namespace Simplic.OxS.Server.OxSchema
         /// before the first request, so a fail-fast refusal is a failed start rather than a failed
         /// request and the findings are logged exactly once. The entity model the registry builds
         /// is handed to the query engine as its <see cref="IEntityModelProvider"/>, so the engine
-        /// binds against exactly the model the document describes. A second call is a no-op.
+        /// binds against exactly the model the document describes, and the engine's own startup
+        /// check of the model's remote references fails fast on the schema's
+        /// <see cref="OxSchemaBuildOptions.ContinuousIntegration"/> value. A second call is a no-op.
         /// </summary>
         public static IServiceCollection AddOxSchema(this IServiceCollection services, Action<OxSchemaOptionsBuilder> configure)
         {
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(configure);
+
+            if (services.Any(descriptor => descriptor.ServiceType == typeof(OxSchemaRegistry)))
+                return services;
 
             var builder = new OxSchemaOptionsBuilder
             {
@@ -37,6 +43,10 @@ namespace Simplic.OxS.Server.OxSchema
             // The query engine's own options, so the document publishes the limits the engine
             // enforces. Resolved when the registry is built, so registration order does not matter.
             services.TryAddSingleton(provider => BuildRegistry(provider, options));
+
+            // The engine reads the same variables for its remote reference check; what the host
+            // states here wins over that read, so the two strict gates never disagree.
+            services.PostConfigure<OxQLEndpointOptions>(endpoint => endpoint.ContinuousIntegration = options.ContinuousIntegration);
 
             // The engine's model is the registry's: built in the startup filter, after every
             // serializer registration, and never a second walk of the same assemblies. Replaces

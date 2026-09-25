@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Simplic.OxS.Server
 {
@@ -43,7 +45,7 @@ namespace Simplic.OxS.Server
             var appSettings = context.HttpContext.RequestServices.GetRequiredService<IOptions<OxS.Settings.AuthSettings>>();
 
             // Check whether the actual api key is correct.
-            if (appSettings.Value.InternalApiKey != authParts[1])
+            if (!IsConfiguredKey(appSettings.Value.InternalApiKey, authParts[1]))
             {
                 context.Result = GetUnauthorized();
                 return;
@@ -56,9 +58,29 @@ namespace Simplic.OxS.Server
                     StatusCode = 400,
                     Content = "Internal calls are only allowed for OxSInternalController. Inherit from `OxSInternalController` for internal controller usage."
                 };
+
+                // A result set here only reaches the caller when the action is not executed.
+                return;
             }
 
             await next();
+        }
+
+        /// <summary>
+        /// Whether the presented key is the configured one. A configured key that is null, empty
+        /// or whitespace admits nobody: a host without a key is closed, never open. The
+        /// comparison takes the same time wherever the first difference is, so the key cannot be
+        /// recovered from response times.
+        /// </summary>
+        /// <param name="configuredKey">The key from the host's settings</param>
+        /// <param name="presentedKey">The key from the request</param>
+        /// <returns>True when the request may pass</returns>
+        private static bool IsConfiguredKey(string? configuredKey, string presentedKey)
+        {
+            if (string.IsNullOrWhiteSpace(configuredKey))
+                return false;
+
+            return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(configuredKey), Encoding.UTF8.GetBytes(presentedKey));
         }
 
         /// <summary>

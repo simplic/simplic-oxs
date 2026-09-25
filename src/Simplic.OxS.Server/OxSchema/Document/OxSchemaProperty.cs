@@ -15,9 +15,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>
         /// The name the member is stored and queried under, present only where it is not
-        /// <see cref="Name"/> with its first letter upper-cased. A filter path has to use the
-        /// storage spelling, and the derivation is wrong exactly on acronym runs (<c>qrCode</c>
-        /// is stored as <c>QRCode</c>), where a derived path matches no rows and reports no error.
+        /// <see cref="Name"/> with its first letter upper-cased. A query uses the wire spelling;
+        /// this is for consumers that address storage themselves, where the derivation is wrong
+        /// exactly on acronym runs (<c>qrCode</c> is stored as <c>QRCode</c>).
         /// </summary>
         [JsonPropertyOrder(1)]
         public string? StorageName { get; init; }

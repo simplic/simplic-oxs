@@ -37,7 +37,8 @@ public sealed class OxQLInternalController(IOxQLQueryService queryService, ILogg
                 return Ok(success.Response);
 
             case BatchOutcome.Refused refused:
-                logger.LogInformation("OxQL internal batch refused {Type} {Code}: {Message}", refused.Refusal.Type, refused.Refusal.Errors?[0].Code, refused.Refusal.Errors?[0].Message);
+                var first = refused.Refusal.Errors?.FirstOrDefault();
+                logger.LogInformation("OxQL internal batch refused {Type} {Code}: {Message}", refused.Refusal.Type, first?.Code, first?.Message);
                 return refused.Refusal.ToActionResult();
 
             default:

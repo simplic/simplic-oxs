@@ -23,7 +23,7 @@ public sealed class AddonDefinitionSource(IAddonDefinitionRepository repository,
         if (cache.TryGet(organisation, current, out var cached))
             return cached;
 
-        var documents = await ReadAsync(repository, schema.Model, current, organisation);
+        var documents = await ReadAsync(repository, schema.Model, current, organisation, cancellationToken);
         var definitions = documents.Select(document => ToDefinition(document) with { Entity = current }).ToList();
 
         cache.Set(organisation, current, definitions);
@@ -39,31 +39,56 @@ public sealed class AddonDefinitionSource(IAddonDefinitionRepository repository,
         !string.IsNullOrWhiteSpace(entity) && model.TryResolve(entity, out var definition, out _) ? definition.Id : entity;
 
     /// <summary>
-    /// Every stored definition of an entity: the rows under its current id first, then the rows
-    /// under each retired id in ordinal order. A path stored under more than one id is read from
-    /// the first of them, so the current id wins over a retired one.
+    /// Every stored definition of an entity, read in one query over its current id and every id
+    /// it retired: the rows under its current id first, then the rows under each retired id in
+    /// ordinal order (<see cref="Union"/>).
     /// </summary>
     /// <param name="repository">The definition repository.</param>
     /// <param name="model">The entity model that knows the retired ids.</param>
     /// <param name="entity">The entity's current or retired id.</param>
     /// <param name="organisation">The organisation, or null for the current request's.</param>
-    public static async Task<IReadOnlyList<AddonDefinitionDocument>> ReadAsync(IAddonDefinitionRepository repository, EntityModel model, string entity, Guid? organisation)
+    /// <param name="cancellationToken">The request's cancellation token.</param>
+    public static async Task<IReadOnlyList<AddonDefinitionDocument>> ReadAsync(IAddonDefinitionRepository repository, EntityModel model, string entity, Guid? organisation, CancellationToken cancellationToken)
     {
         IReadOnlyList<string> ids = model.TryResolve(entity, out var definition, out _)
             ? [definition.Id, .. definition.RetiredIds]
             : [entity];
 
-        var union = new List<AddonDefinitionDocument>();
-        var paths = new HashSet<string>(StringComparer.Ordinal);
+        return Union(ids, await repository.GetByEntitiesAsync(ids, organisation, cancellationToken));
+    }
 
-        // Sequential on purpose: the ids are the handful a host declared, and the reads share
-        // one repository and its session.
-        foreach (var id in ids)
-            foreach (var document in await repository.GetByEntityAsync(id, organisation))
-                if (paths.Add(document.Path))
-                    union.Add(document);
+    /// <summary>
+    /// One row per path out of the rows stored under <paramref name="ids"/>, in the order of the
+    /// ids and then of the rows. A path stored under more than one id is read from a live row
+    /// before a retired one, and between rows alike from the id listed first, so the current id
+    /// wins over a retired one and a retired row never hides a live one.
+    /// </summary>
+    /// <param name="ids">The entity's current id, then its retired ids.</param>
+    /// <param name="rows">The rows stored under any of them.</param>
+    public static IReadOnlyList<AddonDefinitionDocument> Union(IReadOnlyList<string> ids, IEnumerable<AddonDefinitionDocument> rows)
+    {
+        var rank = new Dictionary<string, int>(StringComparer.Ordinal);
 
-        return union;
+        for (var index = 0; index < ids.Count; index++)
+            rank.TryAdd(ids[index], index);
+
+        var chosen = new Dictionary<string, AddonDefinitionDocument>(StringComparer.Ordinal);
+        var paths = new List<string>();
+
+        foreach (var row in rows.Where(row => row.Entity is not null && rank.ContainsKey(row.Entity)).OrderBy(row => rank[row.Entity]))
+        {
+            if (!chosen.TryGetValue(row.Path, out var held))
+            {
+                chosen[row.Path] = row;
+                paths.Add(row.Path);
+            }
+            else if (held.Retired && !row.Retired)
+            {
+                chosen[row.Path] = row;
+            }
+        }
+
+        return [.. paths.Select(path => chosen[path])];
     }
 
     /// <summary>The engine's record of one stored definition.</summary>

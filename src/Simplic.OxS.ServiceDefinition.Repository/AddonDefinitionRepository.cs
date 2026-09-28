@@ -15,6 +15,9 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
         if (filter.Entity is not null)
             yield return Builders<AddonDefinitionDocument>.Filter.Eq(s => s.Entity, filter.Entity);
 
+        if (filter.Entities is not null)
+            yield return Builders<AddonDefinitionDocument>.Filter.In(s => s.Entity, filter.Entities);
+
         if (filter.Path is not null)
             yield return Builders<AddonDefinitionDocument>.Filter.Eq(s => s.Path, filter.Path);
 
@@ -28,11 +31,19 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
     protected override string GetCollectionName() => "model_definition.addon_definition";
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<AddonDefinitionDocument>> GetByEntityAsync(string entity, Guid? organizationId = null)
+    public async Task<IEnumerable<AddonDefinitionDocument>> GetByEntitiesAsync(IReadOnlyCollection<string> entities, Guid? organizationId = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(entities);
+
+        // The base read takes no token, so a request cancelled before the read never starts it.
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (entities.Count == 0)
+            return [];
+
         return await GetByFilterAsync(new AddonDefinitionFilter
         {
-            Entity = entity,
+            Entities = [.. entities],
             OrganizationId = organizationId,
             IsDeleted = false,
         });

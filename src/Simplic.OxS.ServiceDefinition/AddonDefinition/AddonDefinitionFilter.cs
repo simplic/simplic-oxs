@@ -13,6 +13,11 @@ public class AddonDefinitionFilter : OrganizationFilterBase
     public string? Entity { get; set; }
 
     /// <summary>
+    /// Gets or sets the entity ids of which any matches, to read several ids in one query.
+    /// </summary>
+    public List<string>? Entities { get; set; }
+
+    /// <summary>
     /// Gets or sets the path to filter by.
     /// </summary>
     public string? Path { get; set; }

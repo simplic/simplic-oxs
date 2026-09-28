@@ -188,8 +188,8 @@ namespace Simplic.OxS.Server.Test.OxSchema
         {
             var repository = new Mock<IAddonDefinitionRepository>(MockBehavior.Strict);
 
-            repository.Setup(r => r.GetByEntityAsync(It.IsAny<string>(), It.IsAny<Guid?>()))
-                .ReturnsAsync((string entity, Guid? _) => rows.Where(row => row.Entity == entity).ToList());
+            repository.Setup(r => r.GetByEntitiesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyCollection<string> entities, Guid? _, CancellationToken _) => rows.Where(row => entities.Contains(row.Entity)).ToList());
             repository.Setup(r => r.GetAsync(It.IsAny<Guid>(), It.IsAny<bool>()))
                 .ReturnsAsync((Guid id, bool _) => rows.FirstOrDefault(row => row.Id == id)!);
             repository.Setup(r => r.CreateAsync(It.IsAny<AddonDefinitionDocument>()))
@@ -229,8 +229,10 @@ namespace Simplic.OxS.Server.Test.OxSchema
             definitions.Single(definition => definition.Path == "gone").Retired.Should().BeTrue();
             definitions.Single(definition => definition.Path == "legacy").Kind.Should().Be(AddonKind.Date);
 
-            foreach (var id in new[] { "probe.widget", "probe.contraption", "probe.gizmo" })
-                repository.Verify(r => r.GetByEntityAsync(id, Organisation), Times.Once);
+            repository.Verify(r => r.GetByEntitiesAsync(
+                It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "probe.widget", "probe.contraption", "probe.gizmo" })),
+                Organisation,
+                It.IsAny<CancellationToken>()), Times.Once, "the current id and every retired id are one read");
         }
 
         [Fact]
@@ -246,7 +248,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             byCurrent.Should().BeSameAs(byRetired);
             byRetired.Should().ContainSingle().Which.Entity.Should().Be("probe.widget");
             cache.TryGet(Organisation, "probe.gizmo", out _).Should().BeFalse();
-            repository.Verify(r => r.GetByEntityAsync("probe.gizmo", Organisation), Times.Once);
+            repository.Verify(r => r.GetByEntitiesAsync(It.IsAny<IReadOnlyCollection<string>>(), Organisation, It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
@@ -320,6 +322,104 @@ namespace Simplic.OxS.Server.Test.OxSchema
             old.Retired.Should().BeTrue();
             old.Entity.Should().Be("probe.widget");
             cache.TryGet(Organisation, "probe.widget", out _).Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task Source_PrefersALiveRowOfARetiredIdOverARetiredRowOfTheCurrentId()
+        {
+            var live = Stored("probe.gizmo", "colour", "string");
+            var repository = Repository([Stored("probe.widget", "colour", "string", retired: true), live]);
+            var source = new AddonDefinitionSource(repository.Object, new AddonDefinitionCache(new OxQLOptions()), Renamed.Value);
+
+            var definitions = await source.ForEntityAsync("probe.widget", Organisation, CancellationToken.None);
+
+            definitions.Should().ContainSingle().Which.Should().Match<AddonDefinition>(definition => definition.Id == live.Id && !definition.Retired);
+        }
+
+        [Fact]
+        public void Union_BetweenRowsAlike_ReadsTheIdListedFirst_InTheOrderOfTheIds()
+        {
+            var retiredCurrent = Stored("probe.widget", "a", "int", retired: true);
+            var retiredOld = Stored("probe.gizmo", "a", "int", retired: true);
+            var other = Stored("probe.widget", "b", "int");
+
+            var union = AddonDefinitionSource.Union(["probe.widget", "probe.gizmo"], [retiredOld, other, retiredCurrent]);
+
+            union.Should().Equal(other, retiredCurrent);
+        }
+
+        [Fact]
+        public async Task Source_ForwardsTheRequestsCancellationToken()
+        {
+            using var cancellation = new CancellationTokenSource();
+            var repository = Repository([]);
+            var source = new AddonDefinitionSource(repository.Object, new AddonDefinitionCache(new OxQLOptions()), Renamed.Value);
+
+            await source.ForEntityAsync("probe.widget", Organisation, cancellation.Token);
+
+            repository.Verify(r => r.GetByEntitiesAsync(It.IsAny<IReadOnlyCollection<string>>(), Organisation, cancellation.Token), Times.Once);
+        }
+
+        [Fact]
+        public async Task Api_GetByEntity_ForwardsTheRequestsCancellationToken()
+        {
+            using var cancellation = new CancellationTokenSource();
+            var repository = Repository([]);
+
+            await Api(repository, new AddonDefinitionCache(new OxQLOptions())).GetByEntityAsync("probe.widget", cancellation.Token);
+
+            repository.Verify(r => r.GetByEntitiesAsync(It.IsAny<IReadOnlyCollection<string>>(), null, cancellation.Token), Times.Once);
+        }
+
+        [Fact]
+        public async Task Api_Update_OfARetiredIdRow_MovesItToTheCurrentIdAndInvalidatesTheCurrentEntity()
+        {
+            var old = Stored("probe.gizmo", "legacy", "string");
+            var cache = new AddonDefinitionCache(new OxQLOptions());
+            cache.Set(Organisation, "probe.widget", []);
+
+            var answer = await Api(Repository([old]), cache).UpdateAsync(old.Id, new UpdateAddonDefinitionRequest { DisplayName = "Legacy" }, CancellationToken.None);
+
+            answer.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeOfType<AddonDefinitionResponse>().Which.Entity.Should().Be("probe.widget");
+            old.Entity.Should().Be("probe.widget");
+            old.DisplayName.Should().Be("Legacy");
+            cache.TryGet(Organisation, "probe.widget", out _).Should().BeFalse("the write invalidates the entry the engine reads");
+        }
+
+        [Fact]
+        public async Task Api_Update_OfARetiredIdRowWhosePathTheCurrentIdHolds_KeepsItUnderItsId()
+        {
+            var hidden = Stored("probe.widget", "colour", "string", retired: true);
+            var live = Stored("probe.gizmo", "colour", "string");
+            var rows = new List<AddonDefinitionDocument> { hidden, live };
+            var cache = new AddonDefinitionCache(new OxQLOptions());
+            cache.Set(Organisation, "probe.widget", []);
+
+            var answer = await Api(Repository(rows), cache).UpdateAsync(live.Id, new UpdateAddonDefinitionRequest { DisplayName = "Colour" }, CancellationToken.None);
+
+            answer.Should().BeOfType<OkObjectResult>();
+            live.Entity.Should().Be("probe.gizmo", "the current id already holds the path, and one id never holds two rows of one path");
+            rows.Where(row => row.Entity == "probe.widget" && row.Path == "colour").Should().ContainSingle();
+            cache.TryGet(Organisation, "probe.widget", out _).Should().BeFalse();
+
+            var listed = await Api(Repository(rows), new AddonDefinitionCache(new OxQLOptions())).GetByEntityAsync("probe.widget", CancellationToken.None);
+            listed.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeAssignableTo<IEnumerable<AddonDefinitionResponse>>()
+                .Which.Should().ContainSingle().Which.Should().Match<AddonDefinitionResponse>(row => row.Id == live.Id && row.DisplayName == "Colour" && !row.Retired);
+        }
+
+        [Fact]
+        public async Task Api_Delete_OfARetiredIdRowWhosePathTheCurrentIdHolds_RetiresItUnderItsId()
+        {
+            var hidden = Stored("probe.widget", "colour", "string", retired: true);
+            var live = Stored("probe.gizmo", "colour", "string");
+            var rows = new List<AddonDefinitionDocument> { hidden, live };
+
+            var answer = await Api(Repository(rows), new AddonDefinitionCache(new OxQLOptions())).DeleteAsync(live.Id, CancellationToken.None);
+
+            answer.Should().BeOfType<NoContentResult>();
+            live.Retired.Should().BeTrue();
+            live.Entity.Should().Be("probe.gizmo");
+            rows.Where(row => row.Entity == "probe.widget" && row.Path == "colour").Should().ContainSingle();
         }
 
         [Fact]

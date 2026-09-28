@@ -28,7 +28,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task ForEntity_ReadsTheRepositoryOnceAndThenTheCache()
         {
             var repository = new Mock<IAddonDefinitionRepository>(MockBehavior.Strict);
-            repository.Setup(r => r.GetByEntityAsync("probe.widget", Organisation))
+            repository.Setup(r => r.GetByEntitiesAsync(It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "probe.widget" })), Organisation, It.IsAny<CancellationToken>()))
                 .ReturnsAsync([Document("weight", "decimal"), Document("colour", "string"), Document("gone", "int", retired: true)]);
 
             var cache = new AddonDefinitionCache(new OxQLOptions());
@@ -37,7 +37,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             var first = await source.ForEntityAsync("probe.widget", Organisation, CancellationToken.None);
             var second = await source.ForEntityAsync("probe.widget", Organisation, CancellationToken.None);
 
-            repository.Verify(r => r.GetByEntityAsync("probe.widget", Organisation), Times.Once);
+            repository.Verify(r => r.GetByEntitiesAsync(It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "probe.widget" })), Organisation, It.IsAny<CancellationToken>()), Times.Once);
             second.Should().BeSameAs(first);
             first.Should().HaveCount(3, "retired definitions are included, as the engine's contract asks");
             first.Single(definition => definition.Path == "gone").Retired.Should().BeTrue();
@@ -49,7 +49,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task ForEntity_AfterInvalidation_ReadsTheRepositoryAgain()
         {
             var repository = new Mock<IAddonDefinitionRepository>(MockBehavior.Strict);
-            repository.Setup(r => r.GetByEntityAsync("probe.widget", Organisation)).ReturnsAsync([]);
+            repository.Setup(r => r.GetByEntitiesAsync(It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "probe.widget" })), Organisation, It.IsAny<CancellationToken>())).ReturnsAsync([]);
 
             var cache = new AddonDefinitionCache(new OxQLOptions());
             var source = new AddonDefinitionSource(repository.Object, cache, SchemaBuild.Degraded);
@@ -58,7 +58,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             cache.Invalidate(Organisation, "probe.widget");
             await source.ForEntityAsync("probe.widget", Organisation, CancellationToken.None);
 
-            repository.Verify(r => r.GetByEntityAsync("probe.widget", Organisation), Times.Exactly(2));
+            repository.Verify(r => r.GetByEntitiesAsync(It.Is<IReadOnlyCollection<string>>(ids => ids.SequenceEqual(new[] { "probe.widget" })), Organisation, It.IsAny<CancellationToken>()), Times.Exactly(2));
         }
 
         [Fact]

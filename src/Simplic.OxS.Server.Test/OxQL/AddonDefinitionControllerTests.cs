@@ -28,8 +28,8 @@ namespace Simplic.OxS.Server.Test.OxQL
             {
                 Stored.AddRange(existing);
 
-                Repository.Setup(repository => repository.GetByEntityAsync(It.IsAny<string>(), It.IsAny<Guid?>()))
-                    .ReturnsAsync((string entity, Guid? _) => Stored.Where(definition => definition.Entity == entity).ToList());
+                Repository.Setup(repository => repository.GetByEntitiesAsync(It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((IReadOnlyCollection<string> entities, Guid? _, CancellationToken _) => Stored.Where(definition => entities.Contains(definition.Entity)).ToList());
                 Repository.Setup(repository => repository.GetAsync(It.IsAny<Guid>(), It.IsAny<bool>()))
                     .ReturnsAsync((Guid id, bool _) => Stored.FirstOrDefault(definition => definition.Id == id)!);
                 Repository.Setup(repository => repository.CreateAsync(It.IsAny<AddonDefinitionDocument>()))

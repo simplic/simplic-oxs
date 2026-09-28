@@ -16,7 +16,7 @@ namespace Simplic.OxS.Server.Controllers;
 /// A definition's path and kind are immutable; labels and the value list may change; a
 /// retired definition stays as a row and its key is opaque again. An entity's definitions are
 /// the rows under its current id and under every id it retired; the API answers with the
-/// current id and moves a row it writes to it.
+/// current id and moves a row it writes to it, unless the current id already holds that path.
 /// </summary>
 [Authorize]
 [ApiController]
@@ -54,7 +54,7 @@ public class AddonDefinitionController : OxSController
         if (!schema.Model.TryResolve(entity, out _, out _))
             return NotFound();
 
-        var definitions = await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null);
+        var definitions = await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null, ct);
 
         return Ok(definitions.OrderBy(definition => definition.Path, StringComparer.Ordinal).Select(MapToResponse));
     }
@@ -112,7 +112,7 @@ public class AddonDefinitionController : OxSController
         if (AddonDefinitionRules.CheckValues(kind, values) is { } valuesError)
             return BadRequest(valuesError);
 
-        var existing = (await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null)).ToList();
+        var existing = (await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null, ct)).ToList();
         var same = existing.FirstOrDefault(definition => string.Equals(definition.Path, request.Path, StringComparison.Ordinal));
 
         if (same is { Retired: false })
@@ -164,7 +164,8 @@ public class AddonDefinitionController : OxSController
     }
 
     /// <summary>
-    /// Updates the labels and the value list of a definition; path and kind never change.
+    /// Updates the labels and the value list of a definition; path and kind never change. A row
+    /// stored under a retired entity id moves to the current id (<see cref="MoveToCurrentAsync"/>).
     /// </summary>
     /// <param name="id">The definition id.</param>
     /// <param name="request">The update request.</param>
@@ -187,20 +188,22 @@ public class AddonDefinitionController : OxSController
         if (AddonDefinitionRules.CheckValues(kind, values) is { } valuesError)
             return BadRequest(valuesError);
 
-        definition.Entity = AddonDefinitionSource.CurrentId(schema.Model, definition.Entity);
+        var current = await MoveToCurrentAsync(definition, ct);
+
         definition.Values = values;
         definition.DisplayName = request.DisplayName;
         definition.Description = request.Description;
 
         await repository.UpdateAsync(definition);
         await repository.CommitAsync();
-        cache.Invalidate(definition.OrganizationId, definition.Entity);
+        cache.Invalidate(definition.OrganizationId, current);
 
         return Ok(MapToResponse(definition));
     }
 
     /// <summary>
-    /// Retires a definition: the row stays, the key is opaque again.
+    /// Retires a definition: the row stays, the key is opaque again. A row stored under a retired
+    /// entity id moves to the current id (<see cref="MoveToCurrentAsync"/>).
     /// </summary>
     /// <param name="id">The definition id.</param>
     /// <param name="ct">The request's cancellation token.</param>
@@ -217,15 +220,37 @@ public class AddonDefinitionController : OxSController
 
         if (!definition.Retired)
         {
-            definition.Entity = AddonDefinitionSource.CurrentId(schema.Model, definition.Entity);
+            var current = await MoveToCurrentAsync(definition, ct);
+
             definition.Retired = true;
 
             await repository.UpdateAsync(definition);
             await repository.CommitAsync();
-            cache.Invalidate(definition.OrganizationId, definition.Entity);
+            cache.Invalidate(definition.OrganizationId, current);
         }
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Moves a row stored under a retired entity id to the entity's current id, unless the current
+    /// id already holds a row of the same path: then the row stays under its id, so one id never
+    /// holds two rows of one path, and the union still reads the live one of them. Answers the
+    /// current id, the key the engine's cache holds the entity under.
+    /// </summary>
+    private async Task<string> MoveToCurrentAsync(AddonDefinitionDocument definition, CancellationToken ct)
+    {
+        var current = AddonDefinitionSource.CurrentId(schema.Model, definition.Entity);
+
+        if (string.Equals(current, definition.Entity, StringComparison.Ordinal))
+            return current;
+
+        var held = await repository.GetByEntitiesAsync([current], definition.OrganizationId, ct);
+
+        if (!held.Any(row => row.Id != definition.Id && string.Equals(row.Path, definition.Path, StringComparison.Ordinal)))
+            definition.Entity = current;
+
+        return current;
     }
 
     /// <summary>The definition with the given id in the current organisation, or null.</summary>

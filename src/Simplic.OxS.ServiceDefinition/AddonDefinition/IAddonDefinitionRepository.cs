@@ -8,10 +8,13 @@ namespace Simplic.OxS.ServiceDefinition;
 public interface IAddonDefinitionRepository : IOrganizationRepository<Guid, AddonDefinitionDocument, AddonDefinitionFilter>
 {
     /// <summary>
-    /// Retrieves every definition of one entity within one organisation, retired ones included.
+    /// Retrieves every definition stored under any of <paramref name="entities"/> within one
+    /// organisation, retired ones included, in one read: an entity's current id and the ids it
+    /// retired are read together, never one read per id.
     /// </summary>
-    /// <param name="entity">The entity id (e.g. "logistics.shipment").</param>
+    /// <param name="entities">The entity ids (e.g. "logistics.shipment"); none reads nothing.</param>
     /// <param name="organizationId">The organisation, or null for the current request's.</param>
+    /// <param name="cancellationToken">The request's cancellation token.</param>
     /// <returns>The definitions, in no particular order.</returns>
-    Task<IEnumerable<AddonDefinitionDocument>> GetByEntityAsync(string entity, Guid? organizationId = null);
+    Task<IEnumerable<AddonDefinitionDocument>> GetByEntitiesAsync(IReadOnlyCollection<string> entities, Guid? organizationId = null, CancellationToken cancellationToken = default);
 }

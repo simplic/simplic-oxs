@@ -28,7 +28,9 @@ namespace Simplic.OxS.Server.OxQL;
 /// never the shared-header internal client.
 /// <para>
 /// What the owner's shallow health says of it (engine version, contract, batch cap) is read
-/// where reachability is measured and kept per service (<see cref="IRemoteOwnerInfo"/>).
+/// where reachability is measured, and before the first batch to an owner whose facts are
+/// unknown or older than the health probe's time to live, and kept per service
+/// (<see cref="IRemoteOwnerInfo"/>); facts older than that are unknown again.
 /// </para>
 /// </summary>
 public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
@@ -43,7 +45,6 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     public const string HostsSection = "InternalHosts";
 
     private const string DefaultApiVersion = "v1";
-    private static readonly TimeSpan HealthBudget = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// The bound of a call whose caller names no positive budget: the query engine's default
@@ -51,13 +52,34 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     /// </summary>
     internal TimeSpan FallbackBudget { get; set; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>The bound of one shallow-health read: the host health probe's own timeout.</summary>
+    internal TimeSpan HealthBudget { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// How long what an owner's shallow health said of it stays known, and how long a first-use
+    /// probe that learned nothing waits before it is tried again: the health probe's time to live
+    /// (<c>OxQL:Cache:HealthProbeTtlSeconds</c>).
+    /// </summary>
+    internal TimeSpan FactsTtl { get; set; }
+
+    /// <summary>The clock the owner facts age by.</summary>
+    internal TimeProvider Time { get; set; } = TimeProvider.System;
+
+    /// <summary>The most of an owner's refusal message a thrown exception quotes.</summary>
+    private const int RefusalMessageLimit = 500;
+
     private readonly IHttpClientFactory clients;
     private readonly IHttpContextAccessor httpContextAccessor;
     private readonly ILogger<RemoteQueryClient> logger;
     private readonly string internalApiKey;
     private readonly IReadOnlyDictionary<string, string> hosts;
     private readonly IReadOnlyDictionary<string, string> versions;
-    private readonly ConcurrentDictionary<string, RemoteOwnerInfo> owners = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, OwnerFacts> owners = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> probed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Lazy<Task>> probing = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>What an owner's shallow health said of it, and when it was read.</summary>
+    private sealed record OwnerFacts(RemoteOwnerInfo Info, DateTimeOffset ReadAt);
 
     /// <summary>
     /// Creates the client. The hosts, the api versions and the internal key are read once,
@@ -68,12 +90,14 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     /// <param name="configuration">The host's configuration, for <see cref="HostsSection"/> and <see cref="ApiVersionsSection"/>.</param>
     /// <param name="httpContextAccessor">The current request, whose scope provider names the identity to forward.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="oxql">The query engine's options, for the health probe's time to live; the engine's default without them.</param>
     public RemoteQueryClient(
         IHttpClientFactory clients,
         IOptions<AuthSettings> auth,
         IConfiguration configuration,
         IHttpContextAccessor httpContextAccessor,
-        ILogger<RemoteQueryClient> logger)
+        ILogger<RemoteQueryClient> logger,
+        OxQLOptions? oxql = null)
     {
         this.clients = clients ?? throw new ArgumentNullException(nameof(clients));
         this.httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
@@ -84,22 +108,29 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
         internalApiKey = auth.Value.InternalApiKey;
         hosts = Map(configuration, HostsSection);
         versions = Map(configuration, ApiVersionsSection);
+        FactsTtl = TimeSpan.FromSeconds(Math.Max(1, (oxql ?? new OxQLOptions()).Cache.HealthProbeTtlSeconds));
+    }
+
+    /// <summary>
+    /// The api version segment the owner of a service key answers on: its
+    /// <see cref="ApiVersionsSection"/> entry, else <c>v1</c>; null when the host does not know the
+    /// service. What an explain answer names as the owner's route version.
+    /// </summary>
+    public string? ApiVersionOf(string serviceKey)
+    {
+        if (serviceKey is null || !hosts.ContainsKey(serviceKey))
+            return null;
+
+        return versions.TryGetValue(serviceKey, out var configured) && !string.IsNullOrWhiteSpace(configured) ? configured : DefaultApiVersion;
     }
 
     /// <summary>
     /// The owner's base route for a service key, <c>http://{host}/{ns}-api/{version}/</c> (the
-    /// version from <see cref="ApiVersionsSection"/>, else <c>v1</c>), or null when the host does
-    /// not know the service. Every owner route this client calls is a path under it.
+    /// version is <see cref="ApiVersionOf"/>), or null when the host does not know the service.
+    /// Every owner route this client calls is a path under it.
     /// </summary>
-    public string? RouteOf(string serviceKey)
-    {
-        if (serviceKey is null || !hosts.TryGetValue(serviceKey, out var host))
-            return null;
-
-        var version = versions.TryGetValue(serviceKey, out var configured) && !string.IsNullOrWhiteSpace(configured) ? configured : DefaultApiVersion;
-
-        return $"http://{host}/{serviceKey}-api/{version}/";
-    }
+    public string? RouteOf(string serviceKey) =>
+        serviceKey is not null && hosts.TryGetValue(serviceKey, out var host) ? $"http://{host}/{serviceKey}-api/{ApiVersionOf(serviceKey)}/" : null;
 
     /// <summary>The owner's batch route for a service key, or null when the host does not know the service.</summary>
     public string? BatchUrl(string serviceKey) => Url(serviceKey, "internal/oxql/batch");
@@ -118,9 +149,17 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     public bool IsConfigured(string serviceKey) => serviceKey is not null && hosts.ContainsKey(serviceKey);
 
     /// <summary>
-    /// Executes a batch at the owner. The body's <c>maxTimeMs</c> is the owner's ceiling: the
-    /// smaller of the one the engine wrote and the time this call is given, so the owner stops on
-    /// its own before this side stops waiting for it.
+    /// Executes a batch at the owner. The body's <c>maxTimeMs</c> is the owner's per-query
+    /// ceiling (<see cref="Ceiling"/>): the smaller of the one the engine wrote and the time this
+    /// call is given less a margin for the way there and back, so a single query stops at the
+    /// owner before this side stops waiting. The owner applies it to every query of the batch in
+    /// turn, so a batch of several slow queries can still outlast the wait.
+    /// <para>
+    /// Before the first batch to an owner whose facts are unknown or stale, its shallow health is
+    /// read once (bounded by the health budget, shared by concurrent calls), so its batch cap and
+    /// engine version are known from then on; a batch larger than the owner's cap is sent as
+    /// parts of that size at once, within the same bound, their results concatenated in order.
+    /// </para>
     /// </summary>
     /// <inheritdoc/>
     public async Task<BatchResponse> BatchAsync(string serviceKey, BatchRequest request, TimeSpan budget, CancellationToken cancellationToken)
@@ -130,12 +169,27 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
         var address = AddressOf(serviceKey, BatchUrl(serviceKey), "batch");
         var bound = budget > TimeSpan.Zero ? budget : FallbackBudget;
         var ceiling = Ceiling(request.MaxTimeMs, bound);
-        var body = request.MaxTimeMs == ceiling ? request : request with { MaxTimeMs = ceiling };
 
         using var timeout = Timeout(bound, cancellationToken);
-        using var response = await SendAsync(serviceKey, address, body, "batch", timeout.Token, cancellationToken);
 
-        return await response.Content.ReadFromJsonAsync<BatchResponse>(OxQLJson.Wire, timeout.Token)
+        await LearnOwnerAsync(serviceKey, timeout.Token);
+
+        var cap = OwnerOf(serviceKey)?.MaxBatchQueries is { } known and > 0 ? known : int.MaxValue;
+
+        if (request.Queries.Count <= cap)
+            return await SendBatchAsync(serviceKey, address, request with { MaxTimeMs = ceiling }, timeout.Token, cancellationToken);
+
+        var parts = request.Queries.Chunk(cap)
+            .Select(queries => SendBatchAsync(serviceKey, address, new BatchRequest { Queries = queries, MaxTimeMs = ceiling }, timeout.Token, cancellationToken));
+
+        return new BatchResponse { Results = [.. (await Task.WhenAll(parts)).SelectMany(part => part.Results)] };
+    }
+
+    private async Task<BatchResponse> SendBatchAsync(string serviceKey, Uri address, BatchRequest body, CancellationToken bounded, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(serviceKey, address, body, "batch", bounded, cancellationToken);
+
+        return await response.Content.ReadFromJsonAsync<BatchResponse>(OxQLJson.Wire, bounded)
             ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal batch with an empty body.");
     }
 
@@ -160,9 +214,14 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
             ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal explain without an answer object.");
     }
 
+    /// <summary>
+    /// What the owner's shallow health last said of it, or null while unknown: never read, or
+    /// read longer ago than <see cref="FactsTtl"/>, so a rolled-back owner is not taken for the
+    /// engine it ran before.
+    /// </summary>
     /// <inheritdoc/>
     public RemoteOwnerInfo? OwnerOf(string serviceKey) =>
-        serviceKey is not null && owners.TryGetValue(serviceKey, out var info) ? info : null;
+        serviceKey is not null && owners.TryGetValue(serviceKey, out var facts) && Time.GetUtcNow() - facts.ReadAt < FactsTtl ? facts.Info : null;
 
     /// <summary>
     /// Whether the owner's shallow health answers; a success also keeps what that health says of
@@ -174,6 +233,8 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
         if (HealthUrl(serviceKey) is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out var address))
             return false;
 
+        probed[serviceKey] = Time.GetUtcNow();
+
         using var timeout = Timeout(HealthBudget, cancellationToken);
 
         try
@@ -184,7 +245,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
             if (!response.IsSuccessStatusCode)
                 return false;
 
-            await RememberAsync(serviceKey, response, timeout.Token);
+            await RememberAsync(serviceKey, response, timeout.Token, cancellationToken);
 
             return true;
         }
@@ -194,30 +255,75 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
         }
     }
 
-    /// <summary>The smaller positive of the engine's ceiling and the call's bound, in whole milliseconds (at least one).</summary>
+    /// <summary>
+    /// Reads the owner's shallow health once when its facts are unknown or stale and no probe was
+    /// tried within <see cref="FactsTtl"/>; concurrent callers share one probe. The probe is bounded
+    /// by the health budget and never fails the caller: an owner it cannot read stays unknown, and
+    /// the call that follows reports it as it would have.
+    /// </summary>
+    private async Task LearnOwnerAsync(string serviceKey, CancellationToken cancellationToken)
+    {
+        var now = Time.GetUtcNow();
+
+        if (OwnerOf(serviceKey) is not null || (probed.TryGetValue(serviceKey, out var tried) && now - tried < FactsTtl))
+            return;
+
+        await probing.GetOrAdd(serviceKey, key => new Lazy<Task>(() => ProbeAsync(key))).Value.WaitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// One shallow-health probe on its own clock, so no one caller's cancellation ends it for the
+    /// others; it leaves the shared slot when it ends, so the next stale read probes anew.
+    /// </summary>
+    private async Task ProbeAsync(string serviceKey)
+    {
+        try
+        {
+            if (!await IsReachableAsync(serviceKey, CancellationToken.None))
+                logger.LogInformation("OxQL owner {Service} did not answer its health before a batch; its engine facts stay unknown", serviceKey);
+        }
+        finally
+        {
+            probing.TryRemove(serviceKey, out _);
+        }
+    }
+
+    /// <summary>
+    /// The owner's per-query ceiling in whole milliseconds (at least one): the smaller positive
+    /// of the engine's ceiling and the call's bound less a margin (a tenth of the bound, at most
+    /// 250 ms) for the way to the owner and back, so a query stops at the owner before this side
+    /// stops waiting.
+    /// </summary>
     internal static int Ceiling(int? requested, TimeSpan bound)
     {
-        var available = (int)Math.Clamp(Math.Ceiling(bound.TotalMilliseconds), 1, int.MaxValue);
+        var total = Math.Ceiling(bound.TotalMilliseconds);
+        var margin = Math.Min(250, Math.Floor(total / 10));
+        var available = (int)Math.Clamp(total - margin, 1, int.MaxValue);
 
         return requested is > 0 and var value ? Math.Min(value, available) : available;
     }
 
     /// <summary>
-    /// Keeps what the owner's shallow health says of it. A body that is not the health answer
-    /// leaves what was known before: the owner answered, so it is reachable either way.
+    /// Keeps what the owner's shallow health says of it. A body that is not the health answer,
+    /// or that could not be read in time, leaves what was known before: the owner answered, so it
+    /// is reachable either way.
     /// </summary>
-    private async Task RememberAsync(string serviceKey, HttpResponseMessage response, CancellationToken cancellationToken)
+    private async Task RememberAsync(string serviceKey, HttpResponseMessage response, CancellationToken bounded, CancellationToken cancellationToken)
     {
         try
         {
-            var health = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+            var health = await response.Content.ReadFromJsonAsync<JsonNode>(bounded);
 
             if (RemoteOwnerInfo.FromShallowHealth(health) is { } info)
-                owners[serviceKey] = info;
+                owners[serviceKey] = new OwnerFacts(info, Time.GetUtcNow());
         }
         catch (JsonException exception)
         {
             logger.LogWarning(exception, "OxQL owner {Service} answered its health with a body that is not JSON; its engine facts stay as they were", serviceKey);
+        }
+        catch (Exception exception) when (exception is IOException or HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(exception, "OxQL owner {Service} answered its health, but its body could not be read; its engine facts stay as they were", serviceKey);
         }
     }
 
@@ -245,7 +351,8 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 
     /// <summary>
     /// Posts <paramref name="body"/> with the forwarded headers, cancelled by <paramref name="bounded"/>;
-    /// an answer other than a success throws. The caller disposes the response.
+    /// an answer other than a success throws, quoting the owner's refusal code and message when
+    /// its body is a refusal. The caller disposes the response.
     /// </summary>
     private async Task<HttpResponseMessage> SendAsync<T>(string serviceKey, Uri address, T body, string route, CancellationToken bounded, CancellationToken cancellationToken)
     {
@@ -262,11 +369,40 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
             return response;
 
         var status = response.StatusCode;
+        var (code, detail) = await RefusalOfAsync(response, bounded, cancellationToken);
 
         response.Dispose();
-        logger.LogWarning("OxQL remote {Route} to {Service} answered {Status}", route, serviceKey, (int)status);
+        logger.LogWarning("OxQL remote {Route} to {Service} answered {Status} {Code}", route, serviceKey, (int)status, code);
 
-        throw new HttpRequestException($"The owner of '{serviceKey}' answered {(int)status} to the internal {route}.", null, status);
+        var refusal = code is null ? "." : detail is null ? $": {code}." : $": {code} {detail}";
+
+        throw new HttpRequestException($"The owner of '{serviceKey}' answered {(int)status} to the internal {route}{refusal}", null, status);
+    }
+
+    /// <summary>
+    /// The code and message of the owner's refusal body (<c>{ type, title, errors: [{ code, message }] }</c>):
+    /// the first error's, else the reason class and title; nulls when the body is none or cannot
+    /// be read in time. The message is cut to <see cref="RefusalMessageLimit"/> characters.
+    /// </summary>
+    private static async Task<(string? Code, string? Message)> RefusalOfAsync(HttpResponseMessage response, CancellationToken bounded, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (await response.Content.ReadFromJsonAsync<JsonNode>(bounded) is not JsonObject body)
+                return (null, null);
+
+            var error = body["errors"] is JsonArray { Count: > 0 } errors ? errors[0] as JsonObject : null;
+            var code = Text(error?["code"]) ?? Text(body["type"]);
+            var text = Text(error?["message"]) ?? Text(body["title"]);
+
+            return (code, text is { Length: > RefusalMessageLimit } ? text[..RefusalMessageLimit] : text);
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException or IOException or HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return (null, null);
+        }
+
+        static string? Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text) ? text : null;
     }
 
     private static CancellationTokenSource Timeout(TimeSpan bound, CancellationToken cancellationToken)

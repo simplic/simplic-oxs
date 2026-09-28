@@ -3,9 +3,11 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OxQL.AspNetCore;
+using OxQL.AspNetCore.Scope;
 using OxQL.Core.Engine;
 using OxQL.Core.Models;
 using Simplic.OxS.Server.OxQL;
@@ -40,10 +42,20 @@ namespace Simplic.OxS.Server.Test.OxQL
             public HttpClient CreateClient(string name) => new(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
         }
 
-        /// <summary>An owner that answers every call with one status and body, and keeps what it was sent.</summary>
-        private sealed class AnsweringHandler(HttpStatusCode status, string body) : HttpMessageHandler
+        /// <summary>
+        /// An owner that answers every call with one status and body, and keeps what it was sent.
+        /// Given <paramref name="health"/>, its shallow health answers that with
+        /// <paramref name="healthStatus"/> (200 by default) instead.
+        /// </summary>
+        private sealed class AnsweringHandler(HttpStatusCode status, string body, string? health = null, HttpStatusCode healthStatus = HttpStatusCode.OK) : HttpMessageHandler
         {
             public List<(HttpMethod Method, Uri Uri, IReadOnlyDictionary<string, string> Headers, string Body)> Sent { get; } = [];
+
+            /// <summary>The posts, without the health reads.</summary>
+            public IEnumerable<(HttpMethod Method, Uri Uri, IReadOnlyDictionary<string, string> Headers, string Body)> Posts => Sent.Where(sent => sent.Method == HttpMethod.Post);
+
+            /// <summary>The health reads.</summary>
+            public int HealthReads => Sent.Count(sent => sent.Method == HttpMethod.Get);
 
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
@@ -52,11 +64,85 @@ namespace Simplic.OxS.Server.Test.OxQL
 
                 Sent.Add((request.Method, request.RequestUri!, headers, content));
 
-                return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+                var probe = request.Method == HttpMethod.Get && health is not null;
+
+                return new HttpResponseMessage(probe ? healthStatus : status)
+                {
+                    Content = new StringContent(probe ? health! : Answer(content), Encoding.UTF8, "application/json"),
+                };
+            }
+
+            /// <summary>The batch body, or for <c>echo</c> one result per query naming its entity, in order.</summary>
+            private string Answer(string sent) =>
+                body != "echo"
+                    ? body
+                    : new JsonObject { ["results"] = new JsonArray([.. JsonNode.Parse(sent)!["queries"]!.AsArray().Select(query => (JsonNode?)JsonValue.Create(query!["entityType"]!.GetValue<string>()))]) }.ToJsonString();
+        }
+
+        /// <summary>A health answer whose body fails while it is read.</summary>
+        private sealed class BrokenBodyHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new BrokenContent() });
+
+            private sealed class BrokenContent : HttpContent
+            {
+                protected override Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context) =>
+                    throw new IOException("The connection was reset while the body was read.");
+
+                protected override bool TryComputeLength(out long length)
+                {
+                    length = 0;
+                    return false;
+                }
             }
         }
 
-        private static RemoteQueryClient Client(HttpMessageHandler handler, string host, string? version = null)
+        /// <summary>A health answer whose body never arrives: the read ends only by cancellation.</summary>
+        private sealed class StalledBodyHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent() });
+
+            private sealed class StalledContent : HttpContent
+            {
+                protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
+                {
+                    await Task.Delay(Timeout.Infinite, cancellationToken);
+
+                    throw new InvalidOperationException("The wait above only ends by cancellation.");
+                }
+
+                protected override Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context) =>
+                    throw new InvalidOperationException("The body is only read as a stream.");
+
+                protected override bool TryComputeLength(out long length)
+                {
+                    length = 0;
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>A clock a test moves by hand.</summary>
+        private sealed class ManualTime(DateTimeOffset start) : TimeProvider
+        {
+            public DateTimeOffset Now { get; set; } = start;
+
+            public override DateTimeOffset GetUtcNow() => Now;
+        }
+
+        /// <summary>The identity the engine scoped the parent query with.</summary>
+        private sealed class Scope(Guid organisation) : IOxQLScopeProvider
+        {
+            public ValueTask<Guid?> OrganisationAsync(HttpContext? httpContext, CancellationToken cancellationToken) => ValueTask.FromResult<Guid?>(organisation);
+
+            public string? UserId(HttpContext? httpContext) => "user-7";
+
+            public string? CorrelationId(HttpContext? httpContext) => "corr-42";
+        }
+
+        private static RemoteQueryClient Client(HttpMessageHandler handler, string host, string? version = null, HttpContext? request = null)
         {
             var settings = new Dictionary<string, string?> { ["InternalHosts:vehicle"] = host };
 
@@ -67,9 +153,11 @@ namespace Simplic.OxS.Server.Test.OxQL
                 new Factory(handler),
                 Options.Create(new AuthSettings { InternalApiKey = "key" }),
                 new ConfigurationBuilder().AddInMemoryCollection(settings).Build(),
-                new HttpContextAccessor(),
+                new HttpContextAccessor { HttpContext = request },
                 NullLogger<RemoteQueryClient>.Instance);
         }
+
+        private const string Health16 = """{"status":"ok","engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":16}}""";
 
         private static ExplainRequest Explain() => new()
         {
@@ -199,21 +287,181 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Theory]
-        [InlineData(null, 1000, 1000)]
+        [InlineData(null, 1000, 900)]
         [InlineData(400, 1000, 400)]
-        [InlineData(5000, 1000, 1000)]
-        [InlineData(0, 1000, 1000)]
-        public async Task Batch_CarriesTheOwnersCeiling_TheSmallerOfTheEnginesAndTheBudget(int? requested, int budgetMs, int sent)
+        [InlineData(5000, 1000, 900)]
+        [InlineData(0, 1000, 900)]
+        [InlineData(null, 10000, 9750)]
+        public async Task Batch_CarriesTheOwnersCeiling_TheSmallerOfTheEnginesAndTheBudgetLessTheMargin(int? requested, int budgetMs, int sent)
         {
             var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""");
             var batch = Batch() with { MaxTimeMs = requested };
 
             await Client(handler, "vehicle-svc:8080").BatchAsync("vehicle", batch, TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
 
-            var call = handler.Sent.Should().ContainSingle().Subject;
+            var call = handler.Posts.Should().ContainSingle().Subject;
             call.Uri.Should().Be(new Uri("http://vehicle-svc:8080/vehicle-api/v1/internal/oxql/batch"));
             call.Headers.Keys.Should().BeEquivalentTo(["Authorization", OxQLQueryService.ContractHeader]);
             JsonNode.Parse(call.Body)!["maxTimeMs"]!.GetValue<int>().Should().Be(sent);
+        }
+
+        [Theory]
+        [InlineData(1000, 900)]
+        [InlineData(5000, 4750)]
+        [InlineData(5, 5)]
+        [InlineData(0.4, 1)]
+        public void Ceiling_LeavesATenthOfTheBoundAtMost250MsForTheWayThereAndBack(double boundMs, int ceiling)
+        {
+            RemoteQueryClient.Ceiling(null, TimeSpan.FromMilliseconds(boundMs)).Should().Be(ceiling);
+        }
+
+        [Theory]
+        [InlineData(null, "v1")]
+        [InlineData("v2", "v2")]
+        public void ApiVersionOf_IsTheConfiguredVersionElseV1_AndNullForAnUnknownService(string? configured, string expected)
+        {
+            var client = Client(new SilentHandler(), "vehicle-svc:8080", configured);
+
+            client.ApiVersionOf("vehicle").Should().Be(expected);
+            client.ApiVersionOf("unknown").Should().BeNull();
+        }
+
+        [Fact]
+        public async Task Batch_ToAnUnknownOwner_ReadsItsShallowHealthOnceBeforeTheFirstBatch()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", Health16);
+            var client = Client(handler, "vehicle-svc:8080");
+
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            handler.Sent.Select(sent => sent.Method).Should().Equal(HttpMethod.Get, HttpMethod.Post, HttpMethod.Post);
+            client.OwnerOf("vehicle").Should().Be(new RemoteOwnerInfo("2.1.0", 2, 16));
+        }
+
+        [Fact]
+        public async Task Batch_ToAnOwnerWhoseHealthSaysNothing_IsSent_AndNotProbedAgainWithinTheTtl()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", "", HttpStatusCode.NotFound);
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
+            var client = Client(handler, "vehicle-svc:8080");
+            client.Time = time;
+
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            client.OwnerOf("vehicle").Should().BeNull();
+            handler.HealthReads.Should().Be(1);
+            handler.Posts.Should().HaveCount(2);
+
+            time.Now += client.FactsTtl;
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            handler.HealthReads.Should().Be(2, "a probe that learned nothing is tried again once the time to live has passed");
+        }
+
+        [Fact]
+        public async Task OwnerOf_OlderThanTheTtl_IsUnknownAgain_AndTheNextBatchReadsTheHealthAgain()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", Health16);
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
+            var client = Client(handler, "vehicle-svc:8080");
+            client.Time = time;
+
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            time.Now += client.FactsTtl - TimeSpan.FromMilliseconds(1);
+            client.OwnerOf("vehicle").Should().NotBeNull();
+
+            time.Now += TimeSpan.FromMilliseconds(1);
+            client.OwnerOf("vehicle").Should().BeNull("a rolled-back owner is not taken for the engine it ran before");
+
+            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            handler.HealthReads.Should().Be(2);
+            client.OwnerOf("vehicle").Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task Batch_LargerThanTheOwnersCap_IsSentInPartsOfTheCap_AndAnsweredInOrder()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, "echo", """{"engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":2}}""");
+            var batch = new BatchRequest { Queries = [.. Enumerable.Range(1, 5).Select(index => new QueryRequest { EntityType = $"vehicle.v{index}", Pipeline = [] })] };
+
+            var answer = await Client(handler, "vehicle-svc:8080").BatchAsync("vehicle", batch, TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            answer.Results.Select(result => result!.GetValue<string>()).Should().Equal("vehicle.v1", "vehicle.v2", "vehicle.v3", "vehicle.v4", "vehicle.v5");
+            handler.Posts.Select(post => JsonNode.Parse(post.Body)!["queries"]!.AsArray().Count).Should().BeEquivalentTo([2, 2, 1]);
+            handler.Posts.Should().OnlyContain(post => JsonNode.Parse(post.Body)!["maxTimeMs"]!.GetValue<int>() == 900);
+        }
+
+        [Fact]
+        public async Task Batch_RefusedByTheOwner_ThrowsWithTheOwnersCodeAndMessage()
+        {
+            var refusal = """{"type":"validation_error","title":"The request could not be bound.","errors":[{"code":"BATCH_TOO_LARGE","message":"The batch carries 20 queries; the limit is 16."}]}""";
+            var handler = new AnsweringHandler(HttpStatusCode.BadRequest, refusal);
+
+            var call = () => Client(handler, "vehicle-svc:8080").BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            var thrown = (await call.Should().ThrowAsync<HttpRequestException>()).Which;
+            thrown.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            thrown.Message.Should().Contain("BATCH_TOO_LARGE").And.Contain("The batch carries 20 queries; the limit is 16.");
+        }
+
+        [Fact]
+        public async Task Explain_RefusedByTheOwnerWithoutErrors_ThrowsWithTheReasonClassAndTitle()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.RequestEntityTooLarge, """{"type":"validation_error","title":"The request is too large."}""");
+
+            var call = () => Client(handler, "vehicle-svc:8080").ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            (await call.Should().ThrowAsync<HttpRequestException>()).Which.Message.Should().Contain("validation_error").And.Contain("The request is too large.");
+        }
+
+        [Fact]
+        public async Task Explain_ForwardsTheScopedIdentity_BesideTheKeyAndTheContractHeader()
+        {
+            var organisation = Guid.Parse("22222222-2222-2222-2222-222222222222");
+            var request = new DefaultHttpContext
+            {
+                RequestServices = new ServiceCollection()
+                    .AddSingleton<IOxQLScopeProvider>(new Scope(organisation))
+                    .BuildServiceProvider(),
+            };
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"describe":[]}""");
+
+            await Client(handler, "vehicle-svc:8080", request: request).ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            var sent = handler.Posts.Should().ContainSingle().Subject;
+            sent.Headers.Keys.Should().BeEquivalentTo(
+            [
+                "Authorization",
+                OxQLQueryService.ContractHeader,
+                Constants.HttpHeaderOrganizationIdKey,
+                Constants.HttpHeaderUserIdKey,
+                Constants.HttpHeaderCorrelationIdKey,
+            ]);
+            sent.Headers[Constants.HttpHeaderOrganizationIdKey].Should().Be(organisation.ToString());
+            sent.Headers[Constants.HttpHeaderUserIdKey].Should().Be("user-7");
+            sent.Headers[Constants.HttpHeaderCorrelationIdKey].Should().Be("corr-42");
+        }
+
+        [Fact]
+        public async Task IsReachable_WhenTheHealthBodyFailsWhileRead_IsTrue_AndLearnsNothing()
+        {
+            var client = Client(new BrokenBodyHandler(), "vehicle-svc:8080");
+
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue("the owner answered");
+            client.OwnerOf("vehicle").Should().BeNull();
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task IsReachable_WhenTheHealthBodyDoesNotArriveInTime_IsTrue_AndLearnsNothing()
+        {
+            var client = Client(new StalledBodyHandler(), "vehicle-svc:8080");
+            client.HealthBudget = TimeSpan.FromMilliseconds(50);
+
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue("the owner answered");
+            client.OwnerOf("vehicle").Should().BeNull();
         }
 
         [Fact]

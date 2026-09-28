@@ -106,7 +106,7 @@ namespace Simplic.OxS.Server.Test.OxQL
 
             factory.Named.Should().Be(RemoteQueryClient.HttpClientName);
 
-            var sent = handler.Requests.Should().ContainSingle().Subject;
+            var sent = handler.Requests.Where(request => request.Method == HttpMethod.Post).Should().ContainSingle("the first-use health read is a GET beside it").Subject;
             sent.Method.Should().Be(HttpMethod.Post);
             sent.RequestUri!.ToString().Should().Be("http://localhost:8080/vehicle-api/v2/internal/oxql/batch");
             sent.Headers.Authorization!.Scheme.Should().Be("i-api-key");
@@ -116,7 +116,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             sent.Headers.GetValues("OrganizationId").Should().Equal(Organisation.ToString());
             sent.Headers.GetValues("X-Correlation-ID").Should().Equal(Correlation.ToString());
 
-            var body = JsonNode.Parse(handler.Bodies[0])!.AsObject();
+            var body = JsonNode.Parse(handler.Bodies[^1])!.AsObject();
             body["queries"]!.AsArray().Should().HaveCount(1);
             body["queries"]![0]!["entityType"]!.GetValue<string>().Should().Be("vehicle.vehicle");
             body["maxTimeMs"]!.GetValue<int>().Should().Be(1500);
@@ -136,7 +136,7 @@ namespace Simplic.OxS.Server.Test.OxQL
 
             await client.BatchAsync("vehicle", new BatchRequest { Queries = [] }, TimeSpan.Zero, CancellationToken.None);
 
-            var sent = handler.Requests.Single();
+            var sent = handler.Requests.Single(request => request.Method == HttpMethod.Post);
             sent.Headers.Contains("UserId").Should().BeFalse();
             sent.Headers.Contains("OrganizationId").Should().BeFalse();
             sent.Headers.Authorization!.Scheme.Should().Be("i-api-key");

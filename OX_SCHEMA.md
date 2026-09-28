@@ -6,7 +6,7 @@ service's query engine accepts, every type reachable from them, their keys, rela
 REST operations, and the limits a query has to respect. It is built once at startup from the
 service's own code, held in memory, and served with a content-derived revision and entity tag.
 
-This file is the contract of that document (**format version 1.0**), followed by what a service
+This file is the contract of that document (**format version 1.1**), followed by what a service
 declares, how the document is built and how the build fails, how a host is configured
 (section 4), and what a service gets and has to do when it upgrades to this package version
 (section 5). The code is in `src/Simplic.OxS.Server/OxSchema/` and `src/Simplic.OxS.Server/OxQL/`;
@@ -20,7 +20,7 @@ the tests in `src/Simplic.OxS.Server.Test/OxSchema/` and `src/Simplic.OxS.Server
 
 ```jsonc
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "service": "vehicle",
   "api": { "name": "vehicle-api", "version": "v2" },
   "revision": "sha256:…",
@@ -28,7 +28,8 @@ the tests in `src/Simplic.OxS.Server.Test/OxSchema/` and `src/Simplic.OxS.Server
     "maxPageSize": 500, "defaultPageSize": 100,
     "maxPipelineStages": 20, "maxLookupStages": 5, "maxUnwindStages": 5,
     "maxGroupFields": 20, "maxProjectionFields": 500, "regexMaxLength": 200,
-    "maxOffset": 5000, "maxResolveStages": 2, "maxBatchQueries": 10, "maxLookupLimit": 100
+    "maxOffset": 5000, "maxResolveStages": 8, "maxBatchQueries": 10, "maxLookupLimit": 100,
+    "maxContinuedStages": 8, "maxFlattenDepth": 5, "maxReportPageSize": 5000
   },
   "diagnostics": [ … ],                 // absent unless the build was degraded
   "types": { "<type id>": { … } }       // one flat pool: entities and structural types
@@ -41,7 +42,7 @@ the tests in `src/Simplic.OxS.Server.Test/OxSchema/` and `src/Simplic.OxS.Server
 | `service` | The service name, lower-case. |
 | `api` | The two segments of the service's API base path, verbatim, the `v` included. The environment is not part of it; the origin is the caller's own. |
 | `revision` | `sha256:` plus the digest of this document's canonical form with the `revision` member absent. Stable across restarts; identical for identical content. |
-| `limits` | What a client can check a request against before sending it. Every value is the one the query engine enforces. The engine holds more limits than these - resolve chunking, the semi-join cap, the count cap - which a caller cannot act on in advance; `GET /oxql/health` publishes the whole set for diagnosis. |
+| `limits` | What a client can check a request against before sending it. Every value is the one the query engine enforces. The engine holds more limits than these - resolve chunking, the semi-join cap, the count cap - which a caller cannot act on in advance; `GET /oxql/health` publishes the whole set for diagnosis. Format 1.1 appends three: `maxContinuedStages` (how many stages a keyed fetch may continue at the service that owns its target), `maxFlattenDepth` (how many levels an unwind's `flatten` descends below the unwound element) and `maxReportPageSize` (the page size of a strict report request, one that names neither a cursor nor an offset; such a request may ask for the larger of this and `maxPageSize`). |
 | `diagnostics` | What the build could not describe. Absent on a clean build. |
 | `types` | The type pool, keyed by type id, sorted ordinally. |
 
@@ -56,7 +57,9 @@ A client that verifies `revision`, or diffs two documents, needs the byte rule:
 5. Envelope member order is fixed as listed above. Within a pool entry or a property
    descriptor, member order is fixed too, as the tables below list them.
 6. Array order is significant: `properties`, enum `values`, `items` and `aliases` are in the
-   generator's order.
+   generator's order; `variants` is ordinally sorted by `name`; `onlyFor` is in the model's
+   order; `referenceCases` and each case's `targets` are in declaration order, because targets
+   are tried in that order.
 7. Every character outside the JSON encoder's unreserved set is written as a `\uXXXX` escape,
    so the document is pure ASCII.
 
@@ -107,9 +110,9 @@ An entity is a structural type that additionally carries entity metadata. Member
 |---|---|---|
 | `kind` | enum entries | `enum`. Absent on an object entry. |
 | `displayName` | entities | The human label. |
-| `description` | any | A description. Reserved: nothing populates it in this version. |
+| `description` | any | The type's description, where the code declares one (section 2.3). |
 | `flags` | enum entries | Whether the enum is a flags enum. |
-| `values` | enum entries | The members, in declaration order: `{ name, value, active }`. |
+| `values` | enum entries | The members, in declaration order: `{ name, value, active, description }`. |
 | `entity` | entities | `true`. |
 | `aliases` | entities | The ids this entity is also known by: the ids it retired first (ordinally sorted), then the legacy `$ClassName` model ids its controller publishes. Always present, possibly empty. |
 | `key` | entities, keyed item types | The property paths that identify an instance. |
@@ -121,6 +124,31 @@ An entity is a structural type that additionally carries entity metadata. Member
 | `operations` | entities | The REST operations by slot. Absent when no controller is linked. |
 | `items` | entities | The item collections under the entity. Always present, possibly empty. |
 | `properties` | object entries | The property list. Absent on an enum entry; an object entry always carries it, empty included. |
+| `discriminator` | polymorphic object entries | `{ element, form }`: the stored element that names a value's variant (`_t` unless the class map says otherwise) and its form, `scalar` (the variant's own name) or `hierarchical` (the names from the root class down to the variant). Present exactly when `variants` is. |
+| `variants` | polymorphic object entries | `{ name, type }` per concrete type a value can hold besides the type itself, ordinally by name. `name` is the value an `is` filter and an `onlyFor` list use; `type` points at the variant's own pool entry, which describes it whole. |
+
+**Polymorphic types.** A type with registered subclasses (section 5.2) is described as its base:
+its own members, then every member only some variants carry, merged in and marked with `onlyFor`
+(section 1.6). An entity whose documents are stored as several subclasses is therefore rooted at
+its base, not at one representative subclass. Where two variants carry one wire name with a
+different kind, storage name or representation, the merged member is `unknown`. An interface with
+variants is described as the union of its variants, every member marked.
+
+```jsonc
+"t_transactionItem": {
+  "description": "An item of a transaction.",
+  "properties": [
+    { "name": "billingLineId", "kind": "guid", "nullable": true,
+      "references": { "entity": "ledger.billing_line", "field": "id", "joinable": true, "inferred": false },
+      "onlyFor": ["BillingLineTransactionItem"] },
+    { "name": "items", "kind": "array", "of": { "kind": "object", "type": "#/types/t_transactionItem" },
+      "nullable": true, "onlyFor": ["GroupTransactionItem"] }
+  ],
+  "discriminator": { "element": "_t", "form": "scalar" },
+  "variants": [ { "name": "BillingLineTransactionItem", "type": "#/types/t_billingLineTransactionItem" },
+                { "name": "GroupTransactionItem",       "type": "#/types/t_groupTransactionItem" } ]
+}
+```
 
 `key` is present when the type declares an identity, a stored document (`IDocument<T>`) or an
 embedded item (`IItemId`), and its property list carries the `id` property. A plain value object
@@ -143,11 +171,14 @@ Exactly one property list per type, describing the query shape. Members, in orde
 | `value` | The value descriptor of a `dictionary`. |
 | `nullable` | Whether a client can read null out of the member. Absent on a nested descriptor. |
 | `displayName` | The human label, present only where it is not the de-camelCased `name`. |
-| `description` | A description. Reserved: nothing populates it in this version. |
+| `description` | The member's description, where the code declares one (section 2.3). |
 | `snapshotOf` | The entity this member is an embedded copy of. Travels with the pointer, so it appears on nested descriptors too. |
-| `references` | The foreign key this member is: `{ entity, field, joinable, inferred }`. |
-| `constraints` | `{ maxLength, min, max, pattern }`. Reserved: nothing populates it in this version. Bounds are strings. |
-| `deprecated` | `{ since, replacedBy, note }`. Reserved: nothing populates it in this version. |
+| `references` | The foreign key this member is, when it is a **simple** one: `{ entity, field, joinable, inferred }` (section 1.10). |
+| `constraints` | `{ maxLength, min, max, pattern }`, from the member's validation attributes (section 2.3). `maxLength` is a number and on strings only; `min` and `max` are strings, written in the invariant culture, because a JSON number is a double. |
+| `deprecated` | `{ since, replacedBy, note }`, from `[Obsolete]`, whose message becomes `note`. |
+| `values` | A closed value list `{ value, label }`. Only an addon descriptor of `GET /schema/addons` carries it; never a member of `/schema`. |
+| `onlyFor` | The variants of the holding type that carry this member, when not all of them do (section 1.5). A reader treats the member as absent on every other stored value. |
+| `referenceCases` | Every case of a reference that is not simple, in declaration order (section 1.10). Never beside `references`. |
 
 A nested descriptor (an array's `of`, a dictionary's `value`) describes a shape, not a member:
 it carries `kind`, `type`, `of`, `value` and `snapshotOf` only.
@@ -207,7 +238,8 @@ a pointer only.
 `name` is the CLR member name verbatim, the one string in the document that is not camelCased.
 `value` is a JSON number; **a reader must accept a JSON string too**, so a value above 2⁵³ can
 be published exactly without a format change. `values` is in declaration order. `active: false`
-retires a member (the CLR `[Obsolete]`) without breaking historical data. Generated enum types
+retires a member (the CLR `[Obsolete]`) without breaking historical data. `description`, where
+the enum member declares one, follows `active`. Generated enum types
 must be open: adding a value is not a safe change for a closed consumer. A nullable enum is the
 same enum with `nullable: true` on the property.
 
@@ -218,9 +250,10 @@ same enum with `nullable: true` on the property.
 | a default the reader substitutes | `flags` (`false`) · `active` (`true`) · `inferred` (`false`) |
 | derive it from `name` | `displayName` · `storageName` |
 | does not apply to this descriptor | every entity-only member on a structural entry; every member-only member on a nested descriptor; `values`/`flags` outside an enum; `properties` on an enum; `of` outside an array; `value` outside a dictionary; `type` outside `object`/`enum` |
-| unknown, and no default is safe | `nullable` on a nested descriptor · `references.field` where the target's key cannot be resolved · `description` |
+| unknown, and no default is safe | `nullable` on a nested descriptor · `references.field` where the target's key cannot be resolved |
+| the code declares none | `description` · `constraints` (the service may still validate what it does not declare) · `deprecated` |
 | there is none, stated by an empty list instead | `aliases` `notFilterable` `notSortable` `items` on an entity |
-| a definite negative | `display` (nothing names an instance) · `operations` (no controller linked) · `snapshotOf` (not a copy) · `references` (not a foreign key) · `diagnostics` (the build was clean) |
+| a definite negative | `display` (nothing names an instance) · `operations` (no controller linked) · `snapshotOf` (not a copy) · `references` together with `referenceCases` (not a foreign key) · `discriminator` and `variants` (not polymorphic) · `onlyFor` (every variant carries the member) · `keyAs` (no key conversion) · `when` (the case is unconditional) · `item` (the value names the entity itself) · `diagnostics` (the build was clean) |
 
 An absent `nullable` on a nested descriptor is not `false`; the annotation at that depth is
 unreliable, so the document says nothing. An absent `displayName` is not "no label".
@@ -242,13 +275,48 @@ unreliable, so the document says nothing. An absent `displayName` is not "no lab
 A pointer whose target is an entity entry is a snapshot by construction: an entity is a
 top-level document, so an instance of one inside another document is a copy of that row.
 
-`references` is emitted on a guid property (an array of guids included) that **declares** a
-target: `[OxQLReference]` on the id member, or `[ReferenceId]` on the navigation property that
-names it. Name inference is gone, so `inferred` is `false` on every reference; the member is kept
-because removing it is a format break. `field` is the member of the target the value matches, and
-defaults to the target's key. `joinable` is `true`: a declared reference is exactly what makes a
-`lookup` or a `resolve` legal, and one that is not declared is refused with `LOOKUP_NOT_DECLARED`
-or `RESOLVE_NOT_DECLARED`.
+A member is a foreign key only where the code **declares** a target (section 2): an attribute on
+the id member, `[ReferenceId]` on the navigation property that names it, or a host-side
+declaration (section 2.2). Nothing is inferred from a name. A declared reference is exactly what
+makes a `lookup` or a `resolve` legal; one that is not declared is refused with
+`LOOKUP_NOT_DECLARED` or `RESOLVE_NOT_DECLARED`.
+
+**`references` carries simple references only**: one unconditional case with one entity target,
+no item path and no key conversion, on a guid member or an array of guids. `field` is the member
+of the target the value matches, and defaults to the target's key. `joinable` is `true`.
+`inferred` is `false` on every reference; the member is kept because removing it is a format
+break. A format 1.0 reader maps every `references` to a join on the target entity, so no other
+reference ever reaches this member.
+
+**`referenceCases` carries every other reference** (format 1.1), as a list of cases:
+
+```jsonc
+// several targets, chosen by a sibling's value; the value names an element of an item collection
+{ "name": "id", "kind": "guid", "nullable": false,
+  "referenceCases": [ { "when": { "path": "type", "equals": ["logistics"] },
+                        "targets": [ { "entity": "transport.shipment", "item": "billingLines", "field": "id" },
+                                     { "entity": "transport.tour", "item": "billingLines", "field": "id" } ] } ] }
+
+// a string member holding a guid
+{ "name": "referenceId", "kind": "string", "nullable": false,
+  "referenceCases": [ { "when": { "path": "dataType", "equals": ["shipment"] }, "keyAs": "guid",
+                        "targets": [ { "entity": "transport.shipment", "field": "id" } ] } ] }
+
+// chosen by the stored variant of the object that holds the member
+{ "name": "id", "kind": "guid", "nullable": false,
+  "referenceCases": [ { "when": { "variant": ["DriverResource"] },
+                        "targets": [ { "entity": "staff.employee", "field": "id" } ] } ] }
+```
+
+| member | meaning |
+|---|---|
+| `when` | The condition the case applies under; absent on an unconditional case. Either `{ path, equals }`: the sibling member `path` (wire name, a stored string or enum) holds one of `equals`, compared exactly; or `{ variant }`: the holding object is stored as one of the named variants. |
+| `keyAs` | `guid`: the stored value is a string holding a guid, parsed and normalised to the target's key form. Absent: no conversion. |
+| `targets` | The targets, in the order they are tried: `{ entity, item, field }`. `entity` may belong to another service. `item` is the path of the target's item collection whose element the value names; absent when the value names the entity itself. `field` is the path the value matches, on the element when `item` is present, else on the entity; always written. |
+
+Member order: case `when`, `keyAs`, `targets`; condition `path`, `equals`, `variant`; target
+`entity`, `item`, `field`. A case whose target the build cannot resolve is dropped and logged
+(section 3.3); a member left with no case carries neither member.
 
 ### 1.11 Paths
 
@@ -321,9 +389,35 @@ The array is inside the revision hash. Every other finding is logged at startup 
   safe for a closed consumer, which is why generated enums are open.
 - Removing or renaming a member, moving a diagnostic code between the refusing and the published
   set, or changing what a member means is a major bump.
+- Refining `unknown` into a described kind, and replacing an entity's representative subclass by
+  its polymorphic base, are minor when every published member keeps its name and path. Both
+  change what a consumer's generated types say about a member (an `unknown` member becomes an
+  object; a member of the former subclass becomes an `onlyFor` member, optional in practice), but
+  no member a 1.0 reader reads is read wrong.
 - Promoting a structural type to an entity is a semantic break even though no type changes: the
   pointing property gains `snapshotOf`, and a value that was the parent's own data becomes a
   copy that can be stale.
+
+**Format 1.1** is the first minor bump. It adds `description`, `constraints` and `deprecated`
+contents (reserved and empty in 1.0), enum value `description`, `discriminator`, `variants`,
+`onlyFor`, `referenceCases` and three limits. Two of its changes are not purely additive, and the
+rule above was amended in the same change to classify them as minor rather than ship 2.0:
+
+1. Members the 1.0 build published as `unknown` because it could not describe a polymorphic
+   value are now described kinds.
+2. A polymorphic entity is rooted at its base, with the members of its variants merged in under
+   `onlyFor`, where 1.0 described one subclass as the entity.
+
+Everything else only adds members, and a typed, conditional, item or multi-target reference
+never enters `references`, so a 1.0 reader sees no join it would build wrong; it sees no
+reference on such a member at all. Consumers:
+
+| consumer | effect |
+|---|---|
+| a reader built for 1.0 | Must accept the document (minor bump) and ignore the new members. The query engine's document reader and the frontend generator `oxql-gen` both accept `1.x` and ignore members they do not know. |
+| the query engine's document reader (OxQL 2.1) | Reads every 1.1 member back into its model; `referenceCases` wins over `references`. |
+| a service's generated OxQL module | Regenerated against 1.1, it may type former `unknown` members as objects and former subclass members as optional. The frontend's generator check and type check catch every call site this touches when the module is regenerated. |
+| the revision | Every service's revision changes with the upgrade, since `schemaVersion` and the new limits are inside it; clients that cached the document by entity tag fetch it once again. Descriptions are inside the revision too, so editing a doc comment changes it. |
 
 Out of scope in this version: writes — the document describes read shapes only.
 
@@ -346,8 +440,34 @@ nothing else is declared.
 | an entity | `[OxQLType]` on the class; `Extendable = true` publishes `extendable` |
 | the entity's REST operations and legacy aliases | list its controller in `ConfigureModelDefinitions()`; the controller is linked to the entity whose response DTO carries `[SearchKey("<entity id>")]`, or whose name is `<Entity>Model` / `<Entity>Response` among that controller's declared responses |
 | a foreign key | `[OxQLReference("<entity id>")]` on the id member, or `[ReferenceId("<id property>")]` on the navigation property, whose type is the target entity; nothing is inferred from a name |
+| a foreign key onto an element of an item collection | `[OxQLReference("<entity id>", "<field>", Item = "<item path>")]` |
+| a foreign key held in a string member | `[OxQLReference("<entity id>", "<field>", KeyAs = OxQLKeyAs.Guid)]`; without `KeyAs` a string member referencing a guid key is dropped as `reference-key-kind-mismatch` |
+| a foreign key whose target depends on a sibling or on the stored variant | one `[OxQLReferenceWhen("<sibling>", "<value>", "<target>", …)]` per case (below) |
+| a foreign key on a member the service cannot annotate | a host-side declaration in `ConfigureOxSchema` (section 2.2) |
+| descriptions, deprecations, constraints | doc comments or attributes (section 2.3) |
+| variants of a polymorphic type | register each subclass's class map, or list it in `[BsonKnownTypes]` (section 5.2) |
 | a retired id, after renaming an entity's id | override `ConfigureOxSchema` in `Startup` (section 2.1) |
 | a key on an embedded item type | implement `IItemId` |
+
+`[OxQLReferenceWhen(path, equals, params targets)]` declares one case. `path` is the wire name of a
+stored string or enum sibling of the member, or `OxQLReferenceWhenAttribute.Variant`
+(`"$variant"`) to test the stored variant of the object holding the member; `equals` is the value
+compared exactly, or the variant name. Each target is `entity` or `entity#itemPath`. `Field` names
+the path the value matches and is required when a target belongs to another service; `KeyAs`
+converts as above. Attributes with the same `path` on one member form one reference with several
+cases. A member that combines `[OxQLReferenceWhen]` with `[OxQLReference]`, or whose cases
+conflict, keeps no reference and is logged as `reference-declaration-unresolved`.
+
+```csharp
+[OxQLReference("transport.shipment", "id", Item = "billingLines")]
+public Guid ShipmentBillingLineId { get; set; }
+
+[OxQLReference("transport.shipment", "id", KeyAs = OxQLKeyAs.Guid)]
+public string ShipmentId { get; set; }
+
+[OxQLReferenceWhen("type", "logistics", "transport.shipment#billingLines", "transport.tour#billingLines", Field = "id")]
+public Guid Id { get; set; }
+```
 
 ### 2.1 Retiring an entity id
 
@@ -366,6 +486,63 @@ current entity and says so with an `ENTITY_ID_RETIRED` diagnostic carrying `para
 a stored configuration keeps working while it is migrated. The legacy `$ClassName` model ids in
 the same list are not queryable; they are for the configuration resolvers only.
 
+An organisation's addon definitions survive the rename. An entity's definitions are the rows
+stored under its current id and under every id it retired, the current id first, then the retired
+ids ordinally; a path stored under more than one id is read from the first. `/AddonDefinition`
+accepts a retired id on `GET {entity}` and `POST`, answers every definition under the current id,
+and moves a row to the current id when it next writes it (create, revive, update, retire). The
+query engine and `GET /schema/addons` read the same union. A path stored under both a retired and
+the current id shows only the current row; the other stays in storage.
+
+### 2.2 Declaring a reference on a member the service does not own
+
+An inherited `Id`, or a type from a shared package, cannot carry an attribute. The host declares
+its reference in `ConfigureOxSchema` instead, keyed on the **pooled type and the wire member**:
+
+```csharp
+protected override void ConfigureOxSchema(OxSchemaOptionsBuilder schema)
+{
+    // unconditional; target "entity" or "entity#itemPath"
+    schema.DeclareReference<Contact>("employeeId", "staff.employee");
+
+    // one case per call; calls on the same member form one reference
+    schema.DeclareReferenceWhen<Resource>("id", OxSchemaOptionsBuilder.Variant, "DriverResource", "id", "staff.employee");
+    schema.DeclareReferenceWhen<SourceReference>("referenceId", "dataType", "shipment", "id", OxQLKeyAs.Guid, "transport.shipment");
+}
+```
+
+| method | declares |
+|---|---|
+| `DeclareReference<T>(wireMember, target, field = null, item = null, keyAs = None)` | An unconditional reference. `field` null means the target's key; `item` is the alternative to spelling the item path into `target`. |
+| `DeclareReferenceWhen<T>(wireMember, path, equals, field, params targets)` | One case, as `[OxQLReferenceWhen]` does; `path` is a sibling's wire name or `OxSchemaOptionsBuilder.Variant`. `field` is required when a target belongs to another service. |
+| `DeclareReferenceWhen<T>(wireMember, path, equals, field, keyAs, params targets)` | The same case with a key conversion. |
+
+A declaration applies to `T` and its variants wherever they are embedded, and never to another
+type that inherits the same CLR member. It reaches the one model both `/schema` and the query
+engine are built from, so the document and the engine agree. A member that gets both kinds of
+call, or also carries a reference attribute, keeps no reference and is logged as
+`reference-declaration-unresolved`. The declarations are copied when the options are built; a
+later call on the builder changes nothing.
+
+### 2.3 Descriptions, deprecations, constraints
+
+A type's, a member's and an enum value's `description` is taken from the first of:
+
+1. `[OxQLDescription("…")]`;
+2. `[System.ComponentModel.Description("…")]`;
+3. the XML doc `<summary>`, read from `<assembly>.xml` beside the assembly (`<inheritdoc/>`
+   resolved). The file exists only where the service's project sets
+   `<GenerateDocumentationFile>true</GenerateDocumentationFile>` (section 5.2).
+
+The text is normalised deterministically: a leading "Gets or sets", "Gets" or "Represents" is
+dropped and the rest capitalised; `<see cref>` becomes the simple name, `<paramref>` and `<c>`
+their text, `<para>` a blank line; whitespace is collapsed; the text is cut at a word boundary to
+500 characters, `…` included.
+
+`deprecated` comes from `[Obsolete]` on a member, its message as `note`. `constraints` comes from
+`[MaxLength]` or `[StringLength]` (strings only), `[Range]` and `[RegularExpression]`. None of the
+three is part of the query engine's model fingerprint; all are inside the document's revision.
+
 ---
 
 ## 3 · How the document is built
@@ -382,12 +559,15 @@ startup thread, and is one pass in `OxSchemaBuilder`:
 2. **Entity model.** The query engine's model builder (`ClrModelBuilder` in `OxQL.Model`) scans
    the declared assemblies for `[OxQLType]`, drops every claimant of a duplicated id, and
    describes each entity through the MongoDB driver's serializer registry: wire names, storage
-   names, whether a member is stored at all, nullability, declared references and snapshots.
-   Every type reached is pooled once, and the structural types get their `t_` ids there, tails
-   included. The model's findings become the document's.
+   names, whether a member is stored at all, nullability, declared references and snapshots,
+   variants and their discriminator, descriptions, deprecations and constraints. The host-side
+   reference declarations (section 2.2) are passed to the same build. Every type reached is
+   pooled once, and the structural types get their `t_` ids there, tails included. The model's
+   findings become the document's.
 3. **Projection.** `TypePoolWalker` turns the model's pool into pool entries under the model's
-   ids, members in the model's order. Nothing is walked a second time: the engine binds against
-   this model, and the document is its wire view.
+   ids, members in the model's order. A member's references are split there: a simple one into
+   `references`, every other into `referenceCases`. Nothing is walked a second time: the engine
+   binds against this model, and the document is its wire view.
 4. **Entity metadata.** Per entity: the label, the key (the model's), the display property, the
    aliases (the retired ids, then the legacy ids of the linked controller), `extendable`, the
    unstored scalar paths as `notFilterable`, and the operations read off the linked controller.
@@ -421,7 +601,8 @@ OxSchema/
   Hosting/    the registry singleton, AddOxSchema, the options builder, the startup logger, the
               authorization filter of GET /schema
 OxQL/         the host's side of the query engine: the organisation scope provider, the internal
-              batch route, the remote query client, the addon definition rules, source and cache
+              batch and explain routes, the remote query client, the addon definition rules,
+              source and cache
 Controller/   SchemaController (GET /schema, GET /schema/addons),
               ModelDefinitionController (GET /ModelDefinition)
 Controllers/  AddonDefinitionController (the /AddonDefinition operations)
@@ -451,6 +632,11 @@ independent costs:
 | `entity-assemblies-missing` | no | yes |
 | `entity-id-off-grammar`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
 | `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared` | no | no |
+| `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
+
+The last row are the model's format 1.1 codes. Each marks a member the document still describes
+(as `unknown`), a variant or a reference case it leaves out in a way its absence shows, so each is
+logged only. `reference-candidate-undeclared` is defined by the engine and not emitted yet.
 
 **Refusing** is for ambiguity, where no reading of the document is correct. A host **fails
 fast** on a refusing finding in the `Development` and `Local` environments and under continuous
@@ -506,9 +692,16 @@ is read and therefore wins.
 
 ### 4.2 Resolving into another service
 
-A `resolve` stage, or a condition on a referenced entity another service owns, makes the query
-engine call that owner: `POST http://{host}/{service}-api/{version}/internal/oxql/batch`, where
-`service` is the namespace of the target entity id (`vehicle` of `vehicle.vehicle`).
+A `resolve` stage, a condition on a referenced entity, or a keyed fetch whose target another
+service owns makes the query engine call that owner. Every owner route is a path under the
+owner's base route `http://{host}/{service}-api/{version}/`, where `service` is the namespace of
+the target entity id (`vehicle` of `vehicle.vehicle`):
+
+| route | used for |
+|---|---|
+| `POST internal/oxql/batch` | Executing: remote resolves, semi-joins, keyed fetches, and the stages a keyed fetch continues at the owner (at most `maxContinuedStages`). |
+| `POST internal/oxql/explain` | Explaining: the origin's `POST /oxql/explain` checks the parts of a query continued at an owner there. Same body and answer as the public explain. |
+| `GET OxQL/health?shallow=true` | Reachability, and what the owner says of itself (engine version, contract, batch cap). |
 
 | key | meaning | default |
 |---|---|---|
@@ -528,10 +721,33 @@ engine call that owner: `POST http://{host}/{service}-api/{version}/internal/oxq
   resolved members are null on the page with a `RESOLVE_UNREACHABLE` diagnostic, and a condition
   on the referenced entity is refused with `RESOLVE_UNAVAILABLE`. No startup check covers this
   key. `GET /OxQL/health` lists each remotely referenced service with its reachability.
-- **The internal api key.** The owner's route is `POST internal/oxql/batch`, admitted by the key
-  alone like every `OxSInternalController`, and scoped by the forwarded user and organisation
-  headers. Caller and owner must be configured with the same key. A key that is not configured
-  is a random value, and a key configured as blank admits nobody.
+- **The internal api key.** Both internal routes are `OxQLInternalController`'s, admitted by
+  the key alone like every `OxSInternalController`, and scoped by the forwarded user and
+  organisation headers. Caller and owner must be configured with the same key. A key that is not
+  configured is a random value, and a key configured as blank admits nobody.
+
+**The internal routes are internal calls.** The owner serves them with the same query service as
+its public routes, flagged as an internal call; the route is the signal. Only there does a
+request carry the keyed fetch's `keyedBy` member; the public `POST /oxql/query` and
+`POST /oxql/batch` refuse it as an unknown request member. `POST internal/oxql/explain` answers
+404 while the owner's explain is switched off (`OxQL:Explain:Enabled`), as the public route does;
+the origin then reports those parts as unchecked.
+
+**The remote client** (`RemoteQueryClient`) sends one message per call over the named
+`HttpClient` `OxQL.Remote`. It adds no header beyond the ones every call already carried: the
+internal key, the forwarded organisation, user and correlation ids, and the contract header. The
+identity is the one the engine scoped the parent query with.
+
+- `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry.
+  The batch, explain and health addresses are paths under it.
+- A batch's `maxTimeMs` is rewritten to the smaller positive of the engine's value and the time
+  the call is given, so the owner stops on its own before the caller stops waiting. A call
+  without a positive budget is bounded by 10 seconds; none waits on the HTTP client's timeout.
+- `ExplainAsync` posts the explain body and returns the owner's answer as written. An owner that
+  answers anything but 200, cannot be reached or times out makes it throw; a service with no
+  `InternalHosts` entry is a caller error (`InvalidOperationException`).
+- The owner's engine facts (`OwnerOf(service)`) are read from its shallow health answer when
+  reachability is probed, and are unknown until the first probe has run.
 
 ### 4.3 The `OxQL` section
 
@@ -543,9 +759,9 @@ include the page sizes this package used to set in code (`MaxPageSize` 500, `Def
 | key | meaning | default |
 |---|---|---|
 | `OxQL:Limits:*` | Every cap a request is checked against (`MaxPageSize`, `DefaultPageSize`, `MaxOffset`, `MaxBatchQueries`, …). | the engine's |
-| `OxQL:Execution:MaxTimeMs`, `OxQL:Execution:ResolveTimeoutMs` | The time ceiling of one query and the budget of one call to another service. | 10000, 2000 |
+| `OxQL:Execution:MaxTimeMs`, `OxQL:Execution:ResolveTimeoutMs`, `OxQL:Execution:ChainTimeoutMs` | The time ceiling of one query, the budget of one call to another service, and the budget of a chain of calls that continue across services. | 10000, 2000, 6000 |
 | `OxQL:Compat:Enabled` | Whether a request without the contract header is answered as contract 1. | `true` |
-| `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` answers, and whether the OxQL Studio offers it; 404 otherwise. | `false` |
+| `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` and `POST internal/oxql/explain` answer, and whether the OxQL Studio console offers explain; 404 otherwise. Explain binds and compiles a request and never executes it. | `true` |
 | `OxQL:Cursor:SigningKey` | The secret paging cursors are signed with. | `Auth:Token` |
 
 The cursor key is never used as it is: the engine derives the signing key from the secret with
@@ -571,14 +787,24 @@ Nothing below needs a line of code in the service.
   the same controller list; it is built once at startup, nothing writes
   `ModelDefinition/ModelDefinition.json` any more, and the route answers `GET` only. A
   controller the generator cannot describe is left out instead of replacing the whole document.
-- The query engine in version 2: the organisation scope on every entry into an entity (a
-  request without an organisation is refused with 403), `POST /OxQL/batch`, resolves into other
-  services, and `POST internal/oxql/batch` for the services resolving into this one (hidden from
-  the API explorer). Callers written against contract 1 keep working at runtime while
-  `OxQL:Compat:Enabled` is on, which is the default.
+- The document in format 1.1 (section 1.15): descriptions, deprecations and constraints where the
+  code declares them, polymorphic types with their variants, and typed and conditional references.
+- The query engine in version 2.1: the organisation scope on every entry into an entity (a
+  request without an organisation is refused with 403), `POST /OxQL/batch`, resolves and keyed
+  fetches into other services, `POST /OxQL/explain` on by default and never executing, and
+  `POST internal/oxql/batch` and `POST internal/oxql/explain` for the services calling into this
+  one (hidden from the API explorer, section 4.2). Callers written against contract 1 keep working
+  at runtime while `OxQL:Compat:Enabled` is on, which is the default.
 - `/AddonDefinition`: `GET {entity}`, `GET by-id/{id}`, `POST`, `PUT {id}`, `DELETE {id}`, for an
   organisation's typed addon keys. The definitions are stored in the service's own database, in
-  the collection `model_definition.addon_definition`.
+  the collection `model_definition.addon_definition`, and survive a retired entity id
+  (section 2.1).
+- The OxQL Studio console at `{pathBase}/oxql` (`/vehicle-api/v2/oxql`), its assets under
+  `{pathBase}/oxql/`. Every path the console is configured with (`RoutePath` and `ApiBasePath`
+  `/oxql`, `SchemaBasePath` `/schema`) is relative to the path base, which the console prefixes
+  itself; it calls the API beside it and reads `/schema` of the same service. Earlier versions
+  configured the route with the path base spelled in, so the console answered only under a doubled
+  path (`/vehicle-api/v2/vehicle-api/v2/oxql`). Its explain button follows `OxQL:Explain:Enabled`.
 
 ### 5.2 What a service has to do
 
@@ -590,6 +816,18 @@ Nothing below needs a line of code in the service.
   throws, and a registration guarded by `IsClassMapRegistered` is silently skipped, which loses
   the customisation (`SetIgnoreExtraElements`, discriminators, member maps) and surfaces as a
   deserialisation error later. Move such registrations into `RegisterServices`.
+- **Register every stored subclass of a polymorphic type the same way**, or list it in
+  `[BsonKnownTypes]` on the base. Only those are described as variants; a concrete subclass with no
+  registered class map is left out of `variants`, its members are not merged, and the build logs
+  `polymorphic-subtype-unregistered`.
+- **Set `<GenerateDocumentationFile>true</GenerateDocumentationFile>`** in the project that holds
+  the entity classes if their doc comments are to become descriptions (section 2.3). Without the
+  XML file beside the assembly only `[OxQLDescription]` and `[Description]` are read. The switch
+  reports every public member without a doc comment as CS1591, a build break under
+  `TreatWarningsAsErrors`; add `<NoWarn>$(NoWarn);1591</NoWarn>` there. Optional: a service
+  without descriptions publishes a complete document.
+- **A reference on a member the service cannot annotate** needs a host-side declaration
+  (section 2.2).
 - **`ConfigureModelDefinitions()` and `GetOxQLTypeAssemblies()` are called during
   `ConfigureServices`**, not from `Configure` and not only when MongoDB is configured. They must
   not depend on anything that is set up later.
@@ -623,6 +861,9 @@ regeneration:
 - The request and result schemas of `POST /OxQL/query` and `POST /OxQL/explain` are the ones of
   contract 2, and the refusals are typed.
 - The five `/AddonDefinition` operations and their request and response models are added.
+
+The internal routes (`internal/oxql/batch`, `internal/oxql/explain`) are hidden from the API
+explorer and never appear.
 
 A generated client changes shape only when it is regenerated. Until then a caller built on the
 contract 1 shapes keeps working at runtime, through the engine's compatibility binder

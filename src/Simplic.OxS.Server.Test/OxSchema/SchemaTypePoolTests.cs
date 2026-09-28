@@ -23,7 +23,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 .Select(entry => entry.Key);
 
             entities.Should().BeEquivalentTo(
-                "badid", "probe.bag", "probe.bagless", "probe.base", "probe.gadget", "probe.link", "probe.thing", "probe.widget", "spare.gadget");
+                "badid", "probe.bag", "probe.bagless", "probe.base", "probe.gadget", "probe.ledger", "probe.link", "probe.thing", "probe.widget", "spare.gadget");
         }
 
         [Fact]
@@ -36,10 +36,13 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 .Select(entry => entry.Key)
                 .ToList();
 
-            structural.Should().HaveCount(12);
+            structural.Should().HaveCount(18);
 
             structural.Should().Contain(
                 ["t_access", "t_mode", "t_retired", "t_wide", "t_umlaut", "t_slot", "t_tag", "t_thingSubset"]);
+
+            // The format 1.1 fixtures: a polymorphic base with its two variants, and three plain types.
+            structural.Should().Contain(["t_entry", "t_groupEntry", "t_lineEntry", "t_ledgerKind", "t_party", "t_sourceReference"]);
 
             structural.Where(id => id.StartsWith("t_detail_", StringComparison.Ordinal)).Should().HaveCount(2);
             structural.Where(id => id.StartsWith("t_pair_", StringComparison.Ordinal)).Should().HaveCount(2);
@@ -48,7 +51,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         [Fact]
         public void Build_Pool_HasNoOtherEntries()
         {
-            SchemaBuild.Degraded.Document.Types.Should().HaveCount(21);
+            SchemaBuild.Degraded.Document.Types.Should().HaveCount(28);
         }
 
         [Fact]

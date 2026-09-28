@@ -74,6 +74,21 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The property list. Absent on an enum entry; an object entry always carries it, empty included.</summary>
         [JsonPropertyOrder(15)]
         public IReadOnlyList<OxSchemaProperty>? Properties { get; init; }
+
+        /// <summary>
+        /// Where a stored value of a polymorphic type names its variant (format 1.1). Present
+        /// exactly when <see cref="Variants"/> is.
+        /// </summary>
+        [JsonPropertyOrder(16)]
+        public OxSchemaDiscriminator? Discriminator { get; init; }
+
+        /// <summary>
+        /// The concrete types a value of this type can hold besides itself, ordinally by name
+        /// (format 1.1). The members only some of them carry are on <see cref="Properties"/> with
+        /// <c>onlyFor</c>. Absent on a type that has no variants.
+        /// </summary>
+        [JsonPropertyOrder(17)]
+        public IReadOnlyList<OxSchemaVariant>? Variants { get; init; }
     }
 
     /// <summary>One member of an enum entry.</summary>
@@ -90,6 +105,44 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>False retires a member without breaking historical data.</summary>
         [JsonPropertyOrder(2)]
         public required bool Active { get; init; }
+
+        /// <summary>A description, when the model declares one (format 1.1).</summary>
+        [JsonPropertyOrder(3)]
+        public string? Description { get; init; }
+    }
+
+    /// <summary>The element a stored polymorphic value names its variant in (format 1.1).</summary>
+    public sealed record OxSchemaDiscriminator
+    {
+        /// <summary>The stored element, e.g. <c>_t</c>.</summary>
+        [JsonPropertyOrder(0)]
+        public required string Element { get; init; }
+
+        /// <summary>One of <see cref="OxSchemaDiscriminatorForms"/>.</summary>
+        [JsonPropertyOrder(1)]
+        public required string Form { get; init; }
+    }
+
+    /// <summary>The discriminator forms.</summary>
+    public static class OxSchemaDiscriminatorForms
+    {
+        /// <summary>The element holds the variant's own name.</summary>
+        public const string Scalar = "scalar";
+
+        /// <summary>The element holds the names from the root class down to the variant.</summary>
+        public const string Hierarchical = "hierarchical";
+    }
+
+    /// <summary>One variant of a polymorphic type (format 1.1).</summary>
+    public sealed record OxSchemaVariant
+    {
+        /// <summary>The variant's name, the value an <c>is</c> filter and an <c>onlyFor</c> list use.</summary>
+        [JsonPropertyOrder(0)]
+        public required string Name { get; init; }
+
+        /// <summary>A pointer to the pool entry that describes the variant, <c>#/types/&lt;id&gt;</c>.</summary>
+        [JsonPropertyOrder(1)]
+        public required string Type { get; init; }
     }
 
     /// <summary>One item collection of an entity: the path that reaches it and its legacy ids.</summary>
@@ -116,7 +169,11 @@ namespace Simplic.OxS.Server.OxSchema
         public required string Route { get; init; }
     }
 
-    /// <summary>A foreign key: the entity a guid property points at.</summary>
+    /// <summary>
+    /// A simple foreign key: one unconditional entity target, no item path, no key conversion.
+    /// Every other reference is published as <see cref="OxSchemaProperty.ReferenceCases"/> and
+    /// never here, because a format 1.0 reader maps every <c>references</c> to an entity join.
+    /// </summary>
     public sealed record OxSchemaReference
     {
         /// <summary>The target entity id.</summary>

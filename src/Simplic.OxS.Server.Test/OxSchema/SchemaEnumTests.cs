@@ -76,7 +76,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var enums = document.Types.Where(entry => entry.Value.Kind == OxSchemaKinds.Enum).ToList();
 
             enums.Select(entry => entry.Key)
-                .Should().BeEquivalentTo("t_access", "t_mode", "t_retired", "t_umlaut", "t_wide");
+                .Should().BeEquivalentTo("t_access", "t_ledgerKind", "t_mode", "t_retired", "t_umlaut", "t_wide");
 
             enums.Should().OnlyContain(entry => entry.Value.Values != null && entry.Value.Values.Count > 0);
         }

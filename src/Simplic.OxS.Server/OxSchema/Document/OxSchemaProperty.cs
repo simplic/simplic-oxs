@@ -78,6 +78,80 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         [JsonPropertyOrder(13)]
         public IReadOnlyList<OxSchemaValue>? Values { get; init; }
+
+        /// <summary>
+        /// The variants of the holding type that carry this member, when not all of them do
+        /// (format 1.1). A reader treats the member as absent on every other stored value.
+        /// </summary>
+        [JsonPropertyOrder(14)]
+        public IReadOnlyList<string>? OnlyFor { get; init; }
+
+        /// <summary>
+        /// Every case of a reference that is not simple, in declaration order (format 1.1): a
+        /// condition, an item target, a key conversion or several targets. Never beside
+        /// <see cref="References"/>.
+        /// </summary>
+        [JsonPropertyOrder(15)]
+        public IReadOnlyList<OxSchemaReferenceCase>? ReferenceCases { get; init; }
+    }
+
+    /// <summary>One case of a reference (format 1.1). A case without <see cref="When"/> applies unconditionally.</summary>
+    public sealed record OxSchemaReferenceCase
+    {
+        /// <summary>The condition the case applies under.</summary>
+        [JsonPropertyOrder(0)]
+        public OxSchemaReferenceCondition? When { get; init; }
+
+        /// <summary>How the stored value becomes the targets' key; <c>guid</c>, or absent for no conversion.</summary>
+        [JsonPropertyOrder(1)]
+        public string? KeyAs { get; init; }
+
+        /// <summary>The targets, in the order they are tried.</summary>
+        [JsonPropertyOrder(2)]
+        public required IReadOnlyList<OxSchemaReferenceTarget> Targets { get; init; }
+    }
+
+    /// <summary>
+    /// The condition of a reference case: either a sibling <see cref="Path"/> holding one of
+    /// <see cref="EqualsAny"/>, or the holding object being stored as one of <see cref="Variant"/>.
+    /// </summary>
+    public sealed record OxSchemaReferenceCondition
+    {
+        /// <summary>The sibling's wire name. Absent on a variant condition.</summary>
+        [JsonPropertyOrder(0)]
+        public string? Path { get; init; }
+
+        /// <summary>The values the sibling is compared with, exactly. Absent on a variant condition.</summary>
+        [JsonPropertyOrder(1)]
+        [JsonPropertyName("equals")]
+        public IReadOnlyList<string>? EqualsAny { get; init; }
+
+        /// <summary>The variant names the holding object is tested against. Absent on a path condition.</summary>
+        [JsonPropertyOrder(2)]
+        public IReadOnlyList<string>? Variant { get; init; }
+    }
+
+    /// <summary>One target of a reference case.</summary>
+    public sealed record OxSchemaReferenceTarget
+    {
+        /// <summary>The target entity id; it may belong to another service.</summary>
+        [JsonPropertyOrder(0)]
+        public required string Entity { get; init; }
+
+        /// <summary>The path of the target's array whose element the value names. Absent when the value names the entity itself.</summary>
+        [JsonPropertyOrder(1)]
+        public string? Item { get; init; }
+
+        /// <summary>The path the value matches: on the element when <see cref="Item"/> is present, else on the entity.</summary>
+        [JsonPropertyOrder(2)]
+        public string? Field { get; init; }
+    }
+
+    /// <summary>The key conversions of a reference case.</summary>
+    public static class OxSchemaKeyAs
+    {
+        /// <summary>A string member holding a guid.</summary>
+        public const string Guid = "guid";
     }
 
     /// <summary>One entry of a closed value list.</summary>

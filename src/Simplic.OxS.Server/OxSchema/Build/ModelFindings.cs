@@ -12,6 +12,21 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The model findings whose target is the whole host rather than one entity or member.</summary>
         private static readonly string[] HostWide = [BuildCodes.EntityAssembliesMissing, BuildCodes.EntityScanFailed];
 
+        /// <summary>
+        /// The model's format 1.1 codes: polymorphism and typed references. Each marks a member or
+        /// a reference case the document still describes, or leaves out in a way its absence
+        /// shows, so each is log-only: neither refusing nor published.
+        /// </summary>
+        internal static readonly string[] LogOnly =
+        [
+            BuildCodes.PolymorphicMemberConflict,
+            BuildCodes.PolymorphicSubtypeUnregistered,
+            BuildCodes.ReferenceKeyKindMismatch,
+            BuildCodes.ReferenceCaseTargetUnknown,
+            BuildCodes.ReferenceItemUnknown,
+            BuildCodes.ReferenceCandidateUndeclared,
+        ];
+
         /// <summary>The published sentence of <c>entity-scan-failed</c>.</summary>
         internal const string ScanFailedDetail = "The entity scan failed, so this document describes no types at all.";
 

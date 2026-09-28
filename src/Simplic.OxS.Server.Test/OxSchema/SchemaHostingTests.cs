@@ -59,7 +59,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             {
                 MaxPageSize = 11, DefaultPageSize = 12, MaxPipelineStages = 13, MaxLookupStages = 14, MaxUnwindStages = 15,
                 MaxGroupFields = 16, MaxProjectionFields = 17, RegexMaxLength = 18,
-                Limits = { MaxOffset = 19, MaxResolveStages = 20, MaxBatchQueries = 21, MaxLookupLimit = 22 },
+                Limits = { MaxOffset = 19, MaxResolveStages = 20, MaxBatchQueries = 21, MaxLookupLimit = 22, MaxContinuedStages = 9, MaxFlattenDepth = 4, MaxReportPageSize = 23 },
             });
             services.AddOxSchema(Configure);
 
@@ -70,6 +70,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 MaxPageSize = 11, DefaultPageSize = 12, MaxPipelineStages = 13, MaxLookupStages = 14,
                 MaxUnwindStages = 15, MaxGroupFields = 16, MaxProjectionFields = 17, RegexMaxLength = 18,
                 MaxOffset = 19, MaxResolveStages = 20, MaxBatchQueries = 21, MaxLookupLimit = 22,
+                MaxContinuedStages = 9, MaxFlattenDepth = 4, MaxReportPageSize = 23,
             });
         }
 

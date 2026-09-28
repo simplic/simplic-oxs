@@ -1,5 +1,6 @@
 using System.Reflection;
 using OxQL.Core.Models;
+using OxQL.Model.Build;
 
 namespace Simplic.OxS.Server.OxSchema
 {
@@ -45,6 +46,15 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>Current entity id to the ids it retired, for the entities of this service that renamed theirs.</summary>
         public IReadOnlyDictionary<string, IReadOnlyList<string>> RetiredEntityIds { get; init; } =
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The host-side reference declarations, for members the service cannot annotate: an
+        /// inherited <c>Id</c>, a type from a shared package. Filled through
+        /// <see cref="OxSchemaOptionsBuilder.DeclareReference{T}"/> and
+        /// <see cref="OxSchemaOptionsBuilder.DeclareReferenceWhen{T}(string, string, string, string?, string[])"/>;
+        /// never changed after the options are built.
+        /// </summary>
+        public ReferenceDeclarations ReferenceDeclarations { get; init; } = new();
 
         /// <summary>
         /// Whether an ambiguous document stops the host from starting: in <c>Development</c>, <c>Local</c> and under continuous

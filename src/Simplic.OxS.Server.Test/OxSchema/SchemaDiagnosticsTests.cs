@@ -60,6 +60,9 @@ namespace Simplic.OxS.Server.Test.OxSchema
                     OxSchemaCodes.ControllerLinkAmbiguous,
                     OxSchemaCodes.EntityIdOffGrammar,
                     OxSchemaCodes.EntityTypeShared,
+
+                    // probe.leaf subclasses probe.base without a registered class map.
+                    global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered,
                     OxSchemaCodes.ReferenceDeclarationUnresolved,
                     OxSchemaCodes.ReferenceDeclarationUnresolved);
         }

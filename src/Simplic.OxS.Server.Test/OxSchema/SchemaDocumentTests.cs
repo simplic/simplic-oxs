@@ -16,7 +16,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         {
             var document = SchemaBuild.Degraded.Document;
 
-            document.SchemaVersion.Should().Be("1.0");
+            document.SchemaVersion.Should().Be("1.1");
             document.Service.Should().Be("probe");
             document.Api.Name.Should().Be("probe-api");
             document.Api.Version.Should().Be("v1");
@@ -121,7 +121,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
 
             var text = Encoding.UTF8.GetString(body);
 
-            text.Should().StartWith("{\"schemaVersion\":\"1.0\",\"service\":\"probe\",\"api\":{\"name\":");
+            text.Should().StartWith("{\"schemaVersion\":\"1.1\",\"service\":\"probe\",\"api\":{\"name\":");
             text.Should().NotContain("\n").And.NotContain("\r").And.NotContain("\t");
         }
 

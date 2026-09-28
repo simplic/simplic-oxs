@@ -49,7 +49,9 @@ namespace Simplic.OxS.Server.OxSchema
 
             // One declaration set, one model, one published document: the engine binds against
             // this model and the document is its wire view.
-            var model = ClrModelBuilder.Build(options.TypeAssemblies, options.RetiredEntityIds);
+            // The host-side reference declarations reach the one model the engine binds against,
+            // so a member a service cannot annotate gets the same reference in both.
+            var model = ClrModelBuilder.Build(options.TypeAssemblies, options.RetiredEntityIds, options.ReferenceDeclarations);
 
             ModelFindings.Import(model, service, findings);
 
@@ -179,6 +181,9 @@ namespace Simplic.OxS.Server.OxSchema
                     MaxResolveStages = limits.Limits.MaxResolveStages,
                     MaxBatchQueries = limits.Limits.MaxBatchQueries,
                     MaxLookupLimit = limits.Limits.MaxLookupLimit,
+                    MaxContinuedStages = limits.Limits.MaxContinuedStages,
+                    MaxFlattenDepth = limits.Limits.MaxFlattenDepth,
+                    MaxReportPageSize = limits.Limits.MaxReportPageSize,
                 },
                 Diagnostics = published.Count > 0 ? published : null,
                 Types = types,

@@ -13,7 +13,7 @@ namespace Simplic.OxS.Server.OxSchema
         /// The format version this package produces. An additive change bumps the minor; a change
         /// a consumer could read wrong bumps the major, which consumers refuse.
         /// </summary>
-        public const string CurrentSchemaVersion = "1.0";
+        public const string CurrentSchemaVersion = "1.1";
 
         /// <summary>The format version of this document.</summary>
         [JsonPropertyOrder(0)]
@@ -109,6 +109,21 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The most rows one lookup returns per parent.</summary>
         [JsonPropertyOrder(11)]
         public required int MaxLookupLimit { get; init; }
+
+        /// <summary>How many stages a keyed fetch may continue on the service that owns its target (format 1.1).</summary>
+        [JsonPropertyOrder(12)]
+        public required int MaxContinuedStages { get; init; }
+
+        /// <summary>How many levels an unwind's <c>flatten</c> descends below the unwound element (format 1.1).</summary>
+        [JsonPropertyOrder(13)]
+        public required int MaxFlattenDepth { get; init; }
+
+        /// <summary>
+        /// The page size of a strict report request, which names neither a cursor nor an offset
+        /// (format 1.1). Such a request may ask for the larger of this and <see cref="MaxPageSize"/>.
+        /// </summary>
+        [JsonPropertyOrder(14)]
+        public required int MaxReportPageSize { get; init; }
     }
 
     /// <summary>One thing the build could not describe. Only findings that removed an entity or the whole pool are published; none names a CLR type.</summary>

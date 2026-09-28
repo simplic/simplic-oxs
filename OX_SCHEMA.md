@@ -59,7 +59,10 @@ A client that verifies `revision`, or diffs two documents, needs the byte rule:
 6. Array order is significant: `properties`, enum `values`, `items` and `aliases` are in the
    generator's order; `variants` is ordinally sorted by `name`; `onlyFor` is in the model's
    order; `referenceCases` and each case's `targets` are in declaration order, because targets
-   are tried in that order.
+   are tried in that order. For `[OxQLReferenceWhen]` attributes, declaration order is the order
+   reflection returns them in: the CLR does not promise it, the C# compiler emits source order and
+   reflection keeps it, so the revision is stable across builds of one source. Targets within one
+   case come from one attribute's arguments and are always in source order.
 7. Every character outside the JSON encoder's unreserved set is written as a `\uXXXX` escape,
    so the document is pure ASCII.
 
@@ -282,7 +285,9 @@ makes a `lookup` or a `resolve` legal; one that is not declared is refused with
 `LOOKUP_NOT_DECLARED` or `RESOLVE_NOT_DECLARED`.
 
 **`references` carries simple references only**: one unconditional case with one entity target,
-no item path and no key conversion, on a guid member or an array of guids. `field` is the member
+no item path and no key conversion, on the member the code declares it on. That is usually a guid
+or an array of guids, but a string member naming a string field is simple too, and so is any
+member naming a field in another service, whose kind this host cannot check. `field` is the member
 of the target the value matches, and defaults to the target's key. `joinable` is `true`.
 `inferred` is `false` on every reference; the member is kept because removing it is a format
 break. A format 1.0 reader maps every `references` to a join on the target entity, so no other
@@ -375,7 +380,8 @@ OpenAPI document types them.
 ```
 
 Published only for findings a client could not detect from absence: an entity dropped for an
-ambiguous id (`duplicate-entity-id`), a pointer with no target (`dangling-type-pointer`), and a
+ambiguous id (`duplicate-entity-id`), a pointer with no target (`dangling-type-pointer`: a
+property's type, a snapshot source or a variant's `type`), and a
 pool that is empty because the scan, or the build after it, threw (`entity-scan-failed`) or
 because the host named no assemblies (`entity-assemblies-missing`). `target` is in wire terms; nothing names a CLR type.
 The array is inside the revision hash. Every other finding is logged at startup only (section 3.3).
@@ -487,12 +493,15 @@ a stored configuration keeps working while it is migrated. The legacy `$ClassNam
 the same list are not queryable; they are for the configuration resolvers only.
 
 An organisation's addon definitions survive the rename. An entity's definitions are the rows
-stored under its current id and under every id it retired, the current id first, then the retired
-ids ordinally; a path stored under more than one id is read from the first. `/AddonDefinition`
-accepts a retired id on `GET {entity}` and `POST`, answers every definition under the current id,
-and moves a row to the current id when it next writes it (create, revive, update, retire). The
-query engine and `GET /schema/addons` read the same union. A path stored under both a retired and
-the current id shows only the current row; the other stays in storage.
+stored under its current id and under every id it retired, read in one query, the current id
+first, then the retired ids ordinally. A path stored under more than one id is read from a live
+row before a retired one, and between two rows alike from the id listed first, so the current id
+wins over a retired one and a retired row never hides a live one. `/AddonDefinition` accepts a
+retired id on `GET {entity}` and `POST`, answers every definition under the current id, and moves
+a row to the current id when it next writes it (create, revive, update, retire), unless the
+current id already holds a row of that path: then the row stays under its id, so one id never
+holds two rows of one path. The query engine and `GET /schema/addons` read the same union. The
+row the union does not read stays in storage and is still answered by `GET by-id/{id}`.
 
 ### 2.2 Declaring a reference on a member the service does not own
 
@@ -502,8 +511,8 @@ its reference in `ConfigureOxSchema` instead, keyed on the **pooled type and the
 ```csharp
 protected override void ConfigureOxSchema(OxSchemaOptionsBuilder schema)
 {
-    // unconditional; target "entity" or "entity#itemPath"
-    schema.DeclareReference<Contact>("employeeId", "staff.employee");
+    // unconditional; target "entity" or "entity#itemPath"; a target in another service needs its field
+    schema.DeclareReference<Contact>("employeeId", "staff.employee", field: "id");
 
     // one case per call; calls on the same member form one reference
     schema.DeclareReferenceWhen<Resource>("id", OxSchemaOptionsBuilder.Variant, "DriverResource", "id", "staff.employee");
@@ -513,16 +522,20 @@ protected override void ConfigureOxSchema(OxSchemaOptionsBuilder schema)
 
 | method | declares |
 |---|---|
-| `DeclareReference<T>(wireMember, target, field = null, item = null, keyAs = None)` | An unconditional reference. `field` null means the target's key; `item` is the alternative to spelling the item path into `target`. |
-| `DeclareReferenceWhen<T>(wireMember, path, equals, field, params targets)` | One case, as `[OxQLReferenceWhen]` does; `path` is a sibling's wire name or `OxSchemaOptionsBuilder.Variant`. `field` is required when a target belongs to another service. |
+| `DeclareReference<T>(wireMember, target, field = null, item = null, keyAs = None)` | An unconditional reference. `field` null means the target's key, and only for a target of this service: a target in another service needs it, because this host cannot read that entity's key; without it no reference is emitted and the build logs `reference-target-field-unknown`, so a `lookup` or `resolve` on the member is refused as undeclared. `item` is the alternative to spelling the item path into `target`. |
+| `DeclareReferenceWhen<T>(wireMember, path, equals, field, params targets)` | One case, as `[OxQLReferenceWhen]` does; `path` is a sibling's wire name or `OxSchemaOptionsBuilder.Variant`. `field` is required when a target belongs to another service. It is positional before the targets: pass `null` for the targets' key rather than leaving it out, or the first target is taken for the field. A `field` spelt like a target (`entity#itemPath`) throws `ArgumentException`; a left-out field before a target without an item path cannot be told apart and binds as the field. |
 | `DeclareReferenceWhen<T>(wireMember, path, equals, field, keyAs, params targets)` | The same case with a key conversion. |
 
 A declaration applies to `T` and its variants wherever they are embedded, and never to another
 type that inherits the same CLR member. It reaches the one model both `/schema` and the query
 engine are built from, so the document and the engine agree. A member that gets both kinds of
 call, or also carries a reference attribute, keeps no reference and is logged as
-`reference-declaration-unresolved`. The declarations are copied when the options are built; a
-later call on the builder changes nothing.
+`reference-declaration-unresolved`. So is a declaration on a member `T` does not have (a
+misspelt wire name) or on a type the model does not describe, which changes nothing published.
+Declarations on a type and on one of its variants for the same member leave the type's member its
+reference and the variant's member none, logged the same way on the variant. None of these is
+refusing or published. The declarations are copied when the options are built; a later call on
+the builder changes nothing.
 
 ### 2.3 Descriptions, deprecations, constraints
 
@@ -636,7 +649,10 @@ independent costs:
 
 The last row are the model's format 1.1 codes. Each marks a member the document still describes
 (as `unknown`), a variant or a reference case it leaves out in a way its absence shows, so each is
-logged only. `reference-candidate-undeclared` is defined by the engine and not emitted yet.
+logged only. `reference-candidate-undeclared` is defined by the engine and not emitted yet. The
+same holds for every other code of the engine's model build that this table does not list, such
+as `reference-target-unknown`, `reference-target-field-unknown` and `retired-id-ambiguous`: a code
+the document does not share is never refusing and never published.
 
 **Refusing** is for ambiguity, where no reading of the document is correct. A host **fails
 fast** on a refusing finding in the `Development` and `Local` environments and under continuous
@@ -739,15 +755,30 @@ internal key, the forwarded organisation, user and correlation ids, and the cont
 identity is the one the engine scoped the parent query with.
 
 - `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry.
-  The batch, explain and health addresses are paths under it.
+  The batch, explain and health addresses are paths under it. `ApiVersionOf(service)` is its
+  version segment (the `InternalApiVersions` entry, else `v1`), the version an explain answer
+  names for the owner's route.
 - A batch's `maxTimeMs` is rewritten to the smaller positive of the engine's value and the time
-  the call is given, so the owner stops on its own before the caller stops waiting. A call
-  without a positive budget is bounded by 10 seconds; none waits on the HTTP client's timeout.
+  the call is given less a margin for the way there and back (a tenth of it, at most 250 ms), so a
+  single query stops at the owner before the caller stops waiting. The owner applies the value to
+  each query of the batch in turn, so a batch of several slow queries can still outlast the wait;
+  the caller then reports a timeout. A call without a positive budget is bounded by 10 seconds;
+  none waits on the HTTP client's timeout.
 - `ExplainAsync` posts the explain body and returns the owner's answer as written. An owner that
   answers anything but 200, cannot be reached or times out makes it throw; a service with no
   `InternalHosts` entry is a caller error (`InvalidOperationException`).
-- The owner's engine facts (`OwnerOf(service)`) are read from its shallow health answer when
-  reachability is probed, and are unknown until the first probe has run.
+- An owner's refusal (any answer but 200 to a batch or an explain) is quoted in the thrown
+  exception: the first error's `code` and `message` of the refusal body, else its `type` and
+  `title`. The log line names the route, the service, the status and the code only.
+- The owner's engine facts (`OwnerOf(service)`: engine version, contract, batch cap) are read from
+  its shallow health answer, both when `GET /OxQL/health` probes reachability and before the first
+  batch to an owner whose facts are unknown or stale. That read is bounded by the health budget
+  (2 s) and the call's own, is shared by concurrent calls, and never fails the batch; one that
+  learned nothing is not tried again within the time to live. Facts are kept for the health
+  probe's time to live (`OxQL:Cache:HealthProbeTtlSeconds`, 10 s by default) and are unknown
+  after it, so a rolled-back owner is not taken for the engine it ran before. A batch larger than
+  the owner's cap is sent as parts of that size at once, within the same bound, and its results
+  are concatenated in order.
 
 ### 4.3 The `OxQL` section
 

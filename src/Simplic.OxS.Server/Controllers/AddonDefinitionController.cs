@@ -14,7 +14,9 @@ namespace Simplic.OxS.Server.Controllers;
 /// entity's addon bag, each a hint about the kind the query engine filters and sorts the key
 /// as. Definitions are per organisation and owned by the service that stores the values.
 /// A definition's path and kind are immutable; labels and the value list may change; a
-/// retired definition stays as a row and its key is opaque again.
+/// retired definition stays as a row and its key is opaque again. An entity's definitions are
+/// the rows under its current id and under every id it retired; the API answers with the
+/// current id and moves a row it writes to it.
 /// </summary>
 [Authorize]
 [ApiController]
@@ -38,19 +40,21 @@ public class AddonDefinitionController : OxSController
     }
 
     /// <summary>
-    /// Gets every definition of one entity for the current organisation, retired ones flagged.
+    /// Gets every definition of one entity for the current organisation, retired ones flagged,
+    /// including the rows stored under an id the entity retired.
     /// </summary>
-    /// <param name="entity">The entity id (e.g. "logistics.shipment").</param>
+    /// <param name="entity">The entity id (e.g. "logistics.shipment"), current or retired.</param>
+    /// <param name="ct">The request's cancellation token.</param>
     [HttpGet("{entity}")]
     [ProducesResponseType(typeof(IEnumerable<AddonDefinitionResponse>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> GetByEntityAsync(string entity, CancellationToken ct)
     {
-        if (!schema.Model.Entities.ContainsKey(entity))
+        if (!schema.Model.TryResolve(entity, out _, out _))
             return NotFound();
 
-        var definitions = await repository.GetByEntityAsync(entity);
+        var definitions = await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null);
 
         return Ok(definitions.OrderBy(definition => definition.Path, StringComparer.Ordinal).Select(MapToResponse));
     }
@@ -59,6 +63,7 @@ public class AddonDefinitionController : OxSController
     /// Gets a single definition by its id.
     /// </summary>
     /// <param name="id">The definition id.</param>
+    /// <param name="ct">The request's cancellation token.</param>
     [HttpGet("by-id/{id:guid}")]
     [ActionName(nameof(GetByIdAsync))] // the route name Create points at; MVC would otherwise strip the Async suffix
     [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.OK)]
@@ -75,9 +80,11 @@ public class AddonDefinitionController : OxSController
     /// Creates a definition for the current organisation. Refused for an unknown or
     /// non-extendable entity, a malformed path, an unknown kind, a value list the kind does
     /// not allow, and a path that a defined scalar shadows or that would shadow one. A retired
-    /// definition of the same path and kind is revived instead of duplicated.
+    /// definition of the same path and kind, also one stored under a retired entity id, is
+    /// revived instead of duplicated. The definition is stored under the entity's current id.
     /// </summary>
     /// <param name="request">The create request.</param>
+    /// <param name="ct">The request's cancellation token.</param>
     [HttpPost]
     [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.Created)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
@@ -88,7 +95,9 @@ public class AddonDefinitionController : OxSController
         if (requestContext.OrganizationId is not { } organizationId)
             return Forbid();
 
-        if (AddonDefinitionRules.CheckEntity(schema.Model, request.Entity) is { } entityError)
+        var entity = AddonDefinitionSource.CurrentId(schema.Model, request.Entity);
+
+        if (AddonDefinitionRules.CheckEntity(schema.Model, entity) is { } entityError)
             return BadRequest(entityError);
 
         if (AddonDefinitionRules.CheckPath(request.Path) is { } pathError)
@@ -103,11 +112,11 @@ public class AddonDefinitionController : OxSController
         if (AddonDefinitionRules.CheckValues(kind, values) is { } valuesError)
             return BadRequest(valuesError);
 
-        var existing = (await repository.GetByEntityAsync(request.Entity)).ToList();
+        var existing = (await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null)).ToList();
         var same = existing.FirstOrDefault(definition => string.Equals(definition.Path, request.Path, StringComparison.Ordinal));
 
         if (same is { Retired: false })
-            return Conflict($"'{request.Path}' is already defined on '{request.Entity}'.");
+            return Conflict($"'{request.Path}' is already defined on '{entity}'.");
 
         if (same is not null && !string.Equals(same.Kind, request.Kind, StringComparison.Ordinal))
             return Conflict($"'{request.Path}' was defined as {same.Kind} and retired; a definition's kind is immutable.");
@@ -121,6 +130,7 @@ public class AddonDefinitionController : OxSController
         {
             // Revive the retired row rather than store a second definition of one path.
             definition = same;
+            definition.Entity = entity;
             definition.Retired = false;
             definition.Values = values;
             definition.DisplayName = request.DisplayName;
@@ -134,7 +144,7 @@ public class AddonDefinitionController : OxSController
             {
                 Id = Guid.NewGuid(),
                 OrganizationId = organizationId,
-                Entity = request.Entity,
+                Entity = entity,
                 Path = request.Path,
                 Kind = request.Kind,
                 Values = values,
@@ -148,7 +158,7 @@ public class AddonDefinitionController : OxSController
         }
 
         await repository.CommitAsync();
-        cache.Invalidate(organizationId, definition.Entity);
+        cache.Invalidate(organizationId, entity);
 
         return CreatedAtAction(nameof(GetByIdAsync), new { id = definition.Id }, MapToResponse(definition));
     }
@@ -158,6 +168,7 @@ public class AddonDefinitionController : OxSController
     /// </summary>
     /// <param name="id">The definition id.</param>
     /// <param name="request">The update request.</param>
+    /// <param name="ct">The request's cancellation token.</param>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
@@ -176,6 +187,7 @@ public class AddonDefinitionController : OxSController
         if (AddonDefinitionRules.CheckValues(kind, values) is { } valuesError)
             return BadRequest(valuesError);
 
+        definition.Entity = AddonDefinitionSource.CurrentId(schema.Model, definition.Entity);
         definition.Values = values;
         definition.DisplayName = request.DisplayName;
         definition.Description = request.Description;
@@ -191,6 +203,7 @@ public class AddonDefinitionController : OxSController
     /// Retires a definition: the row stays, the key is opaque again.
     /// </summary>
     /// <param name="id">The definition id.</param>
+    /// <param name="ct">The request's cancellation token.</param>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType((int)HttpStatusCode.NoContent)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
@@ -204,6 +217,7 @@ public class AddonDefinitionController : OxSController
 
         if (!definition.Retired)
         {
+            definition.Entity = AddonDefinitionSource.CurrentId(schema.Model, definition.Entity);
             definition.Retired = true;
 
             await repository.UpdateAsync(definition);
@@ -230,10 +244,11 @@ public class AddonDefinitionController : OxSController
             ? [.. values.Select(value => new AddonDefinitionValue { Value = value.Value, Label = value.Label })]
             : null;
 
-    private static AddonDefinitionResponse MapToResponse(AddonDefinitionDocument definition) => new()
+    /// <summary>The response of one definition, under its entity's current id.</summary>
+    private AddonDefinitionResponse MapToResponse(AddonDefinitionDocument definition) => new()
     {
         Id = definition.Id,
-        Entity = definition.Entity,
+        Entity = AddonDefinitionSource.CurrentId(schema.Model, definition.Entity),
         Path = definition.Path,
         Kind = definition.Kind,
         Values = definition.Values is { Count: > 0 } values

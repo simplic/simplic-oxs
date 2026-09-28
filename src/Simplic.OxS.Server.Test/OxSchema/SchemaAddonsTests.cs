@@ -1,10 +1,15 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using OxQL.Core.Models;
 using OxQL.Model.Addon;
 using Simplic.OxS.Server.Controller;
+using Simplic.OxS.Server.Controllers;
+using Simplic.OxS.Server.Controllers.Model;
+using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.Server.Services;
+using Simplic.OxS.ServiceDefinition;
 
 namespace Simplic.OxS.Server.Test.OxSchema
 {
@@ -155,6 +160,166 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var answer = await Endpoint(source, Organisation, tag).GetAddonsAsync(CancellationToken.None);
 
             answer.Should().BeOfType<StatusCodeResult>().Which.StatusCode.Should().Be(StatusCodes.Status304NotModified);
+        }
+
+        // ---- retired entity ids: the definitions are the union of the current and every retired id ----
+
+        /// <summary>The fixture host after renaming <c>probe.widget</c> twice.</summary>
+        private static readonly Lazy<OxSchemaRegistry> Renamed = new(() => SchemaBuild.Build(SchemaBuild.Options() with
+        {
+            RetiredEntityIds = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+            {
+                ["probe.widget"] = ["probe.gizmo", "probe.contraption"],
+            },
+        }));
+
+        private static AddonDefinitionDocument Stored(string entity, string path, string kind, bool retired = false) => new()
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = Organisation,
+            Entity = entity,
+            Path = path,
+            Kind = kind,
+            Retired = retired,
+        };
+
+        /// <summary>A repository over an in-memory list that answers any entity id and organisation.</summary>
+        private static Mock<IAddonDefinitionRepository> Repository(List<AddonDefinitionDocument> rows)
+        {
+            var repository = new Mock<IAddonDefinitionRepository>(MockBehavior.Strict);
+
+            repository.Setup(r => r.GetByEntityAsync(It.IsAny<string>(), It.IsAny<Guid?>()))
+                .ReturnsAsync((string entity, Guid? _) => rows.Where(row => row.Entity == entity).ToList());
+            repository.Setup(r => r.GetAsync(It.IsAny<Guid>(), It.IsAny<bool>()))
+                .ReturnsAsync((Guid id, bool _) => rows.FirstOrDefault(row => row.Id == id)!);
+            repository.Setup(r => r.CreateAsync(It.IsAny<AddonDefinitionDocument>()))
+                .Callback((AddonDefinitionDocument row) => rows.Add(row))
+                .Returns(Task.CompletedTask);
+            repository.Setup(r => r.UpdateAsync(It.IsAny<AddonDefinitionDocument>())).Returns(Task.CompletedTask);
+            repository.Setup(r => r.CommitAsync()).ReturnsAsync(1);
+
+            return repository;
+        }
+
+        private static AddonDefinitionController Api(Mock<IAddonDefinitionRepository> repository, AddonDefinitionCache cache) =>
+            new(repository.Object, new RequestContext { OrganizationId = Organisation }, Renamed.Value, cache)
+            {
+                ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+            };
+
+        [Fact]
+        public async Task Source_ReadsTheCurrentIdAndEveryRetiredId_AndAnswersUnderTheCurrentId()
+        {
+            var rows = new List<AddonDefinitionDocument>
+            {
+                Stored("probe.widget", "weight", "decimal"),
+                Stored("probe.widget", "shared", "string"),
+                Stored("probe.contraption", "shared", "int"),
+                Stored("probe.contraption", "gone", "bool", retired: true),
+                Stored("probe.gizmo", "legacy", "date"),
+            };
+            var repository = Repository(rows);
+            var source = new AddonDefinitionSource(repository.Object, new AddonDefinitionCache(new OxQLOptions()), Renamed.Value);
+
+            var definitions = await source.ForEntityAsync("probe.widget", Organisation, CancellationToken.None);
+
+            definitions.Select(definition => definition.Path).Should().Equal("weight", "shared", "gone", "legacy");
+            definitions.Should().OnlyContain(definition => definition.Entity == "probe.widget", "the engine binds the current id");
+            definitions.Single(definition => definition.Path == "shared").Kind.Should().Be(AddonKind.String, "a path under the current id wins over a retired id's");
+            definitions.Single(definition => definition.Path == "gone").Retired.Should().BeTrue();
+            definitions.Single(definition => definition.Path == "legacy").Kind.Should().Be(AddonKind.Date);
+
+            foreach (var id in new[] { "probe.widget", "probe.contraption", "probe.gizmo" })
+                repository.Verify(r => r.GetByEntityAsync(id, Organisation), Times.Once);
+        }
+
+        [Fact]
+        public async Task Source_AskedForARetiredId_ServesTheCurrentEntityFromOneCacheEntry()
+        {
+            var repository = Repository([Stored("probe.gizmo", "legacy", "date")]);
+            var cache = new AddonDefinitionCache(new OxQLOptions());
+            var source = new AddonDefinitionSource(repository.Object, cache, Renamed.Value);
+
+            var byRetired = await source.ForEntityAsync("probe.gizmo", Organisation, CancellationToken.None);
+            var byCurrent = await source.ForEntityAsync("probe.widget", Organisation, CancellationToken.None);
+
+            byCurrent.Should().BeSameAs(byRetired);
+            byRetired.Should().ContainSingle().Which.Entity.Should().Be("probe.widget");
+            cache.TryGet(Organisation, "probe.gizmo", out _).Should().BeFalse();
+            repository.Verify(r => r.GetByEntityAsync("probe.gizmo", Organisation), Times.Once);
+        }
+
+        [Fact]
+        public async Task BuildAsync_ThroughTheSource_PublishesRetiredIdDefinitionsUnderTheCurrentEntity()
+        {
+            var repository = Repository([Stored("probe.widget", "weight", "decimal"), Stored("probe.gizmo", "legacy", "date")]);
+            var source = new AddonDefinitionSource(repository.Object, new AddonDefinitionCache(new OxQLOptions()), Renamed.Value);
+
+            var result = await AddonDescriptors.BuildAsync(Renamed.Value.Model, source, Organisation, CancellationToken.None);
+
+            using var body = JsonDocument.Parse(result.Body);
+            body.RootElement.TryGetProperty("probe.gizmo", out _).Should().BeFalse();
+            body.RootElement.GetProperty("probe.widget").EnumerateArray()
+                .Select(descriptor => descriptor.GetProperty("name").GetString()).Should().Equal("legacy", "weight");
+        }
+
+        [Theory]
+        [InlineData("probe.widget")]
+        [InlineData("probe.gizmo")]
+        public async Task Api_GetByEntity_ListsTheUnionUnderTheCurrentId(string asked)
+        {
+            var repository = Repository([Stored("probe.widget", "weight", "decimal"), Stored("probe.gizmo", "legacy", "date")]);
+
+            var answer = await Api(repository, new AddonDefinitionCache(new OxQLOptions())).GetByEntityAsync(asked, CancellationToken.None);
+
+            var listed = answer.Should().BeOfType<OkObjectResult>().Subject.Value.Should().BeAssignableTo<IEnumerable<AddonDefinitionResponse>>().Subject.ToList();
+            listed.Select(definition => definition.Path).Should().Equal("legacy", "weight");
+            listed.Should().OnlyContain(definition => definition.Entity == "probe.widget");
+        }
+
+        [Fact]
+        public async Task Api_Create_RevivesARetiredRowOfARetiredIdAndMovesItToTheCurrentId()
+        {
+            var old = Stored("probe.gizmo", "weight", "decimal", retired: true);
+            var rows = new List<AddonDefinitionDocument> { old };
+            var cache = new AddonDefinitionCache(new OxQLOptions());
+            cache.Set(Organisation, "probe.widget", []);
+
+            var answer = await Api(Repository(rows), cache).CreateAsync(
+                new CreateAddonDefinitionRequest { Entity = "probe.gizmo", Path = "weight", Kind = "decimal" }, CancellationToken.None);
+
+            answer.Should().BeOfType<CreatedAtActionResult>().Which.Value.Should().BeOfType<AddonDefinitionResponse>().Which.Entity.Should().Be("probe.widget");
+            rows.Should().ContainSingle().Which.Should().BeSameAs(old);
+            old.Retired.Should().BeFalse();
+            old.Entity.Should().Be("probe.widget");
+            cache.TryGet(Organisation, "probe.widget", out _).Should().BeFalse("the write invalidates the entry the engine reads");
+        }
+
+        [Fact]
+        public async Task Api_Create_RefusesAPathLiveUnderARetiredId()
+        {
+            var rows = new List<AddonDefinitionDocument> { Stored("probe.contraption", "weight", "decimal") };
+
+            var answer = await Api(Repository(rows), new AddonDefinitionCache(new OxQLOptions())).CreateAsync(
+                new CreateAddonDefinitionRequest { Entity = "probe.widget", Path = "weight", Kind = "decimal" }, CancellationToken.None);
+
+            answer.Should().BeOfType<ConflictObjectResult>();
+            rows.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task Api_Delete_OfARetiredIdRow_InvalidatesTheCurrentEntity()
+        {
+            var old = Stored("probe.gizmo", "legacy", "date");
+            var cache = new AddonDefinitionCache(new OxQLOptions());
+            cache.Set(Organisation, "probe.widget", []);
+
+            var answer = await Api(Repository([old]), cache).DeleteAsync(old.Id, CancellationToken.None);
+
+            answer.Should().BeOfType<NoContentResult>();
+            old.Retired.Should().BeTrue();
+            old.Entity.Should().Be("probe.widget");
+            cache.TryGet(Organisation, "probe.widget", out _).Should().BeFalse();
         }
 
         [Fact]

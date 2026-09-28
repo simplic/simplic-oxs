@@ -1,10 +1,17 @@
 using System.Net;
+using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OxQL.AspNetCore;
+using OxQL.AspNetCore.Batch;
+using OxQL.Core.Engine;
+using OxQL.Core.Models;
 using Simplic.OxS.Server.Controller;
+using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.Test.OxSchema;
 using Simplic.OxS.Settings;
 
@@ -13,7 +20,7 @@ namespace Simplic.OxS.Server.Test.OxQL
     /// <summary>
     /// The guard of every internal controller, exercised through a running host: only the
     /// configured key passes, a host whose key is blank is closed, and a refusal never runs
-    /// the action.
+    /// the action; the OxQL internal batch and explain routes are guarded the same way.
     /// </summary>
     public sealed class HardeningInternalApiKeyTests
     {
@@ -109,6 +116,86 @@ namespace Simplic.OxS.Server.Test.OxQL
             calls.Count.Should().Be(0);
         }
 
+        private static Task<IHost> StartOxQLAsync(RecordingQueryService service) =>
+            HardeningTestHost.StartAsync([typeof(OxQLInternalController)], services =>
+            {
+                services.AddSingleton<IOxQLQueryService>(service);
+                services.AddSingleton(new OxQLOptions());
+                services.Configure<AuthSettings>(settings => settings.InternalApiKey = Key);
+            });
+
+        private static async Task<int> PostAsync(IHost host, string path, string body, string? authorization)
+        {
+            var context = await host.GetTestServer().SendAsync(request =>
+            {
+                request.Request.Method = HttpMethods.Post;
+                request.Request.Path = path;
+                request.Request.ContentType = "application/json";
+                request.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+
+                if (authorization is not null)
+                    request.Request.Headers.Authorization = authorization;
+            });
+
+            return context.Response.StatusCode;
+        }
+
+        private const string ExplainBody = """{"query":{"entityType":"vehicle.vehicle","pipeline":[]},"describe":[{"id":"d1","at":0,"prefix":"","usage":"match"}],"remote":"skip"}""";
+
+        private const string KeyedBatchBody = """{"queries":[{"entityType":"vehicle.vehicle","keyedBy":{"path":"id","keys":["c0ffee00-1111-2222-3333-444455556666"],"perKey":2},"pipeline":[]}],"maxTimeMs":250}""";
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("Bearer " + Key)]
+        [InlineData("i-api-key wrong")]
+        public async Task TheInternalExplain_WithoutTheKey_IsRefusedWithoutExplaining(string? authorization)
+        {
+            var service = new RecordingQueryService();
+            using var host = await StartOxQLAsync(service);
+
+            (await PostAsync(host, "/internal/oxql/explain", ExplainBody, authorization)).Should().Be((int)HttpStatusCode.Unauthorized);
+            service.Explains.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task TheInternalExplain_WithTheKey_ExplainsTheEnvelopeAsAnInternalCall()
+        {
+            var service = new RecordingQueryService();
+            using var host = await StartOxQLAsync(service);
+
+            (await PostAsync(host, "/internal/oxql/explain", ExplainBody, $"i-api-key {Key}")).Should().Be((int)HttpStatusCode.OK);
+
+            var (request, internalCall) = service.Explains.Should().ContainSingle().Subject;
+            internalCall.Should().BeTrue();
+            request.IsEnvelope.Should().BeTrue();
+            request.Remote.Should().Be(ExplainRequest.RemoteSkip);
+            request.Describe.Should().ContainSingle().Which["id"]!.GetValue<string>().Should().Be("d1");
+        }
+
+        [Fact]
+        public async Task TheInternalBatch_WithTheKey_HandsAKeyedFetchToTheServiceAsAnInternalCall()
+        {
+            var service = new RecordingQueryService();
+            using var host = await StartOxQLAsync(service);
+
+            (await PostAsync(host, "/internal/oxql/batch", KeyedBatchBody, $"i-api-key {Key}")).Should().Be((int)HttpStatusCode.OK);
+
+            var (batch, internalCall) = service.Batches.Should().ContainSingle().Subject;
+            internalCall.Should().BeTrue();
+            batch.MaxTimeMs.Should().Be(250);
+            batch.Queries.Should().ContainSingle().Which.KeyedBy.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task TheInternalBatch_WithoutTheKey_IsRefusedWithoutExecuting()
+        {
+            var service = new RecordingQueryService();
+            using var host = await StartOxQLAsync(service);
+
+            (await PostAsync(host, "/internal/oxql/batch", KeyedBatchBody, null)).Should().Be((int)HttpStatusCode.Unauthorized);
+            service.Batches.Should().BeEmpty();
+        }
+
         [Fact]
         public async Task TheCorrectKey_OnAControllerThatIsNotInternal_IsRefusedWithoutRunningTheAction()
         {
@@ -133,6 +220,48 @@ namespace Simplic.OxS.Server.Test.OxQL
 
         /// <summary>Records one executed action.</summary>
         public void Record() => Interlocked.Increment(ref count);
+    }
+
+    /// <summary>A query service that keeps every batch and explain it was handed, with the internal-call flag, and answers empty.</summary>
+    public sealed class RecordingQueryService : IOxQLQueryService
+    {
+        /// <summary>Every batch, in order.</summary>
+        public List<(BatchRequest Batch, bool InternalCall)> Batches { get; } = [];
+
+        /// <summary>Every explain, in order.</summary>
+        public List<(ExplainRequest Request, bool InternalCall)> Explains { get; } = [];
+
+        /// <inheritdoc/>
+        public Task<QueryOutcome> ExecuteAsync(QueryRequest request, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The internal routes never execute a single query.");
+
+        /// <inheritdoc/>
+        public Task<QueryOutcome> ExecuteAsync(QueryRequest request, int? maxTimeMs, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The internal routes never execute a single query.");
+
+        /// <inheritdoc/>
+        public Task<BatchOutcome> BatchAsync(BatchRequest batch, CancellationToken cancellationToken = default) =>
+            BatchAsync(batch, false, cancellationToken);
+
+        /// <inheritdoc/>
+        public Task<BatchOutcome> BatchAsync(BatchRequest batch, bool internalCall, CancellationToken cancellationToken = default)
+        {
+            Batches.Add((batch, internalCall));
+
+            return Task.FromResult<BatchOutcome>(new BatchOutcome.Success(new BatchResponse { Results = [.. batch.Queries.Select(_ => (JsonNode?)new JsonObject())] }));
+        }
+
+        /// <inheritdoc/>
+        public Task<ExplainOutcome> ExplainAsync(ExplainRequest request, CancellationToken cancellationToken = default) =>
+            ExplainAsync(request, false, cancellationToken);
+
+        /// <inheritdoc/>
+        public Task<ExplainOutcome> ExplainAsync(ExplainRequest request, bool internalCall, CancellationToken cancellationToken = default)
+        {
+            Explains.Add((request, internalCall));
+
+            return Task.FromResult<ExplainOutcome>(new ExplainOutcome.Success(ExplainResult.Invalid(EngineCapabilities.Contract, new ExplainEngine { Capabilities = [] }, [])));
+        }
     }
 
     /// <summary>An internal controller as a service writes one.</summary>

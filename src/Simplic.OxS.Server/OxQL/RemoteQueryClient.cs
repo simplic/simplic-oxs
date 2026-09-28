@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,12 +20,18 @@ namespace Simplic.OxS.Server.OxQL;
 /// Sends the query engine's remote resolve and semi-join batches to the service that owns the
 /// target entity: <c>POST http://{InternalHosts[ns]}/{ns}-api/{InternalApiVersions[ns]}/internal/oxql/batch</c>,
 /// where <c>ns</c> is the target entity's namespace, which is the owner's service name, which
-/// is the owner's api name. The internal key, the caller's user, organisation and correlation
-/// and the contract header travel on every call; the owner binds and scopes the batch as its
-/// own. A per-request message over a named <see cref="IHttpClientFactory"/> client, cancelled
-/// by the engine's token and its budget; never the shared-header internal client.
+/// is the owner's api name. The explain of a query's continued parts goes to the owner's
+/// <c>internal/oxql/explain</c> beside it. The internal key, the caller's user, organisation and
+/// correlation and the contract header travel on every call, and no other header; the owner
+/// binds and scopes the call as its own. A per-request message over a named
+/// <see cref="IHttpClientFactory"/> client, cancelled by the engine's token and its budget;
+/// never the shared-header internal client.
+/// <para>
+/// What the owner's shallow health says of it (engine version, contract, batch cap) is read
+/// where reachability is measured and kept per service (<see cref="IRemoteOwnerInfo"/>).
+/// </para>
 /// </summary>
-public sealed class RemoteQueryClient : IRemoteQueryClient
+public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 {
     /// <summary>The named client every call goes through.</summary>
     public const string HttpClientName = "OxQL.Remote";
@@ -37,7 +46,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     private static readonly TimeSpan HealthBudget = TimeSpan.FromSeconds(2);
 
     /// <summary>
-    /// The bound of a batch whose caller names no positive budget: the query engine's default
+    /// The bound of a call whose caller names no positive budget: the query engine's default
     /// ceiling for one request. No outbound call waits on the HTTP client's own timeout.
     /// </summary>
     internal TimeSpan FallbackBudget { get; set; } = TimeSpan.FromSeconds(10);
@@ -48,6 +57,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     private readonly string internalApiKey;
     private readonly IReadOnlyDictionary<string, string> hosts;
     private readonly IReadOnlyDictionary<string, string> versions;
+    private readonly ConcurrentDictionary<string, RemoteOwnerInfo> owners = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Creates the client. The hosts, the api versions and the internal key are read once,
@@ -76,8 +86,26 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
         versions = Map(configuration, ApiVersionsSection);
     }
 
+    /// <summary>
+    /// The owner's base route for a service key, <c>http://{host}/{ns}-api/{version}/</c> (the
+    /// version from <see cref="ApiVersionsSection"/>, else <c>v1</c>), or null when the host does
+    /// not know the service. Every owner route this client calls is a path under it.
+    /// </summary>
+    public string? RouteOf(string serviceKey)
+    {
+        if (serviceKey is null || !hosts.TryGetValue(serviceKey, out var host))
+            return null;
+
+        var version = versions.TryGetValue(serviceKey, out var configured) && !string.IsNullOrWhiteSpace(configured) ? configured : DefaultApiVersion;
+
+        return $"http://{host}/{serviceKey}-api/{version}/";
+    }
+
     /// <summary>The owner's batch route for a service key, or null when the host does not know the service.</summary>
     public string? BatchUrl(string serviceKey) => Url(serviceKey, "internal/oxql/batch");
+
+    /// <summary>The owner's internal explain route for a service key, or null when the host does not know the service.</summary>
+    public string? ExplainUrl(string serviceKey) => Url(serviceKey, "internal/oxql/explain");
 
     /// <summary>
     /// The owner's health route for a service key, or null when the host does not know the
@@ -89,62 +117,76 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
     /// <inheritdoc/>
     public bool IsConfigured(string serviceKey) => serviceKey is not null && hosts.ContainsKey(serviceKey);
 
+    /// <summary>
+    /// Executes a batch at the owner. The body's <c>maxTimeMs</c> is the owner's ceiling: the
+    /// smaller of the one the engine wrote and the time this call is given, so the owner stops on
+    /// its own before this side stops waiting for it.
+    /// </summary>
     /// <inheritdoc/>
     public async Task<BatchResponse> BatchAsync(string serviceKey, BatchRequest request, TimeSpan budget, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var url = BatchUrl(serviceKey) ?? throw new InvalidOperationException($"No '{HostsSection}' entry for '{serviceKey}'; the service is not configured on this host.");
+        var address = AddressOf(serviceKey, BatchUrl(serviceKey), "batch");
+        var bound = budget > TimeSpan.Zero ? budget : FallbackBudget;
+        var ceiling = Ceiling(request.MaxTimeMs, bound);
+        var body = request.MaxTimeMs == ceiling ? request : request with { MaxTimeMs = ceiling };
 
-        // A host entry that does not form an address is an owner that cannot be reached, and
-        // surfaces as the transport failure every other unreachable owner surfaces as.
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var address))
-        {
-            logger.LogWarning("OxQL remote batch to {Service} was not sent: its '{Section}' entry does not form a valid address", serviceKey, HostsSection);
-
-            throw new HttpRequestException($"The '{HostsSection}' entry for '{serviceKey}' does not form a valid address.");
-        }
-
-        using var message = new HttpRequestMessage(HttpMethod.Post, address)
-        {
-            Content = JsonContent.Create(request, options: OxQLJson.Wire),
-        };
-
-        await ForwardAsync(message, cancellationToken);
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-        timeout.CancelAfter(budget > TimeSpan.Zero ? budget : FallbackBudget);
-
-        using var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogWarning("OxQL remote batch to {Service} answered {Status}", serviceKey, (int)response.StatusCode);
-
-            throw new HttpRequestException($"The owner of '{serviceKey}' answered {(int)response.StatusCode} to the internal batch.", null, response.StatusCode);
-        }
+        using var timeout = Timeout(bound, cancellationToken);
+        using var response = await SendAsync(serviceKey, address, body, "batch", timeout.Token, cancellationToken);
 
         return await response.Content.ReadFromJsonAsync<BatchResponse>(OxQLJson.Wire, timeout.Token)
             ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal batch with an empty body.");
     }
 
+    /// <summary>
+    /// Explains a request at the owner over its internal explain route, the same body as the public
+    /// <c>POST /oxql/explain</c>, and answers the owner's answer as written. An owner that answers
+    /// anything but 200 (404 while its explain is switched off, 401 on a wrong key) throws, as an
+    /// unreachable or timed-out owner does.
+    /// </summary>
+    /// <inheritdoc/>
+    public async Task<JsonObject?> ExplainAsync(string serviceKey, ExplainRequest request, TimeSpan budget, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var address = AddressOf(serviceKey, ExplainUrl(serviceKey), "explain");
+        var bound = budget > TimeSpan.Zero ? budget : FallbackBudget;
+
+        using var timeout = Timeout(bound, cancellationToken);
+        using var response = await SendAsync(serviceKey, address, request, "explain", timeout.Token, cancellationToken);
+
+        return await response.Content.ReadFromJsonAsync<JsonNode>(OxQLJson.Wire, timeout.Token) as JsonObject
+            ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal explain without an answer object.");
+    }
+
+    /// <inheritdoc/>
+    public RemoteOwnerInfo? OwnerOf(string serviceKey) =>
+        serviceKey is not null && owners.TryGetValue(serviceKey, out var info) ? info : null;
+
+    /// <summary>
+    /// Whether the owner's shallow health answers; a success also keeps what that health says of
+    /// the owner, for <see cref="OwnerOf"/>.
+    /// </summary>
     /// <inheritdoc/>
     public async Task<bool> IsReachableAsync(string serviceKey, CancellationToken cancellationToken)
     {
         if (HealthUrl(serviceKey) is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out var address))
             return false;
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-        timeout.CancelAfter(HealthBudget);
+        using var timeout = Timeout(HealthBudget, cancellationToken);
 
         try
         {
             using var message = new HttpRequestMessage(HttpMethod.Get, address);
             using var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
 
-            return response.IsSuccessStatusCode;
+            if (!response.IsSuccessStatusCode)
+                return false;
+
+            await RememberAsync(serviceKey, response, timeout.Token);
+
+            return true;
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
@@ -152,14 +194,88 @@ public sealed class RemoteQueryClient : IRemoteQueryClient
         }
     }
 
-    private string? Url(string serviceKey, string path)
+    /// <summary>The smaller positive of the engine's ceiling and the call's bound, in whole milliseconds (at least one).</summary>
+    internal static int Ceiling(int? requested, TimeSpan bound)
     {
-        if (serviceKey is null || !hosts.TryGetValue(serviceKey, out var host))
-            return null;
+        var available = (int)Math.Clamp(Math.Ceiling(bound.TotalMilliseconds), 1, int.MaxValue);
 
-        var version = versions.TryGetValue(serviceKey, out var configured) && !string.IsNullOrWhiteSpace(configured) ? configured : DefaultApiVersion;
+        return requested is > 0 and var value ? Math.Min(value, available) : available;
+    }
 
-        return $"http://{host}/{serviceKey}-api/{version}/{path}";
+    /// <summary>
+    /// Keeps what the owner's shallow health says of it. A body that is not the health answer
+    /// leaves what was known before: the owner answered, so it is reachable either way.
+    /// </summary>
+    private async Task RememberAsync(string serviceKey, HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var health = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+
+            if (RemoteOwnerInfo.FromShallowHealth(health) is { } info)
+                owners[serviceKey] = info;
+        }
+        catch (JsonException exception)
+        {
+            logger.LogWarning(exception, "OxQL owner {Service} answered its health with a body that is not JSON; its engine facts stay as they were", serviceKey);
+        }
+    }
+
+    private string? Url(string serviceKey, string path) => RouteOf(serviceKey) is { } route ? route + path : null;
+
+    /// <summary>
+    /// The address of an owner route. An unknown service is a caller error; a host entry that
+    /// does not form an address is an owner that cannot be reached, and surfaces as the transport
+    /// failure every other unreachable owner surfaces as.
+    /// </summary>
+    private Uri AddressOf(string serviceKey, string? url, string route)
+    {
+        if (url is null)
+            throw new InvalidOperationException($"No '{HostsSection}' entry for '{serviceKey}'; the service is not configured on this host.");
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var address))
+        {
+            logger.LogWarning("OxQL remote {Route} to {Service} was not sent: its '{Section}' entry does not form a valid address", route, serviceKey, HostsSection);
+
+            throw new HttpRequestException($"The '{HostsSection}' entry for '{serviceKey}' does not form a valid address.");
+        }
+
+        return address;
+    }
+
+    /// <summary>
+    /// Posts <paramref name="body"/> with the forwarded headers, cancelled by <paramref name="bounded"/>;
+    /// an answer other than a success throws. The caller disposes the response.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendAsync<T>(string serviceKey, Uri address, T body, string route, CancellationToken bounded, CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, address)
+        {
+            Content = JsonContent.Create(body, options: OxQLJson.Wire),
+        };
+
+        await ForwardAsync(message, cancellationToken);
+
+        var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded);
+
+        if (response.IsSuccessStatusCode)
+            return response;
+
+        var status = response.StatusCode;
+
+        response.Dispose();
+        logger.LogWarning("OxQL remote {Route} to {Service} answered {Status}", route, serviceKey, (int)status);
+
+        throw new HttpRequestException($"The owner of '{serviceKey}' answered {(int)status} to the internal {route}.", null, status);
+    }
+
+    private static CancellationTokenSource Timeout(TimeSpan bound, CancellationToken cancellationToken)
+    {
+        var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        timeout.CancelAfter(bound);
+
+        return timeout;
     }
 
     /// <summary>

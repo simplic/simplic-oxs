@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,13 +18,16 @@ using Simplic.OxS.Settings;
 
 namespace Simplic.OxS.Server.Test.OxQL
 {
-    /// <summary>The internal batch route: admitted by the internal api key only, executed by the shared query service.</summary>
+    /// <summary>
+    /// The internal batch and explain routes: admitted by the internal api key only, served by the
+    /// shared query service as an internal call, which alone may carry the keyed fetch's <c>keyedBy</c>.
+    /// </summary>
     public sealed class OxQLInternalControllerTests
     {
         private const string Key = "0e46ea43-6b5e-4b31-8008-95df146cf97d";
 
-        private static OxQLInternalController Controller(IOxQLQueryService service) =>
-            new(service, NullLogger<OxQLInternalController>.Instance)
+        private static OxQLInternalController Controller(IOxQLQueryService service, OxQLOptions? options = null) =>
+            new(service, options ?? new OxQLOptions(), NullLogger<OxQLInternalController>.Instance)
             {
                 ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
             };
@@ -51,6 +55,8 @@ namespace Simplic.OxS.Server.Test.OxQL
                 .Cast<RouteAttribute>().Single().Template.Should().Be("internal/oxql");
             typeof(OxQLInternalController).GetMethod(nameof(OxQLInternalController.BatchAsync))!
                 .GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>().Single().Template.Should().Be("batch");
+            typeof(OxQLInternalController).GetMethod(nameof(OxQLInternalController.ExplainAsync))!
+                .GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>().Single().Template.Should().Be("explain");
             typeof(OxQLInternalController).GetCustomAttributes(typeof(ApiExplorerSettingsAttribute), false)
                 .Cast<ApiExplorerSettingsAttribute>().Single().IgnoreApi.Should().BeTrue();
             typeof(OxQLInternalController).GetCustomAttributes(typeof(AuthorizeInternalApiKeyAttribute), true).Should().NotBeEmpty();
@@ -98,7 +104,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             var batch = new BatchRequest { Queries = [] };
             var response = new BatchResponse { Results = [new JsonObject { ["items"] = new JsonArray() }] };
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
-            service.Setup(s => s.BatchAsync(batch, It.IsAny<CancellationToken>())).ReturnsAsync(new BatchOutcome.Success(response));
+            service.Setup(s => s.BatchAsync(batch, true, It.IsAny<CancellationToken>())).ReturnsAsync(new BatchOutcome.Success(response));
 
             var answer = await Controller(service.Object).BatchAsync(batch, CancellationToken.None);
 
@@ -111,13 +117,74 @@ namespace Simplic.OxS.Server.Test.OxQL
             var batch = new BatchRequest { Queries = [] };
             var refusal = Refusal.Validation([new QueryValidationError { Code = "BATCH_TOO_LARGE", Message = "too many" }]);
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
-            service.Setup(s => s.BatchAsync(batch, It.IsAny<CancellationToken>())).ReturnsAsync(new BatchOutcome.Refused(refusal));
+            service.Setup(s => s.BatchAsync(batch, true, It.IsAny<CancellationToken>())).ReturnsAsync(new BatchOutcome.Refused(refusal));
 
             var answer = await Controller(service.Object).BatchAsync(batch, CancellationToken.None);
 
             var result = answer.Should().BeOfType<ObjectResult>().Subject;
             result.StatusCode.Should().Be(refusal.Status);
             result.Value.Should().BeSameAs(refusal);
+        }
+
+        [Fact]
+        public async Task Batch_RunsAsAnInternalCall_SoAKeyedFetchReachesTheService()
+        {
+            var keyed = JsonSerializer.Deserialize<QueryRequest>(
+                """{"entityType":"vehicle.vehicle","keyedBy":{"path":"id","keys":["0e46ea43-6b5e-4b31-8008-95df146cf97d"],"perKey":2},"pipeline":[]}""",
+                OxQLJson.Wire)!;
+            var batch = new BatchRequest { Queries = [keyed], MaxTimeMs = 250 };
+            var response = new BatchResponse { Results = [] };
+
+            // Strict: the public overload (internalCall false, or the one without the flag) is never called.
+            var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
+            service.Setup(s => s.BatchAsync(batch, true, It.IsAny<CancellationToken>())).ReturnsAsync(new BatchOutcome.Success(response));
+
+            var answer = await Controller(service.Object).BatchAsync(batch, CancellationToken.None);
+
+            answer.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeSameAs(response);
+            keyed.KeyedBy.Should().NotBeNull();
+            service.Verify(s => s.BatchAsync(batch, true, It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task Explain_AnswersTheQueryServicesAnswer_AsAnInternalCall()
+        {
+            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] }, Remote = ExplainRequest.RemoteSkip, IsEnvelope = true };
+            var result = ExplainResult.Invalid(2, new ExplainEngine { Capabilities = [] }, [new QueryValidationError { Code = "UNKNOWN_PATH", Message = "no such path" }]);
+            var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
+            service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainOutcome.Success(result));
+
+            var answer = await Controller(service.Object).ExplainAsync(request, CancellationToken.None);
+
+            answer.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeSameAs(result);
+        }
+
+        [Fact]
+        public async Task Explain_AnswersARefusalWithItsStatus()
+        {
+            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } };
+            var refusal = Refusal.Validation([new QueryValidationError { Code = "REQUEST_TOO_LARGE", Message = "too many describes" }]);
+            var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
+            service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainOutcome.Refused(refusal));
+
+            var answer = await Controller(service.Object).ExplainAsync(request, CancellationToken.None);
+
+            var objectResult = answer.Should().BeOfType<ObjectResult>().Subject;
+            objectResult.StatusCode.Should().Be(refusal.Status);
+            objectResult.Value.Should().BeSameAs(refusal);
+        }
+
+        [Fact]
+        public async Task Explain_WhileExplainIsSwitchedOff_Is404WithoutCallingTheService()
+        {
+            var options = new OxQLOptions();
+            options.Explain.Enabled = false;
+            var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
+
+            var answer = await Controller(service.Object, options).ExplainAsync(new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } }, CancellationToken.None);
+
+            answer.Should().BeOfType<NotFoundResult>();
+            service.VerifyNoOtherCalls();
         }
     }
 }

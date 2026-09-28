@@ -204,7 +204,9 @@ namespace Simplic.OxS.Server
 
             // ── OxQL ASP.NET Core controller ────────────────────────────────────────
             // Routes: POST /oxql/query, POST /oxql/batch, GET /oxql/health, POST /oxql/explain
-            // (404 unless OxQL:Explain:Enabled). Authenticated like every other controller.
+            // (on unless OxQL:Explain:Enabled is false, then 404). Authenticated like every other
+            // controller. Their internal twins (internal/oxql/batch, internal/oxql/explain) are
+            // OxQLInternalController's, admitted by the internal api key.
             // Whether its remote reference check stops the host under continuous integration
             // is the schema's decision (AddOxSchema), so both checks fail fast on one value.
             Console.WriteLine("Add OxQL ASP.NET Core");
@@ -221,20 +223,14 @@ namespace Simplic.OxS.Server
 
             // ── Remote resolve ──────────────────────────────────────────────────────
             // Resolves and semi-joins into an entity another service owns go to that owner's
-            // internal batch route (InternalHosts / InternalApiVersions), one message per call.
+            // internal batch route (InternalHosts / InternalApiVersions), one message per call;
+            // explain checks the parts continued there at the owner's internal explain route.
             services.AddHttpClient(RemoteQueryClient.HttpClientName);
             services.AddSingleton<IRemoteQueryClient, RemoteQueryClient>();
 
             // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
             Console.WriteLine("Add OxQL Studio");
-            services.AddOxQLStudio(options =>
-            {
-                options.RoutePath = $"/{ApiName}/{ApiVersion}/oxql";
-                options.ApiBasePath = "/oxql";  // full browser-visible path (includes path base)
-                options.SchemaBasePath = "/schema";
-                options.Title = "OxQL Studio";
-                options.EnableExplain = Configuration.GetValue<bool>("OxQL:Explain:Enabled");
-            });
+            services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
 
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>
@@ -452,6 +448,22 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns>Settings configuration action or null</returns>
         protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
+
+        /// <summary>
+        /// The OxQL Studio console's options. Every path is relative to the path base
+        /// (<c>/{ApiName}/{ApiVersion}</c>), which the console prefixes itself: the console at
+        /// <c>{pathBase}/oxql</c>, beside the API it calls (<c>{pathBase}/oxql/query</c>, …) and the
+        /// schema it reads (<c>{pathBase}/schema</c>). Its Explain button follows the engine's
+        /// <c>OxQL:Explain:Enabled</c>, which is on unless configured off.
+        /// </summary>
+        internal static void ConfigureOxQLStudio(OxQLStudioOptions options, IConfiguration configuration)
+        {
+            options.RoutePath = "/oxql";
+            options.ApiBasePath = "/oxql";
+            options.SchemaBasePath = "/schema";
+            options.Title = "OxQL Studio";
+            options.EnableExplain = configuration.GetValue("OxQL:Explain:Enabled", true);
+        }
 
         /// <summary>
         /// Will be called for registering custom services.

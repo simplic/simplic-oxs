@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 namespace Simplic.OxS.Server.OxSchema
 {
     /// <summary>
-    /// Checks the finished pool: id grammar, property-name grammar and pointer integrity. Over the
+    /// Checks the finished pool: id grammar, property-name grammar and pointer integrity (every
+    /// property's pointers, snapshot sources and every variant's pointer). Over the
     /// document rather than the CLR graph, because the document is the artefact with the contract.
     /// </summary>
     internal static partial class DocumentValidator
@@ -71,6 +72,13 @@ namespace Simplic.OxS.Server.OxSchema
                                 $"{path} -> {source}",
                                 "The snapshot source is not an entity of this document, so this member cannot be resolved.");
                 }
+
+                foreach (var variant in entry.Variants ?? [])
+                    if (!pool.ContainsKey(OxSchemaPointer.Strip(variant.Type)))
+                        findings.Add(
+                            OxSchemaCodes.DanglingTypePointer,
+                            $"{id} -> {variant.Type}",
+                            $"The variant '{variant.Name}' points at no pool entry, so a value stored as it cannot be resolved.");
             }
         }
     }

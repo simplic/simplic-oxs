@@ -67,7 +67,12 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         /// <param name="wireMember">The member's wire name, e.g. <c>id</c>.</param>
         /// <param name="target">The target entity id, or <c>entity#itemPath</c> for an element of one of its arrays.</param>
-        /// <param name="field">The path the value matches; null for the target's key.</param>
+        /// <param name="field">
+        /// The path the value matches. Null for the target's key, only for a target of this
+        /// service: a target in another service needs it, because this host cannot read that
+        /// entity's key; without it no reference is emitted and the build logs
+        /// <c>reference-target-field-unknown</c>.
+        /// </param>
         /// <param name="item">The item path, as the alternative to spelling it into <paramref name="target"/>.</param>
         /// <param name="keyAs">How a stored string becomes the target's key.</param>
         /// <remarks>
@@ -75,8 +80,11 @@ namespace Simplic.OxS.Server.OxSchema
         /// or also carries a reference attribute, keeps no reference and is logged as
         /// <c>reference-declaration-unresolved</c>.
         /// </remarks>
+        /// <exception cref="ArgumentException"><paramref name="field"/> is spelt like a target (<c>entity#itemPath</c>).</exception>
         public OxSchemaOptionsBuilder DeclareReference<T>(string wireMember, string target, string? field = null, string? item = null, OxQLKeyAs keyAs = OxQLKeyAs.None)
         {
+            RejectTargetAsField(field);
+
             references.For<T>(wireMember).To(target, field, item, keyAs);
 
             return this;
@@ -93,8 +101,13 @@ namespace Simplic.OxS.Server.OxSchema
         /// <param name="wireMember">The member's wire name, e.g. <c>id</c>.</param>
         /// <param name="path">The sibling's wire name, or <see cref="Variant"/>.</param>
         /// <param name="equals">The value the sibling is compared with exactly, or the variant name.</param>
-        /// <param name="field">The path the value matches; required when a target is another service's.</param>
+        /// <param name="field">
+        /// The path the value matches; required when a target is another service's. Positional
+        /// before the targets: pass null for the targets' key rather than leaving it out, or the
+        /// first target is taken for the field.
+        /// </param>
         /// <param name="targets">The targets, each <c>entity</c> or <c>entity#itemPath</c>.</param>
+        /// <exception cref="ArgumentException"><paramref name="field"/> is spelt like a target (<c>entity#itemPath</c>), the sign of a left-out field.</exception>
         public OxSchemaOptionsBuilder DeclareReferenceWhen<T>(string wireMember, string path, string equals, string? field, params string[] targets) =>
             DeclareReferenceWhen<T>(wireMember, path, equals, field, OxQLKeyAs.None, targets);
 
@@ -105,6 +118,7 @@ namespace Simplic.OxS.Server.OxSchema
         public OxSchemaOptionsBuilder DeclareReferenceWhen<T>(string wireMember, string path, string equals, string? field, OxQLKeyAs keyAs, params string[] targets)
         {
             ArgumentNullException.ThrowIfNull(targets);
+            RejectTargetAsField(field);
 
             references.For<T>(wireMember).When(path, equals, targets, field, keyAs);
 
@@ -131,6 +145,18 @@ namespace Simplic.OxS.Server.OxSchema
                 RetiredEntityIds = new Dictionary<string, IReadOnlyList<string>>(retired, StringComparer.Ordinal),
                 ReferenceDeclarations = Snapshot(references),
             };
+        }
+
+        /// <summary>
+        /// Refuses a field spelt like a target. A path never holds <c>#</c>, an item target does:
+        /// such a field is a target that took the field's position, and the reference would lose it.
+        /// </summary>
+        private static void RejectTargetAsField(string? field)
+        {
+            if (field is not null && field.Contains('#', StringComparison.Ordinal))
+                throw new ArgumentException(
+                    $"The field '{field}' is spelt like a target (entity#itemPath). Pass the field, or null for the target's key, before the targets.",
+                    nameof(field));
         }
 
         /// <summary>A copy of the declarations, so a later call on this builder cannot change options already built.</summary>

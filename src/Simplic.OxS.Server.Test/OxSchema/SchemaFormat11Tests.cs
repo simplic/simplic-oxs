@@ -222,15 +222,52 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 "{\"name\":\"Cash\",\"value\":0,\"active\":true,\"description\":\"A cash book.\"}");
         }
 
+        /// <summary>The string constants of a codes class.</summary>
+        private static IReadOnlyList<string> CodesOf(Type codes) =>
+            [.. codes.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+                .Select(field => (string)field.GetRawConstantValue()!)];
+
         [Fact]
-        public void Build_ModelFormat11Codes_AreLogOnly()
+        public void Build_ModelCodesTheDocumentDoesNotShare_AreLogOnly()
         {
-            ModelFindings.LogOnly.Should().OnlyContain(code => !OxSchemaCodes.Refuses(code) && !OxSchemaCodes.IsPublished(code));
+            var own = CodesOf(typeof(BuildCodes)).Except(CodesOf(typeof(OxSchemaCodes)), StringComparer.Ordinal).ToList();
+
+            own.Should().Contain([BuildCodes.PolymorphicSubtypeUnregistered, BuildCodes.ReferenceTargetFieldUnknown, BuildCodes.RetiredIdAmbiguous, BuildCodes.ReferenceTargetUnknown]);
+            own.Should().OnlyContain(code => !OxSchemaCodes.Refuses(code) && !OxSchemaCodes.IsPublished(code));
 
             var registry = SchemaBuild.Degraded;
 
             registry.Findings.Should().Contain(finding => finding.Code == BuildCodes.PolymorphicSubtypeUnregistered && finding.Target == "probe.base");
-            registry.Document.Diagnostics!.Select(diagnostic => diagnostic.Code).Should().NotContain(ModelFindings.LogOnly);
+            registry.Document.Diagnostics!.Select(diagnostic => diagnostic.Code).Should().NotContain(own);
+        }
+
+        [Fact]
+        public void Validate_AVariantPointerWithoutAPoolEntry_IsADanglingPointer()
+        {
+            var pool = new Dictionary<string, OxSchemaType>(StringComparer.Ordinal)
+            {
+                ["t_entry"] = new()
+                {
+                    Kind = "object",
+                    Properties = [],
+                    Discriminator = new OxSchemaDiscriminator { Element = "_t", Form = OxSchemaDiscriminatorForms.Scalar },
+                    Variants =
+                    [
+                        new OxSchemaVariant { Name = "GroupEntry", Type = "#/types/t_groupEntry" },
+                        new OxSchemaVariant { Name = "LineEntry", Type = "#/types/t_lineEntry" },
+                    ],
+                },
+                ["t_lineEntry"] = new() { Kind = "object", Properties = [] },
+            };
+            var findings = new FindingCollector();
+
+            DocumentValidator.Inspect(pool, findings);
+
+            var finding = findings.Sorted().Should().ContainSingle().Subject;
+            finding.Code.Should().Be(OxSchemaCodes.DanglingTypePointer);
+            finding.Target.Should().Be("t_entry -> #/types/t_groupEntry");
+            finding.Refuses.Should().BeTrue();
         }
 
         [Fact]
@@ -302,6 +339,108 @@ namespace Simplic.OxS.Server.Test.OxSchema
             finding.Code.Should().Be(OxSchemaCodes.ReferenceDeclarationUnresolved);
             finding.Published.Should().BeFalse();
             finding.Refuses.Should().BeFalse();
+        }
+
+        [Fact]
+        public void DeclareReference_ToAnotherServiceWithoutAField_EmitsNoReferenceAndLogsTheMissingField()
+        {
+            var registry = SchemaBuild.Build(Builder().DeclareReference<Party>("id", "staff.employee").Build());
+
+            registry.Document.Property("t_party", "id").References.Should().BeNull();
+            registry.Document.Property("t_party", "id").ReferenceCases.Should().BeNull();
+
+            var finding = registry.Findings.Single(finding => finding.Code == BuildCodes.ReferenceTargetFieldUnknown);
+
+            finding.Target.Should().Be("t_party#id");
+            finding.Published.Should().BeFalse();
+            finding.Refuses.Should().BeFalse();
+        }
+
+        [Fact]
+        public void DeclareReference_ToAnotherServiceWithAField_PublishesTheSimpleReference()
+        {
+            var registry = SchemaBuild.Build(Builder().DeclareReference<Party>("id", "staff.employee", field: "id").Build());
+
+            registry.Document.Property("t_party", "id").References
+                .Should().Be(new OxSchemaReference { Entity = "staff.employee", Field = "id", Joinable = true, Inferred = false });
+            registry.Findings.Should().NotContain(finding => finding.Code == BuildCodes.ReferenceTargetFieldUnknown);
+        }
+
+        /// <summary>The findings of <paramref name="registry"/> the fixture host without declarations does not have.</summary>
+        private static IReadOnlyList<OxSchemaFinding> Added(OxSchemaRegistry registry) =>
+            [.. registry.Findings.Where(finding => !SchemaBuild.Degraded.Findings.Any(known => known.Code == finding.Code && known.Target == finding.Target))];
+
+        [Fact]
+        public void DeclareReference_OnAMisspeltWireMember_LogsTheDeclarationAndLeavesTheDocument()
+        {
+            var registry = SchemaBuild.Build(Builder().DeclareReference<Party>("idd", "probe.thing").Build());
+
+            var finding = Added(registry).Should().ContainSingle().Subject;
+
+            finding.Code.Should().Be(OxSchemaCodes.ReferenceDeclarationUnresolved);
+
+            finding.Target.Should().Be("t_party#idd");
+            finding.Published.Should().BeFalse();
+            finding.Refuses.Should().BeFalse();
+            registry.Revision.Should().Be(SchemaBuild.Degraded.Revision, "a declaration that resolves to nothing changes nothing published");
+        }
+
+        /// <summary>A type no entity of the fixture host embeds, so the model does not describe it.</summary>
+        private sealed class Unpooled
+        {
+            public Guid Id { get; set; }
+        }
+
+        [Fact]
+        public void DeclareReference_OnATypeTheModelDoesNotDescribe_LogsTheDeclarationAndLeavesTheDocument()
+        {
+            var registry = SchemaBuild.Build(Builder().DeclareReference<Unpooled>("id", "probe.thing").Build());
+
+            var finding = Added(registry).Should().ContainSingle().Subject;
+
+            finding.Code.Should().Be(OxSchemaCodes.ReferenceDeclarationUnresolved);
+
+            finding.Published.Should().BeFalse();
+            finding.Refuses.Should().BeFalse();
+            registry.Revision.Should().Be(SchemaBuild.Degraded.Revision);
+        }
+
+        [Fact]
+        public void DeclareReference_OnATypeAndItsVariant_KeepsTheTypesAndLogsTheVariantsConflict()
+        {
+            var registry = SchemaBuild.Build(Builder()
+                .DeclareReference<Entry>("id", "probe.thing")
+                .DeclareReference<LineEntry>("id", "probe.gadget")
+                .Build());
+
+            var finding = Added(registry).Should().ContainSingle().Subject;
+
+            finding.Code.Should().Be(OxSchemaCodes.ReferenceDeclarationUnresolved);
+            finding.Target.Should().Be("t_lineEntry#id");
+            finding.Published.Should().BeFalse();
+            finding.Refuses.Should().BeFalse();
+            registry.Document.Property("t_entry", "id").References
+                .Should().Be(new OxSchemaReference { Entity = "probe.thing", Field = "id", Joinable = true, Inferred = false });
+            registry.Document.Property("t_lineEntry", "id").References.Should().BeNull("two declarations reach the variant's member, so it keeps neither");
+            registry.Document.Property("t_lineEntry", "id").ReferenceCases.Should().BeNull();
+        }
+
+        [Theory]
+        [InlineData("transport.shipment#billingLines")]
+        [InlineData("probe.widget#slots")]
+        public void DeclareReferenceWhen_WithATargetInTheFieldsPosition_Throws(string misplaced)
+        {
+            var declare = () => Builder().DeclareReferenceWhen<Party>("id", "externalKind", "logistics", misplaced, "transport.tour#billingLines");
+
+            declare.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("field");
+        }
+
+        [Fact]
+        public void DeclareReference_WithATargetInTheFieldsPosition_Throws()
+        {
+            var declare = () => Builder().DeclareReference<Party>("id", "probe.widget", "probe.widget#slots");
+
+            declare.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("field");
         }
 
         [Fact]

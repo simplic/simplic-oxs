@@ -756,29 +756,34 @@ identity is the one the engine scoped the parent query with.
 
 - `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry.
   The batch, explain and health addresses are paths under it. `ApiVersionOf(service)` is its
-  version segment (the `InternalApiVersions` entry, else `v1`), the version an explain answer
-  names for the owner's route.
-- A batch's `maxTimeMs` is rewritten to the smaller positive of the engine's value and the time
-  the call is given less a margin for the way there and back (a tenth of it, at most 250 ms), so a
-  single query stops at the owner before the caller stops waiting. The owner applies the value to
-  each query of the batch in turn, so a batch of several slow queries can still outlast the wait;
-  the caller then reports a timeout. A call without a positive budget is bounded by 10 seconds;
-  none waits on the HTTP client's timeout.
+  version segment (the `InternalApiVersions` entry, else `v1`). The query engine reads it through
+  `IRemoteOwnerInfo`, so an explain answer names it in each owner's
+  `route: { apiName: "<service>-api", apiVersion }`.
+- A batch's body is `queries` and `maxTimeMs` only; the owner refuses any other member with
+  `UNKNOWN_REQUEST_MEMBER`. `maxTimeMs` is the owner's ceiling for the whole batch: the smaller
+  positive of the engine's value and the time the call is given. The engine already writes its
+  value a tenth (at most 250 ms) below the time it waits, so the owner stops before the caller
+  does, and the client adds no second margin. A call without a positive budget is bounded by
+  10 seconds; none waits on the HTTP client's timeout.
 - `ExplainAsync` posts the explain body and returns the owner's answer as written. An owner that
   answers anything but 200, cannot be reached or times out makes it throw; a service with no
   `InternalHosts` entry is a caller error (`InvalidOperationException`).
 - An owner's refusal (any answer but 200 to a batch or an explain) is quoted in the thrown
   exception: the first error's `code` and `message` of the refusal body, else its `type` and
   `title`. The log line names the route, the service, the status and the code only.
-- The owner's engine facts (`OwnerOf(service)`: engine version, contract, batch cap) are read from
-  its shallow health answer, both when `GET /OxQL/health` probes reachability and before the first
-  batch to an owner whose facts are unknown or stale. That read is bounded by the health budget
-  (2 s) and the call's own, is shared by concurrent calls, and never fails the batch; one that
-  learned nothing is not tried again within the time to live. Facts are kept for the health
-  probe's time to live (`OxQL:Cache:HealthProbeTtlSeconds`, 10 s by default) and are unknown
-  after it, so a rolled-back owner is not taken for the engine it ran before. A batch larger than
-  the owner's cap is sent as parts of that size at once, within the same bound, and its results
-  are concatenated in order.
+- The owner's engine facts (`OwnerOf(service)`: engine version, contract, batch cap, page cap)
+  are read from its shallow health answer, both when `GET /OxQL/health` probes reachability and
+  when the engine asks for them before a request's first batch (`OwnerOfAsync`) while they are
+  unknown or stale. That read is bounded by the health budget (2 s) and the caller's token, is
+  shared by concurrent callers (one that stops waiting leaves it running for the others), and
+  never fails the caller: an owner it cannot read stays unknown, and one that learned nothing is
+  not read again within the time to live. Facts are kept for the health probe's time to live
+  (`OxQL:Cache:HealthProbeTtlSeconds`, 10 s by default) and are unknown after it, so a
+  rolled-back owner is not taken for the engine it ran before. The engine sizes each batch by the
+  owner's cap and refuses a stage an old owner cannot run (`OWNER_NOT_CAPABLE`) from these facts;
+  the client sends a batch as it is given.
+- The engine's model provider carries the revision of the published schema document, so an explain
+  answer names it in `schemaRevision`.
 
 ### 4.3 The `OxQL` section
 

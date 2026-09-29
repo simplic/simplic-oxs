@@ -287,12 +287,11 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Theory]
-        [InlineData(null, 1000, 900)]
+        [InlineData(null, 1000, 1000)]
         [InlineData(400, 1000, 400)]
-        [InlineData(5000, 1000, 900)]
-        [InlineData(0, 1000, 900)]
-        [InlineData(null, 10000, 9750)]
-        public async Task Batch_CarriesTheOwnersCeiling_TheSmallerOfTheEnginesAndTheBudgetLessTheMargin(int? requested, int budgetMs, int sent)
+        [InlineData(5000, 1000, 1000)]
+        [InlineData(0, 1000, 1000)]
+        public async Task Batch_CarriesTheOwnersCeiling_TheSmallerOfTheEnginesAndTheBudget_AndNoOtherMember(int? requested, int budgetMs, int sent)
         {
             var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""");
             var batch = Batch() with { MaxTimeMs = requested };
@@ -302,96 +301,88 @@ namespace Simplic.OxS.Server.Test.OxQL
             var call = handler.Posts.Should().ContainSingle().Subject;
             call.Uri.Should().Be(new Uri("http://vehicle-svc:8080/vehicle-api/v1/internal/oxql/batch"));
             call.Headers.Keys.Should().BeEquivalentTo(["Authorization", OxQLQueryService.ContractHeader]);
-            JsonNode.Parse(call.Body)!["maxTimeMs"]!.GetValue<int>().Should().Be(sent);
-        }
-
-        [Theory]
-        [InlineData(1000, 900)]
-        [InlineData(5000, 4750)]
-        [InlineData(5, 5)]
-        [InlineData(0.4, 1)]
-        public void Ceiling_LeavesATenthOfTheBoundAtMost250MsForTheWayThereAndBack(double boundMs, int ceiling)
-        {
-            RemoteQueryClient.Ceiling(null, TimeSpan.FromMilliseconds(boundMs)).Should().Be(ceiling);
+            JsonNode.Parse(call.Body)!["maxTimeMs"]!.GetValue<int>().Should().Be(sent, "the engine already writes its ceiling below its wait, so no second margin");
+            JsonNode.Parse(call.Body)!.AsObject().Select(member => member.Key).Should().BeEquivalentTo(["queries", "maxTimeMs"], "the owner refuses any other batch member");
+            handler.HealthReads.Should().Be(0, "the engine asks for the owner's facts before it sends; a batch sends only itself");
         }
 
         [Theory]
         [InlineData(null, "v1")]
         [InlineData("v2", "v2")]
-        public void ApiVersionOf_IsTheConfiguredVersionElseV1_AndNullForAnUnknownService(string? configured, string expected)
+        public void ApiVersionOf_ThroughTheOwnerInterface_IsTheConfiguredVersionElseV1_AndNullForAnUnknownService(string? configured, string expected)
         {
-            var client = Client(new SilentHandler(), "vehicle-svc:8080", configured);
+            IRemoteOwnerInfo client = Client(new SilentHandler(), "vehicle-svc:8080", configured);
 
             client.ApiVersionOf("vehicle").Should().Be(expected);
             client.ApiVersionOf("unknown").Should().BeNull();
         }
 
         [Fact]
-        public async Task Batch_ToAnUnknownOwner_ReadsItsShallowHealthOnceBeforeTheFirstBatch()
+        public async Task OwnerOfAsync_ForAnUnknownOwner_ReadsItsShallowHealthOnce_ThroughTheOwnerInterface()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", Health16);
-            var client = Client(handler, "vehicle-svc:8080");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", """{"engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":16,"maxPageSize":500}}""");
+            IRemoteOwnerInfo client = Client(handler, "vehicle-svc:8080");
 
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var first = await client.OwnerOfAsync("vehicle", CancellationToken.None);
+            var second = await client.OwnerOfAsync("vehicle", CancellationToken.None);
 
-            handler.Sent.Select(sent => sent.Method).Should().Equal(HttpMethod.Get, HttpMethod.Post, HttpMethod.Post);
-            client.OwnerOf("vehicle").Should().Be(new RemoteOwnerInfo("2.1.0", 2, 16));
+            first.Should().Be(new RemoteOwnerInfo("2.1.0", 2, 16, 500));
+            second.Should().Be(first);
+            handler.HealthReads.Should().Be(1);
+            (await client.OwnerOfAsync("unknown", CancellationToken.None)).Should().BeNull();
+            handler.HealthReads.Should().Be(1, "a service without a host entry is never probed");
         }
 
         [Fact]
-        public async Task Batch_ToAnOwnerWhoseHealthSaysNothing_IsSent_AndNotProbedAgainWithinTheTtl()
+        public async Task OwnerOfAsync_ForAnOwnerWhoseHealthSaysNothing_IsNull_AndNotProbedAgainWithinTheTtl()
         {
             var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", "", HttpStatusCode.NotFound);
             var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "vehicle-svc:8080");
             client.Time = time;
 
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
-
-            client.OwnerOf("vehicle").Should().BeNull();
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
             handler.HealthReads.Should().Be(1);
-            handler.Posts.Should().HaveCount(2);
 
             time.Now += client.FactsTtl;
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            await client.OwnerOfAsync("vehicle", CancellationToken.None);
 
             handler.HealthReads.Should().Be(2, "a probe that learned nothing is tried again once the time to live has passed");
         }
 
         [Fact]
-        public async Task OwnerOf_OlderThanTheTtl_IsUnknownAgain_AndTheNextBatchReadsTheHealthAgain()
+        public async Task OwnerOf_OlderThanTheTtl_IsUnknownAgain_AndOwnerOfAsyncReadsTheHealthAgain()
         {
             var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", Health16);
             var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "vehicle-svc:8080");
             client.Time = time;
 
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            await client.OwnerOfAsync("vehicle", CancellationToken.None);
             time.Now += client.FactsTtl - TimeSpan.FromMilliseconds(1);
             client.OwnerOf("vehicle").Should().NotBeNull();
 
             time.Now += TimeSpan.FromMilliseconds(1);
             client.OwnerOf("vehicle").Should().BeNull("a rolled-back owner is not taken for the engine it ran before");
 
-            await client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
-
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().NotBeNull();
             handler.HealthReads.Should().Be(2);
-            client.OwnerOf("vehicle").Should().NotBeNull();
         }
 
-        [Fact]
-        public async Task Batch_LargerThanTheOwnersCap_IsSentInPartsOfTheCap_AndAnsweredInOrder()
+        [Fact(Timeout = 10_000)]
+        public async Task OwnerOfAsync_WhenTheCallerStopsWaiting_IsCancelled_AndTheProbeServesTheNextCaller()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, "echo", """{"engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":2}}""");
-            var batch = new BatchRequest { Queries = [.. Enumerable.Range(1, 5).Select(index => new QueryRequest { EntityType = $"vehicle.v{index}", Pipeline = [] })] };
+            var handler = new SilentHandler();
+            var client = Client(handler, "vehicle-svc:8080");
+            client.HealthBudget = TimeSpan.FromMilliseconds(200);
+            using var impatient = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
 
-            var answer = await Client(handler, "vehicle-svc:8080").BatchAsync("vehicle", batch, TimeSpan.FromSeconds(1), CancellationToken.None);
+            var first = async () => await client.OwnerOfAsync("vehicle", impatient.Token);
+            await first.Should().ThrowAsync<OperationCanceledException>();
 
-            answer.Results.Select(result => result!.GetValue<string>()).Should().Equal("vehicle.v1", "vehicle.v2", "vehicle.v3", "vehicle.v4", "vehicle.v5");
-            handler.Posts.Select(post => JsonNode.Parse(post.Body)!["queries"]!.AsArray().Count).Should().BeEquivalentTo([2, 2, 1]);
-            handler.Posts.Should().OnlyContain(post => JsonNode.Parse(post.Body)!["maxTimeMs"]!.GetValue<int>() == 900);
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+            handler.Calls.Should().Be(1, "the second caller waited on the probe the first one started");
         }
 
         [Fact]

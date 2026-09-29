@@ -82,6 +82,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var registry = provider.GetRequiredService<OxSchemaRegistry>();
 
             provider.GetRequiredService<IEntityModelProvider>().Model.Should().BeSameAs(registry.Model);
+            provider.GetRequiredService<IEntityModelProvider>().SchemaRevision.Should().Be(registry.Revision, "explain answers carry the published document's revision");
             provider.GetServices<IEntityModelProvider>().Should().HaveCount(1);
         }
 

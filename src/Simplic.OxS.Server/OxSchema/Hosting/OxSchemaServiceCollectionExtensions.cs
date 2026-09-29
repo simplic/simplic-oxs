@@ -97,10 +97,16 @@ namespace Simplic.OxS.Server.OxSchema
                 };
         }
 
-        /// <summary>The engine's model provider over the registry: resolving it builds the registry when nothing else has yet.</summary>
+        /// <summary>
+        /// The engine's model provider over the registry: resolving it builds the registry when
+        /// nothing else has yet. The revision is the published document's, which explain answers
+        /// carry as <c>schemaRevision</c>.
+        /// </summary>
         private sealed class OxSchemaEntityModelProvider(OxSchemaRegistry registry) : IEntityModelProvider
         {
             public EntityModel Model { get; } = registry.Model;
+
+            public string? SchemaRevision { get; } = registry.Revision;
         }
     }
 }

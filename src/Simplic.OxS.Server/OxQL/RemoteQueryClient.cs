@@ -27,10 +27,11 @@ namespace Simplic.OxS.Server.OxQL;
 /// <see cref="IHttpClientFactory"/> client, cancelled by the engine's token and its budget;
 /// never the shared-header internal client.
 /// <para>
-/// What the owner's shallow health says of it (engine version, contract, batch cap) is read
-/// where reachability is measured, and before the first batch to an owner whose facts are
-/// unknown or older than the health probe's time to live, and kept per service
-/// (<see cref="IRemoteOwnerInfo"/>); facts older than that are unknown again.
+/// What the owner's shallow health says of it (engine version, contract, batch cap, page cap) is
+/// read where reachability is measured, and when the engine asks for an owner whose facts are
+/// unknown or older than the health probe's time to live before a request's first batch
+/// (<see cref="OwnerOfAsync"/>), and kept per service (<see cref="IRemoteOwnerInfo"/>); facts
+/// older than that are unknown again. The engine sizes and gates its batches by them.
 /// </para>
 /// </summary>
 public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
@@ -149,17 +150,11 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     public bool IsConfigured(string serviceKey) => serviceKey is not null && hosts.ContainsKey(serviceKey);
 
     /// <summary>
-    /// Executes a batch at the owner. The body's <c>maxTimeMs</c> is the owner's per-query
-    /// ceiling (<see cref="Ceiling"/>): the smaller of the one the engine wrote and the time this
-    /// call is given less a margin for the way there and back, so a single query stops at the
-    /// owner before this side stops waiting. The owner applies it to every query of the batch in
-    /// turn, so a batch of several slow queries can still outlast the wait.
-    /// <para>
-    /// Before the first batch to an owner whose facts are unknown or stale, its shallow health is
-    /// read once (bounded by the health budget, shared by concurrent calls), so its batch cap and
-    /// engine version are known from then on; a batch larger than the owner's cap is sent as
-    /// parts of that size at once, within the same bound, their results concatenated in order.
-    /// </para>
+    /// Executes a batch at the owner. The body is <c>queries</c> and <c>maxTimeMs</c> only (the
+    /// owner refuses any other member); <c>maxTimeMs</c> is the owner's batch-wide ceiling
+    /// (<see cref="Ceiling"/>): the smaller of the one the engine wrote, which the engine already
+    /// sets below its own wait, and the time this call is given. The engine sizes the batch by the
+    /// owner's cap (<see cref="OwnerOfAsync"/>); the client sends it as it is.
     /// </summary>
     /// <inheritdoc/>
     public async Task<BatchResponse> BatchAsync(string serviceKey, BatchRequest request, TimeSpan budget, CancellationToken cancellationToken)
@@ -168,28 +163,12 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 
         var address = AddressOf(serviceKey, BatchUrl(serviceKey), "batch");
         var bound = budget > TimeSpan.Zero ? budget : FallbackBudget;
-        var ceiling = Ceiling(request.MaxTimeMs, bound);
+        var body = new BatchRequest { Queries = request.Queries, MaxTimeMs = Ceiling(request.MaxTimeMs, bound) };
 
         using var timeout = Timeout(bound, cancellationToken);
+        using var response = await SendAsync(serviceKey, address, body, "batch", timeout.Token, cancellationToken);
 
-        await LearnOwnerAsync(serviceKey, timeout.Token);
-
-        var cap = OwnerOf(serviceKey)?.MaxBatchQueries is { } known and > 0 ? known : int.MaxValue;
-
-        if (request.Queries.Count <= cap)
-            return await SendBatchAsync(serviceKey, address, request with { MaxTimeMs = ceiling }, timeout.Token, cancellationToken);
-
-        var parts = request.Queries.Chunk(cap)
-            .Select(queries => SendBatchAsync(serviceKey, address, new BatchRequest { Queries = queries, MaxTimeMs = ceiling }, timeout.Token, cancellationToken));
-
-        return new BatchResponse { Results = [.. (await Task.WhenAll(parts)).SelectMany(part => part.Results)] };
-    }
-
-    private async Task<BatchResponse> SendBatchAsync(string serviceKey, Uri address, BatchRequest body, CancellationToken bounded, CancellationToken cancellationToken)
-    {
-        using var response = await SendAsync(serviceKey, address, body, "batch", bounded, cancellationToken);
-
-        return await response.Content.ReadFromJsonAsync<BatchResponse>(OxQLJson.Wire, bounded)
+        return await response.Content.ReadFromJsonAsync<BatchResponse>(OxQLJson.Wire, timeout.Token)
             ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal batch with an empty body.");
     }
 
@@ -256,19 +235,28 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     }
 
     /// <summary>
-    /// Reads the owner's shallow health once when its facts are unknown or stale and no probe was
-    /// tried within <see cref="FactsTtl"/>; concurrent callers share one probe. The probe is bounded
-    /// by the health budget and never fails the caller: an owner it cannot read stays unknown, and
-    /// the call that follows reports it as it would have.
+    /// What is known of the owner before the engine sends it a request's first batch. When its
+    /// facts are unknown or stale and no probe was tried within <see cref="FactsTtl"/>, its shallow
+    /// health is read first; concurrent callers share one probe, which runs on when one caller
+    /// stops waiting. The probe is bounded by the health budget and never fails the caller: an
+    /// owner it cannot read stays unknown (null), and the batch that follows reports it as it
+    /// would have.
     /// </summary>
-    private async Task LearnOwnerAsync(string serviceKey, CancellationToken cancellationToken)
+    /// <inheritdoc/>
+    public async ValueTask<RemoteOwnerInfo?> OwnerOfAsync(string serviceKey, CancellationToken cancellationToken)
     {
-        var now = Time.GetUtcNow();
+        if (!IsConfigured(serviceKey))
+            return null;
 
-        if (OwnerOf(serviceKey) is not null || (probed.TryGetValue(serviceKey, out var tried) && now - tried < FactsTtl))
-            return;
+        if (OwnerOf(serviceKey) is { } known)
+            return known;
+
+        if (probed.TryGetValue(serviceKey, out var tried) && Time.GetUtcNow() - tried < FactsTtl)
+            return null;
 
         await probing.GetOrAdd(serviceKey, key => new Lazy<Task>(() => ProbeAsync(key))).Value.WaitAsync(cancellationToken);
+
+        return OwnerOf(serviceKey);
     }
 
     /// <summary>
@@ -289,16 +277,13 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     }
 
     /// <summary>
-    /// The owner's per-query ceiling in whole milliseconds (at least one): the smaller positive
-    /// of the engine's ceiling and the call's bound less a margin (a tenth of the bound, at most
-    /// 250 ms) for the way to the owner and back, so a query stops at the owner before this side
-    /// stops waiting.
+    /// The owner's batch-wide ceiling in whole milliseconds (at least one): the smaller positive of
+    /// the engine's ceiling and the call's bound. No second margin: the engine already writes its
+    /// ceiling a tenth (at most 250 ms) below the time it waits.
     /// </summary>
     internal static int Ceiling(int? requested, TimeSpan bound)
     {
-        var total = Math.Ceiling(bound.TotalMilliseconds);
-        var margin = Math.Min(250, Math.Floor(total / 10));
-        var available = (int)Math.Clamp(total - margin, 1, int.MaxValue);
+        var available = (int)Math.Clamp(Math.Ceiling(bound.TotalMilliseconds), 1, int.MaxValue);
 
         return requested is > 0 and var value ? Math.Min(value, available) : available;
     }

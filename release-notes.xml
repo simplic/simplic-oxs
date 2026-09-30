@@ -44,4 +44,12 @@
     <Change type="enhancement">AuthorizeInternalApiKey compares the key in constant time, refuses every call when the configured Auth:InternalApiKey is blank, and answers a controller that does not derive from OxSInternalController with 400 without running the action.</Change>
     <Change type="enhancement">The query engine's startup check of the model's remote references fails fast on the same continuous-integration value as the schema build: the CI or the TF_BUILD environment variable, or what a host states through ConfigureOxSchema. A host is strict in both checks or in neither.</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="feature">Move to OxQL 2.1 (all five OxQL packages). Explain (POST /OxQL/explain) is on by default and never executes a query; a host turns it off with OxQL:Explain:Enabled=false, which also closes POST internal/oxql/explain. A /OxQL/batch maxTimeMs now bounds the whole batch, not each query.</Change>
+    <Change type="feature">Publish Ox schema format 1.1: descriptions, constraints and deprecations, variants with their discriminator and onlyFor members, reference cases, host-side reference declarations (OxSchemaOptionsBuilder) and the limits for continued stages, flatten depth and the report page. A 1.0 reader keeps reading the document.</Change>
+    <Change type="feature">Add POST internal/oxql/explain (internal api key) so another service checks the stages it continues here, and pass internal batches to the engine as internal calls. The RemoteQueryClient reads an owner's shallow health before its first batch, names the routed API version and hands the engine the schema revision.</Change>
+    <Change type="enhancement">Read an entity's addon definitions under its current and every retired id in one query; a live row wins over a retired one.</Change>
+    <Change type="enhancement">The OxQL Studio console is served at {pathBase}/oxql (it answered only under a doubled path before) and only while OxQL:Studio:Enabled is true, which defaults to true in every environment but Production.</Change>
+    <Change type="enhancement">AuthorizeInternalApiKey runs before every other action filter, so a call without the key is answered 401 whatever its body holds.</Change>
+  </ChangeSet>
 </ReleaseNotes>

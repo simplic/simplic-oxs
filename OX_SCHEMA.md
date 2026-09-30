@@ -770,7 +770,10 @@ identity is the one the engine scoped the parent query with.
   `InternalHosts` entry is a caller error (`InvalidOperationException`).
 - An owner's refusal (any answer but 200 to a batch or an explain) is quoted in the thrown
   exception: the first error's `code` and `message` of the refusal body, else its `type` and
-  `title`. The log line names the route, the service, the status and the code only.
+  `title`. The log line names the route, the service, the status and the code only. The quote is
+  for diagnostics (the exception, and this host's log); the engine keeps only the HTTP status of a
+  batch refusal, so the caller's answer says the owner answered with that status, never the
+  owner's code or text.
 - The owner's engine facts (`OwnerOf(service)`: engine version, contract, batch cap, page cap)
   are read from its shallow health answer, both when `GET /OxQL/health` probes reachability and
   when the engine asks for them before a request's first batch (`OwnerOfAsync`) while they are
@@ -841,6 +844,10 @@ Nothing below needs a line of code in the service.
   itself; it calls the API beside it and reads `/schema` of the same service. Earlier versions
   configured the route with the path base spelled in, so the console answered only under a doubled
   path (`/vehicle-api/v2/vehicle-api/v2/oxql`). Its explain button follows `OxQL:Explain:Enabled`.
+  The console is served while `OxQL:Studio:Enabled` is true, which defaults to true in every
+  environment but `Production`: it is an anonymous developer page on the API's origin that loads
+  its editor from a CDN and keeps a pasted bearer in the browser, so a production host serves it
+  only when configured to (`OxQL__Studio__Enabled=true`).
 
 ### 5.2 What a service has to do
 

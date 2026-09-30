@@ -209,6 +209,20 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Theory]
+        [InlineData("Production", null, false)]
+        [InlineData("Production", "true", true)]
+        [InlineData("Staging", null, true)]
+        [InlineData("Development", null, true)]
+        [InlineData("Development", "false", false)]
+        public void TheStudio_IsServedOutsideProduction_AndInProductionOnlyWhenConfigured(string environment, string? configured, bool served)
+        {
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["OxQL:Studio:Enabled"] = configured }).Build();
+            var host = new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { EnvironmentName = environment };
+
+            Bootstrap.OxQLStudioEnabled(configuration, host).Should().Be(served);
+        }
+
+        [Theory]
         [InlineData(null, true)]
         [InlineData("true", true)]
         [InlineData("false", false)]

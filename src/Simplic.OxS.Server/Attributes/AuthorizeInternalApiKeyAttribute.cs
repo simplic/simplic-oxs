@@ -11,8 +11,14 @@ namespace Simplic.OxS.Server
     /// Attribute for securing an internal api controller.
     /// </summary>
     [AttributeUsage(validOn: AttributeTargets.Class)]
-    public class AuthorizeInternalApiKeyAttribute : Attribute, IAsyncActionFilter
+    public class AuthorizeInternalApiKeyAttribute : Attribute, IAsyncActionFilter, IOrderedFilter
     {
+        /// <summary>
+        /// Runs before every other action filter, <c>[ApiController]</c>'s model-state check
+        /// included, so a caller without the key is answered 401 whatever its body holds.
+        /// </summary>
+        public int Order => int.MinValue;
+
         /// <summary>
         /// Will be executed by the asp.net core runtime for filtering user access. 
         /// </summary>

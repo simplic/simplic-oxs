@@ -209,10 +209,15 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     /// <inheritdoc/>
     public async Task<bool> IsReachableAsync(string serviceKey, CancellationToken cancellationToken)
     {
-        if (HealthUrl(serviceKey) is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out var address))
+        if (HealthUrl(serviceKey) is not { } url)
             return false;
 
+        // Also a host entry that forms no address counts as tried, so OwnerOfAsync does not probe
+        // (and log) it again on every batch within the TTL.
         probed[serviceKey] = Time.GetUtcNow();
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var address))
+            return false;
 
         using var timeout = Timeout(HealthBudget, cancellationToken);
 
@@ -228,7 +233,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 
             return true;
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
@@ -251,13 +256,17 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
         if (OwnerOf(serviceKey) is { } known)
             return known;
 
-        if (probed.TryGetValue(serviceKey, out var tried) && Time.GetUtcNow() - tried < FactsTtl)
+        if (IsProbeFresh(serviceKey))
             return null;
 
         await probing.GetOrAdd(serviceKey, key => new Lazy<Task>(() => ProbeAsync(key))).Value.WaitAsync(cancellationToken);
 
         return OwnerOf(serviceKey);
     }
+
+    /// <summary>Whether the owner's shallow health was tried within <see cref="FactsTtl"/>, whatever it answered.</summary>
+    internal bool IsProbeFresh(string serviceKey) =>
+        probed.TryGetValue(serviceKey, out var tried) && Time.GetUtcNow() - tried < FactsTtl;
 
     /// <summary>
     /// One shallow-health probe on its own clock, so no one caller's cancellation ends it for the
@@ -306,7 +315,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
         {
             logger.LogWarning(exception, "OxQL owner {Service} answered its health with a body that is not JSON; its engine facts stay as they were", serviceKey);
         }
-        catch (Exception exception) when (exception is IOException or HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(exception, "OxQL owner {Service} answered its health, but its body could not be read; its engine facts stay as they were", serviceKey);
         }
@@ -382,7 +391,7 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 
             return (code, text is { Length: > RefusalMessageLimit } ? text[..RefusalMessageLimit] : text);
         }
-        catch (Exception exception) when (exception is JsonException or NotSupportedException or IOException or HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return (null, null);
         }

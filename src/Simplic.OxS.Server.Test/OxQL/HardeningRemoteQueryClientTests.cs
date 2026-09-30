@@ -480,6 +480,46 @@ namespace Simplic.OxS.Server.Test.OxQL
             client.OwnerOf("vehicle").Should().BeNull();
         }
 
+        /// <summary>An owner that answers every call with <paramref name="status"/> and a body whose charset no reader knows.</summary>
+        private sealed class BogusCharsetHandler(HttpStatusCode status) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                var content = new ByteArrayContent(Encoding.UTF8.GetBytes("""{"status":"ok"}"""));
+                content.Headers.TryAddWithoutValidation("Content-Type", "application/json; charset=bogus");
+
+                return Task.FromResult(new HttpResponseMessage(status) { Content = content });
+            }
+        }
+
+        [Fact]
+        public async Task IsReachable_WithAHealthBodyInAnUnknownCharset_IsTrue_AndNeverThrows()
+        {
+            var client = Client(new BogusCharsetHandler(HttpStatusCode.OK), "vehicle-svc:8080");
+
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue();
+            client.OwnerOf("vehicle").Should().BeNull();
+        }
+
+        [Fact]
+        public async Task Batch_RefusedWithABodyInAnUnknownCharset_StillThrowsWithTheOwnersStatus()
+        {
+            var call = () => Client(new BogusCharsetHandler(HttpStatusCode.Forbidden), "vehicle-svc:8080").BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            (await call.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        }
+
+        [Theory]
+        [InlineData("vehicle:not-a-port")]
+        [InlineData("[::1")]
+        public async Task OwnerOfAsync_ForAHostEntryThatFormsNoAddress_IsTriedOncePerTtl(string host)
+        {
+            var client = Client(new SilentHandler(), host);
+
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+            client.IsProbeFresh("vehicle").Should().BeTrue("a host entry that forms no address counts as tried");
+        }
+
         [Fact]
         public async Task IsReachable_ForAnOwnerAnsweringAnError_IsFalse_AndLearnsNothing()
         {

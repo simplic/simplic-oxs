@@ -186,6 +186,17 @@ namespace Simplic.OxS.Server.Test.OxQL
             batch.Queries.Should().ContainSingle().Which.KeyedBy.Should().NotBeNull();
         }
 
+        [Theory]
+        [InlineData("/internal/oxql/explain", "{")]
+        [InlineData("/internal/oxql/batch", "{\"queries\":7}")]
+        public async Task AnInternalRoute_WithoutTheKey_IsRefusedBeforeItsBodyIsJudged(string path, string body)
+        {
+            var service = new RecordingQueryService();
+            using var host = await StartOxQLAsync(service);
+
+            (await PostAsync(host, path, body, null)).Should().Be((int)HttpStatusCode.Unauthorized);
+        }
+
         [Fact]
         public async Task TheInternalBatch_WithoutTheKey_IsRefusedWithoutExecuting()
         {

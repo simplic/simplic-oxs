@@ -229,8 +229,8 @@ namespace Simplic.OxS.Server
             services.AddSingleton<IRemoteQueryClient, RemoteQueryClient>();
 
             // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
-            Console.WriteLine("Add OxQL Studio");
-            services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
+            if (OxQLStudioEnabled(Configuration, CurrentEnvironment))
+                services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
 
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>
@@ -333,8 +333,9 @@ namespace Simplic.OxS.Server
                 // Map gRPC endpoints
                 MapGrpcEndpoints(endpoints);
 
-                // Map OxQL Studio UI
-                endpoints.MapOxQLStudio();
+                // Map OxQL Studio UI (off in Production unless OxQL:Studio:Enabled says otherwise)
+                if (OxQLStudioEnabled(Configuration, env))
+                    endpoints.MapOxQLStudio();
             });
         }
 
@@ -448,6 +449,15 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns>Settings configuration action or null</returns>
         protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
+
+        /// <summary>
+        /// Whether the OxQL Studio console is served: <c>OxQL:Studio:Enabled</c>, which defaults to on
+        /// in every environment but Production. The console is an anonymous developer page on the
+        /// API's origin that loads its editor from a CDN and keeps a pasted bearer in the browser, so
+        /// a production host serves it only when configured to.
+        /// </summary>
+        internal static bool OxQLStudioEnabled(IConfiguration configuration, IHostEnvironment environment) =>
+            configuration.GetValue("OxQL:Studio:Enabled", !environment.IsProduction());
 
         /// <summary>
         /// The OxQL Studio console's options. Every path is relative to the path base

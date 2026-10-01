@@ -421,7 +421,7 @@ reference on such a member at all. Consumers:
 | consumer | effect |
 |---|---|
 | a reader built for 1.0 | Must accept the document (minor bump) and ignore the new members. The query engine's document reader and the frontend generator `oxql-gen` both accept `1.x` and ignore members they do not know. |
-| the query engine's document reader (OxQL 2.1) | Reads every 1.1 member back into its model; `referenceCases` wins over `references`. |
+| the query engine's document reader (OxQL, contract 2) | Reads every 1.1 member back into its model; `referenceCases` wins over `references`. |
 | a service's generated OxQL module | Regenerated against 1.1, it may type former `unknown` members as objects and former subclass members as optional. The frontend's generator check and type check catch every call site this touches when the module is regenerated. |
 | the revision | Every service's revision changes with the upgrade, since `schemaVersion` and the new limits are inside it; clients that cached the document by entity tag fetch it once again. Descriptions are inside the revision too, so editing a doc comment changes it. |
 
@@ -716,7 +716,7 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
 | route | used for |
 |---|---|
 | `POST internal/oxql/batch` | Executing: remote resolves, semi-joins, keyed fetches, and the stages a keyed fetch continues at the owner (at most `maxContinuedStages`). |
-| `POST internal/oxql/explain` | Explaining: the origin's `POST /oxql/explain` checks the parts of a query continued at an owner there. Same body and answer as the public explain. |
+| `POST internal/oxql/explain` | Explaining: the origin's `POST /oxql/explain` checks the parts of a query continued at an owner there and reads the owner's types from the answer. Same body and answer as the public explain, plus `budget` (below). |
 | `GET OxQL/health?shallow=true` | Reachability, and what the owner says of itself (engine version, contract, batch cap). |
 
 | key | meaning | default |
@@ -749,10 +749,23 @@ request carry the keyed fetch's `keyedBy` member; the public `POST /oxql/query` 
 404 while the owner's explain is switched off (`OxQL:Explain:Enabled`), as the public route does;
 the origin then reports those parts as unchecked.
 
+**The internal explain is bounded twice.** It admits at most
+`OxQL:Explain:MaxConcurrentPerCaller` (4) explains in flight per calling service, named by the
+`X-OxQL-Caller` header; calls that name no service share one set of places. One more is 429 with
+`Retry-After` and the refusal `EXPLAIN_LIMIT` (`params: { limit: "concurrentPerCaller", max,
+retryAfter }`) before anything is bound, and the origin reports those parts as unchecked with
+`complete: false`. And only there does an explain body carry `budget: { ms, calls }`: the time
+and the owner calls the origin's explain has left. The owner works within them, so a chain of
+owners never spends more than the origin's limits (`Explain:TimeoutMs`, `Explain:MaxOwnerCalls`);
+the public `POST /oxql/explain` refuses `budget` as an unknown request member. The public route's
+own limits (20 a minute with a burst of 5, 2 in flight per user, 8 per host) are the engine's and
+are listed in `GET /OxQL/health` under `limits`.
+
 **The remote client** (`RemoteQueryClient`) sends one message per call over the named
-`HttpClient` `OxQL.Remote`. It adds no header beyond the ones every call already carried: the
-internal key, the forwarded organisation, user and correlation ids, and the contract header. The
-identity is the one the engine scoped the parent query with.
+`HttpClient` `OxQL.Remote`. It sends the internal key, the forwarded organisation, user and
+correlation ids, the contract header, and `X-OxQL-Caller` with this service's name (set by
+`Bootstrap`), which the owner's internal explain counts its places in flight by. The identity is
+the one the engine scoped the parent query with.
 
 - `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry.
   The batch, explain and health addresses are paths under it. `ApiVersionOf(service)` is its
@@ -786,7 +799,7 @@ identity is the one the engine scoped the parent query with.
   owner's cap and refuses a stage an old owner cannot run (`OWNER_NOT_CAPABLE`) from these facts;
   the client sends a batch as it is given.
 - The engine's model provider carries the revision of the published schema document, so an explain
-  answer names it in `schemaRevision`.
+  answer names it in `revision.schema`.
 
 ### 4.3 The `OxQL` section
 
@@ -828,7 +841,7 @@ Nothing below needs a line of code in the service.
   controller the generator cannot describe is left out instead of replacing the whole document.
 - The document in format 1.1 (section 1.15): descriptions, deprecations and constraints where the
   code declares them, polymorphic types with their variants, and typed and conditional references.
-- The query engine in version 2.1: the organisation scope on every entry into an entity (a
+- The query engine with contract 2: the organisation scope on every entry into an entity (a
   request without an organisation is refused with 403), `POST /OxQL/batch`, resolves and keyed
   fetches into other services, `POST /OxQL/explain` on by default and never executing, and
   `POST internal/oxql/batch` and `POST internal/oxql/explain` for the services calling into this

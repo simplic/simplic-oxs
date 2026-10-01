@@ -48,6 +48,15 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The response body of <c>GET /schema</c>, serialised once.</summary>
         public byte[] Body { get; }
 
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> coded = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The body in a content coding (<c>br</c> or <c>gzip</c>), coded once per coding and kept: the
+        /// document does not change while the host runs, and every client of the service loads it.
+        /// </summary>
+        public byte[] Coded(string encoding) =>
+            coded.GetOrAdd(encoding, each => global::OxQL.AspNetCore.Models.WireCompression.Compress(Body, each, System.IO.Compression.CompressionLevel.Optimal));
+
         /// <inheritdoc cref="OxSchemaBuildOptions.RequireAuthorization"/>
         public bool RequireAuthorization { get; }
 

@@ -33,11 +33,16 @@ namespace Simplic.OxS.Server.Test.OxQL
                 throw new InvalidOperationException("Explain must not execute.");
         }
 
-        /// <summary>An owner that answers every call with an empty, valid answer.</summary>
+        /// <summary>An owner that answers every check of every call with an empty, valid answer.</summary>
         private sealed class OwnerHandler : HttpMessageHandler
         {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"valid":true,"contract":2}""", Encoding.UTF8, "application/json") });
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                var checks = System.Text.Json.Nodes.JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!["checks"]!.AsArray().Count;
+                var answers = string.Join(",", Enumerable.Repeat("""{"valid":true,"contract":2}""", checks));
+
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent($$"""{"answers":[{{answers}}]}""", Encoding.UTF8, "application/json") };
+            }
         }
 
         private sealed class Factory(HttpMessageHandler handler) : IHttpClientFactory

@@ -127,7 +127,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task ACallOfAServiceThatKnowsItsName_NamesItAsTheCaller()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"stages":[]}""");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"answers":[{"valid":true,"contract":2,"stages":[]}]}""");
             var client = Client(handler, "vehicle-svc:8080");
             client.Caller = "logistics";
 
@@ -245,7 +245,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task Explain_PostsTheEnvelopeToTheOwnersInternalExplain_WithTheKeyAndTheContractHeaderOnly()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"stages":[]}""");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"answers":[{"valid":true,"contract":2,"stages":[]}]}""");
 
             var answer = await Client(handler, "vehicle-svc:8080").ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
@@ -258,10 +258,53 @@ namespace Simplic.OxS.Server.Test.OxQL
             sent.Headers["Authorization"].Should().Be("i-api-key key");
             sent.Headers[OxQLQueryService.ContractHeader].Should().Be(EngineCapabilities.Contract.ToString());
 
-            var body = JsonNode.Parse(sent.Body)!;
-            body["query"]!["entityType"]!.GetValue<string>().Should().Be("vehicle.vehicle");
-            body["remote"]!.GetValue<string>().Should().Be(ExplainRequest.RemoteCheck);
+            // One request is a batch of one check; what the origin has left is the batch's.
+            var body = JsonNode.Parse(sent.Body)!.AsObject();
+            body.Select(member => member.Key).Should().Equal("checks", "budget");
+            var check = body["checks"]!.AsArray().Should().ContainSingle().Subject!;
+            check["query"]!["entityType"]!.GetValue<string>().Should().Be("vehicle.vehicle");
+            check["remote"]!.GetValue<string>().Should().Be(ExplainRequest.RemoteCheck);
+            check.AsObject().ContainsKey("budget").Should().BeFalse();
             body["budget"]!.ToJsonString().Should().Be("""{"ms":750,"calls":3}""");
+        }
+
+        [Fact]
+        public async Task ExplainBatch_PostsEveryCheckOfARoundInOneCall_AndAnswersThemInOrder()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"answers":[{"valid":true,"contract":2},null,{"valid":false,"contract":2}]}""");
+            var batch = new ExplainBatchRequest
+            {
+                Checks = [Explain() with { Budget = null }, Explain() with { Budget = null }, Explain() with { Budget = null }],
+                Budget = new ExplainBudget(500, 2),
+            };
+
+            var answers = await Client(handler, "vehicle-svc:8080").ExplainBatchAsync("vehicle", batch, TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            answers.Should().HaveCount(3);
+            answers![0]!["valid"]!.GetValue<bool>().Should().BeTrue();
+            answers[1].Should().BeNull("the owner left that check unanswered");
+            answers[2]!["valid"]!.GetValue<bool>().Should().BeFalse();
+
+            var sent = handler.Sent.Should().ContainSingle("one call carries the round").Subject;
+            sent.Uri.Should().Be(new Uri("http://vehicle-svc:8080/vehicle-api/v1/internal/oxql/explain"));
+
+            var body = JsonNode.Parse(sent.Body)!;
+            body["checks"]!.AsArray().Should().HaveCount(3);
+            body["budget"]!.ToJsonString().Should().Be("""{"ms":500,"calls":2}""");
+        }
+
+        [Theory]
+        [InlineData("""{"answers":[{"valid":true}]}""")]
+        [InlineData("""{"answers":[]}""")]
+        [InlineData("""{"valid":true,"contract":2}""")]
+        public async Task ExplainBatch_AnsweredWithAnotherNumberOfAnswersThanChecks_Throws(string answered)
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, answered);
+            var batch = new ExplainBatchRequest { Checks = [Explain() with { Budget = null }, Explain() with { Budget = null }] };
+
+            var call = () => Client(handler, "vehicle-svc:8080").ExplainBatchAsync("vehicle", batch, TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            await call.Should().ThrowAsync<HttpRequestException>("an answer that cannot be matched to the checks answers none of them");
         }
 
         [Theory]
@@ -432,7 +475,7 @@ namespace Simplic.OxS.Server.Test.OxQL
                     .AddSingleton<IOxQLScopeProvider>(new Scope(organisation))
                     .BuildServiceProvider(),
             };
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"describe":[]}""");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"answers":[{"valid":true,"contract":2}]}""");
 
             await Client(handler, "vehicle-svc:8080", request: request).ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 

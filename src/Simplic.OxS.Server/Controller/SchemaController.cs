@@ -14,6 +14,10 @@ namespace Simplic.OxS.Server.Controller
     /// (<see cref="OxSchemaBuildOptions.RequireAuthorization"/>); the definitions are per
     /// organisation and need the caller's. Both routes are hidden from the API explorer: the
     /// document is its own description and no generated client is meant to call it.
+    /// <para>
+    /// Both bodies are written in the content coding the caller accepts (<c>Accept-Encoding</c>:
+    /// Brotli, else gzip; none without the header), the document from a body coded once.
+    /// </para>
     /// </summary>
     [ApiController]
     [Route("/schema")]
@@ -25,7 +29,7 @@ namespace Simplic.OxS.Server.Controller
         [AllowAnonymous]
         [OxSchemaAuthorization]
         public IActionResult Get(CancellationToken ct) =>
-            Serve(registry.Body, registry.ETag);
+            Serve(registry.Body, registry.ETag, registry.Coded);
 
         /// <summary>
         /// The organisation's addon definitions per extendable entity, each list in the schema's
@@ -43,7 +47,7 @@ namespace Simplic.OxS.Server.Controller
             return Serve(result.Body, result.ETag);
         }
 
-        private IActionResult Serve(byte[] body, string etag)
+        private IActionResult Serve(byte[] body, string etag, Func<string, byte[]>? coded = null)
         {
             var tag = new EntityTagHeaderValue(etag);
 
@@ -54,7 +58,21 @@ namespace Simplic.OxS.Server.Controller
             if (Request.GetTypedHeaders().IfNoneMatch.Any(candidate => candidate.Equals(EntityTagHeaderValue.Any) || candidate.Compare(tag, useStrongComparison: false)))
                 return StatusCode(StatusCodes.Status304NotModified);
 
-            return File(body, "application/json");
+            return new CodedJson(body, coded);
+        }
+
+        /// <summary>
+        /// A finished JSON body, written in the content coding the caller accepts
+        /// (<c>Accept-Encoding</c>: Brotli, else gzip; as it is without the header or below a kilobyte).
+        /// </summary>
+        private sealed class CodedJson(byte[] body, Func<string, byte[]>? coded) : FileContentResult(body, "application/json")
+        {
+            public override Task ExecuteResultAsync(ActionContext context)
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+
+                return global::OxQL.AspNetCore.Models.WireCompression.WriteJsonAsync(context.HttpContext.Response, FileContents, coded);
+            }
         }
     }
 }

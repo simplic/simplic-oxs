@@ -140,7 +140,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             return context.Response.StatusCode;
         }
 
-        private const string ExplainBody = """{"query":{"entityType":"vehicle.vehicle","pipeline":[]},"catalog":[{"id":"c1","entity":"vehicle.vehicle"}],"remote":"check","budget":{"ms":750,"calls":3}}""";
+        private const string ExplainBody = """{"checks":[{"query":{"entityType":"vehicle.vehicle","pipeline":[]},"catalog":[{"id":"c1","entity":"vehicle.vehicle"}],"remote":"check"}],"budget":{"ms":750,"calls":3}}""";
 
         private const string KeyedBatchBody = """{"queries":[{"entityType":"vehicle.vehicle","keyedBy":{"path":"id","keys":["c0ffee00-1111-2222-3333-444455556666"],"perKey":2},"pipeline":[]}],"maxTimeMs":250}""";
 
@@ -154,26 +154,27 @@ namespace Simplic.OxS.Server.Test.OxQL
             using var host = await StartOxQLAsync(service);
 
             (await PostAsync(host, "/internal/oxql/explain", ExplainBody, authorization)).Should().Be((int)HttpStatusCode.Unauthorized);
-            service.Explains.Should().BeEmpty();
+            service.ExplainBatches.Should().BeEmpty();
         }
 
         [Fact]
-        public async Task TheInternalExplain_WithTheKey_ExplainsTheEnvelopeAsAnInternalCall()
+        public async Task TheInternalExplain_WithTheKey_ExplainsTheChecksAsOneInternalCall()
         {
             var service = new RecordingQueryService();
             using var host = await StartOxQLAsync(service);
 
             (await PostAsync(host, "/internal/oxql/explain", ExplainBody, $"i-api-key {Key}")).Should().Be((int)HttpStatusCode.OK);
 
-            var (request, internalCall) = service.Explains.Should().ContainSingle().Subject;
-            internalCall.Should().BeTrue();
+            var batch = service.ExplainBatches.Should().ContainSingle().Subject;
+            var request = batch.Checks.Should().ContainSingle().Subject;
             request.IsEnvelope.Should().BeTrue();
             request.Remote.Should().Be(ExplainRequest.RemoteCheck);
             request.Catalog.Should().ContainSingle().Which["id"]!.GetValue<string>().Should().Be("c1");
 
-            // What the origin has left rides in the body: the owner never does more than that.
-            request.Budget!.Ms.Should().Be(750);
-            request.Budget.Calls.Should().Be(3);
+            // What the origin has left rides in the body, for all the checks together: the owner never does more than that.
+            batch.Budget!.Ms.Should().Be(750);
+            batch.Budget.Calls.Should().Be(3);
+            service.Explains.Should().BeEmpty("the checks are explained through the batch, which alone shares their owner calls");
         }
 
         [Fact]
@@ -245,6 +246,17 @@ namespace Simplic.OxS.Server.Test.OxQL
 
         /// <summary>Every explain, in order.</summary>
         public List<(ExplainRequest Request, bool InternalCall)> Explains { get; } = [];
+
+        /// <summary>Every internal explain batch, in order.</summary>
+        public List<ExplainBatchRequest> ExplainBatches { get; } = [];
+
+        /// <inheritdoc/>
+        public Task<ExplainBatchOutcome> ExplainBatchAsync(ExplainBatchRequest batch, CancellationToken cancellationToken = default)
+        {
+            ExplainBatches.Add(batch);
+
+            return Task.FromResult<ExplainBatchOutcome>(new ExplainBatchOutcome.Success(new ExplainBatchResponse { Answers = [.. batch.Checks.Select(_ => (JsonNode?)new JsonObject())] }));
+        }
 
         /// <inheritdoc/>
         public Task<QueryOutcome> ExecuteAsync(QueryRequest request, CancellationToken cancellationToken = default) =>

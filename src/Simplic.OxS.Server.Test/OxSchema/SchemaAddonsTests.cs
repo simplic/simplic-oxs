@@ -140,7 +140,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         {
             var endpoint = Endpoint(new StubSource(Definition("probe.widget", "weight", AddonKind.Decimal)), Organisation);
 
-            var file = (await endpoint.GetAddonsAsync(CancellationToken.None)).Should().BeOfType<FileContentResult>().Subject;
+            var file = (await endpoint.GetAddonsAsync(CancellationToken.None)).Should().BeAssignableTo<FileContentResult>().Subject;
 
             file.ContentType.Should().Be("application/json");
             endpoint.Response.Headers.CacheControl.ToString().Should().Be("private, must-revalidate");

@@ -21,7 +21,7 @@ namespace Simplic.OxS.Server.OxQL;
 /// target entity: <c>POST http://{InternalHosts[ns]}/{ns}-api/{InternalApiVersions[ns]}/internal/oxql/batch</c>,
 /// where <c>ns</c> is the target entity's namespace, which is the owner's service name, which
 /// is the owner's api name. The explain of a query's continued parts goes to the owner's
-/// <c>internal/oxql/explain</c> beside it. The internal key, the caller's user, organisation and
+/// <c>internal/oxql/explain</c> beside it, every check of one round of an explain in one call. The internal key, the caller's user, organisation and
 /// correlation and the contract header travel on every call, and no other header; the owner
 /// binds and scopes the call as its own. A per-request message over a named
 /// <see cref="IHttpClientFactory"/> client, cancelled by the engine's token and its budget;
@@ -179,24 +179,45 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     }
 
     /// <summary>
-    /// Explains a request at the owner over its internal explain route, the same body as the public
-    /// <c>POST /oxql/explain</c>, and answers the owner's answer as written. An owner that answers
-    /// anything but 200 (404 while its explain is switched off, 401 on a wrong key) throws, as an
-    /// unreachable or timed-out owner does.
+    /// Explains one request at the owner: a batch of one check over its internal explain route
+    /// (<see cref="ExplainBatchAsync"/>), with the request's own budget as the batch's. Null when the
+    /// owner left the check unanswered.
     /// </summary>
     /// <inheritdoc/>
     public async Task<JsonObject?> ExplainAsync(string serviceKey, ExplainRequest request, TimeSpan budget, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var answers = await ExplainBatchAsync(serviceKey, new ExplainBatchRequest { Checks = [request with { Budget = null }], Budget = request.Budget }, budget, cancellationToken);
+
+        return answers is { Count: > 0 } ? answers[0] : null;
+    }
+
+    /// <summary>
+    /// Explains the checks of one round of an explain at the owner, in one call: the body is
+    /// <c>{ checks, budget }</c>, the answer <c>{ answers }</c> with one entry per check, an entry null
+    /// where the owner left that check unanswered. An owner that answers anything but 200 (404 while its
+    /// explain is switched off, 401 on a wrong key, 429 from its limiter, 400 for a batch past its bound)
+    /// throws, as an unreachable or timed-out owner does, and none of the checks is answered.
+    /// </summary>
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<JsonObject?>?> ExplainBatchAsync(string serviceKey, ExplainBatchRequest batch, TimeSpan budget, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+
         var address = AddressOf(serviceKey, ExplainUrl(serviceKey), "explain");
         var bound = budget > TimeSpan.Zero ? budget : FallbackBudget;
 
         using var timeout = Timeout(bound, cancellationToken);
-        using var response = await SendAsync(serviceKey, address, request, "explain", timeout.Token, cancellationToken);
+        using var response = await SendAsync(serviceKey, address, batch, "explain", timeout.Token, cancellationToken);
 
-        return await response.Content.ReadFromJsonAsync<JsonNode>(OxQLJson.Wire, timeout.Token) as JsonObject
+        var answered = await response.Content.ReadFromJsonAsync<ExplainBatchResponse>(OxQLJson.Wire, timeout.Token)
             ?? throw new HttpRequestException($"The owner of '{serviceKey}' answered the internal explain without an answer object.");
+
+        if (answered.Answers.Count != batch.Checks.Count)
+            throw new HttpRequestException($"The owner of '{serviceKey}' answered {answered.Answers.Count} of the {batch.Checks.Count} checks of the internal explain.");
+
+        return answered.Answers.Select(answer => answer as JsonObject).ToList();
     }
 
     /// <summary>

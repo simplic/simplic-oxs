@@ -28,7 +28,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var registry = SchemaBuild.Degraded;
             var endpoint = Endpoint(registry);
 
-            var file = endpoint.Get(CancellationToken.None).Should().BeOfType<FileContentResult>().Subject;
+            var file = endpoint.Get(CancellationToken.None).Should().BeAssignableTo<FileContentResult>().Subject;
 
             file.ContentType.Should().Be("application/json");
             file.FileContents.Should().Equal(registry.Body);
@@ -95,8 +95,71 @@ namespace Simplic.OxS.Server.Test.OxSchema
 
             var answer = Endpoint(registry, "\"0000000000000000000000000000000000000000000000000000000000000000\"").Get(CancellationToken.None);
 
-            answer.Should().BeOfType<FileContentResult>()
+            answer.Should().BeAssignableTo<FileContentResult>()
                 .Which.FileContents.Should().Equal(registry.Body);
+        }
+
+        private static async Task<(HttpResponse Response, byte[] Body)> WriteAsync(IActionResult result, string? acceptEncoding)
+        {
+            var context = new DefaultHttpContext { Response = { Body = new MemoryStream() } };
+
+            if (acceptEncoding is not null)
+                context.Request.Headers.AcceptEncoding = acceptEncoding;
+
+            await result.ExecuteResultAsync(new ActionContext { HttpContext = context });
+
+            return (context.Response, ((MemoryStream)context.Response.Body).ToArray());
+        }
+
+        private static byte[] Decoded(byte[] body, string encoding)
+        {
+            using var packed = new MemoryStream(body);
+            using Stream coder = encoding == "br"
+                ? new System.IO.Compression.BrotliStream(packed, System.IO.Compression.CompressionMode.Decompress)
+                : new System.IO.Compression.GZipStream(packed, System.IO.Compression.CompressionMode.Decompress);
+            using var read = new MemoryStream();
+
+            coder.CopyTo(read);
+
+            return read.ToArray();
+        }
+
+        [Theory]
+        [InlineData("br", "br")]
+        [InlineData("gzip", "gzip")]
+        [InlineData("gzip, deflate, br, zstd", "br")]
+        [InlineData("br;q=0, gzip", "gzip")]
+        public async Task Get_WritesTheDocumentInTheCodingTheCallerAccepts_CodedOnce(string acceptEncoding, string expected)
+        {
+            var registry = SchemaBuild.Degraded;
+
+            registry.Body.Length.Should().BeGreaterThan(1_024);
+
+            var (response, body) = await WriteAsync(Endpoint(registry).Get(CancellationToken.None), acceptEncoding);
+
+            response.StatusCode.Should().Be(StatusCodes.Status200OK);
+            response.ContentType.Should().Be("application/json; charset=utf-8");
+            response.Headers.ContentEncoding.ToString().Should().Be(expected);
+            response.Headers.Vary.ToString().Should().Be("Accept-Encoding");
+            response.ContentLength.Should().Be(body.Length);
+            body.Length.Should().BeLessThan(registry.Body.Length / 2);
+            Decoded(body, expected).Should().Equal(registry.Body, "the coded body is the document, byte for byte");
+            registry.Coded(expected).Should().BeSameAs(registry.Coded(expected), "the document is coded once per coding");
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("identity")]
+        [InlineData("deflate")]
+        public async Task Get_WithoutACodingTheHostWrites_WritesTheDocumentAsItIs(string? acceptEncoding)
+        {
+            var registry = SchemaBuild.Degraded;
+
+            var (response, body) = await WriteAsync(Endpoint(registry).Get(CancellationToken.None), acceptEncoding);
+
+            response.Headers.ContentEncoding.Count.Should().Be(0);
+            response.Headers.Vary.ToString().Should().Be("Accept-Encoding", "the body depends on that header, coded or not");
+            body.Should().Equal(registry.Body);
         }
 
         [Fact]
@@ -104,7 +167,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         {
             var answer = Endpoint(SchemaBuild.Degraded, "").Get(CancellationToken.None);
 
-            answer.Should().BeOfType<FileContentResult>();
+            answer.Should().BeAssignableTo<FileContentResult>();
         }
     }
 }

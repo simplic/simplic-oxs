@@ -146,28 +146,35 @@ namespace Simplic.OxS.Server.Test.OxQL
             service.Verify(s => s.BatchAsync(batch, true, It.IsAny<CancellationToken>()), Times.Once);
         }
 
-        [Fact]
-        public async Task Explain_AnswersTheQueryServicesAnswer_AsAnInternalCall()
+        private static ExplainBatchRequest Checks(int count = 1) => new()
         {
-            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] }, Remote = ExplainRequest.RemoteCheck, IsEnvelope = true };
-            var result = ExplainResult.Invalid(2, new ExplainEngine { Capabilities = [] }, [new QueryValidationError { Code = "UNKNOWN_PATH", Message = "no such path" }]);
+            Checks = [.. Enumerable.Range(0, count).Select(_ => new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] }, Remote = ExplainRequest.RemoteCheck, IsEnvelope = true })],
+            Budget = new ExplainBudget(750, 3),
+        };
+
+        [Fact]
+        public async Task Explain_AnswersTheQueryServicesAnswersToTheChecks_InOneCall()
+        {
+            var batch = Checks(2);
+            var response = new ExplainBatchResponse { Answers = [new JsonObject { ["valid"] = false }, null] };
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
-            service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainOutcome.Success(result));
+            service.Setup(s => s.ExplainBatchAsync(batch, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainBatchOutcome.Success(response));
 
-            var answer = await Controller(service.Object).ExplainAsync(request, CancellationToken.None);
+            var answer = await Controller(service.Object).ExplainAsync(batch, CancellationToken.None);
 
-            answer.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeSameAs(result);
+            answer.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeSameAs(response);
+            service.Verify(s => s.ExplainBatchAsync(batch, It.IsAny<CancellationToken>()), Times.Once, "the checks of a round are explained together, not one by one");
         }
 
         [Fact]
         public async Task Explain_AnswersARefusalWithItsStatus()
         {
-            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } };
-            var refusal = Refusal.Validation([new QueryValidationError { Code = "REQUEST_TOO_LARGE", Message = "too many catalog entries" }]);
+            var batch = Checks();
+            var refusal = Refusal.Validation([new QueryValidationError { Code = "EXPLAIN_LIMIT", Message = "too many checks" }]);
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
-            service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainOutcome.Refused(refusal));
+            service.Setup(s => s.ExplainBatchAsync(batch, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainBatchOutcome.Refused(refusal));
 
-            var answer = await Controller(service.Object).ExplainAsync(request, CancellationToken.None);
+            var answer = await Controller(service.Object).ExplainAsync(batch, CancellationToken.None);
 
             var objectResult = answer.Should().BeOfType<ObjectResult>().Subject;
             objectResult.StatusCode.Should().Be(refusal.Status);
@@ -180,24 +187,25 @@ namespace Simplic.OxS.Server.Test.OxQL
             var options = new OxQLOptions();
             options.Explain.MaxConcurrentPerCaller = 2;
 
-            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } };
-            var result = ExplainResult.Invalid(2, new ExplainEngine { Capabilities = [] }, []);
-            var release = new TaskCompletionSource<ExplainOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+            // A call is one place, however many checks it carries.
+            var batch = Checks(3);
+            var response = new ExplainBatchResponse { Answers = [null, null, null] };
+            var release = new TaskCompletionSource<ExplainBatchOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
             var calls = 0;
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
-            service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).Returns(() =>
+            service.Setup(s => s.ExplainBatchAsync(batch, It.IsAny<CancellationToken>())).Returns(() =>
             {
                 Interlocked.Increment(ref calls);
 
                 return release.Task;
             });
 
-            var first = From("logistics").ExplainAsync(request, CancellationToken.None);
-            var second = From("logistics").ExplainAsync(request, CancellationToken.None);
+            var first = From("logistics").ExplainAsync(batch, CancellationToken.None);
+            var second = From("logistics").ExplainAsync(batch, CancellationToken.None);
 
             // The third of the same service is refused at once, before the query service is asked.
             var refusing = From("logistics");
-            var refused = (await refusing.ExplainAsync(request, CancellationToken.None)).Should().BeOfType<ObjectResult>().Subject;
+            var refused = (await refusing.ExplainAsync(batch, CancellationToken.None)).Should().BeOfType<ObjectResult>().Subject;
 
             refused.StatusCode.Should().Be(StatusCodes.Status429TooManyRequests);
             refusing.Response.Headers.RetryAfter.ToString().Should().Be("1");
@@ -209,19 +217,19 @@ namespace Simplic.OxS.Server.Test.OxQL
             calls.Should().Be(2);
 
             // Another service has places of its own; so has every call that names none, together.
-            var other = From("vehicle").ExplainAsync(request, CancellationToken.None);
-            var unnamed = From(null).ExplainAsync(request, CancellationToken.None);
+            var other = From("vehicle").ExplainAsync(batch, CancellationToken.None);
+            var unnamed = From(null).ExplainAsync(batch, CancellationToken.None);
 
             calls.Should().Be(4);
 
-            release.SetResult(new ExplainOutcome.Success(result));
+            release.SetResult(new ExplainBatchOutcome.Success(response));
             (await first).Should().BeOfType<OkObjectResult>();
             (await second).Should().BeOfType<OkObjectResult>();
             (await other).Should().BeOfType<OkObjectResult>();
             (await unnamed).Should().BeOfType<OkObjectResult>();
 
             // Answered: the places are free again.
-            (await From("logistics").ExplainAsync(request, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
+            (await From("logistics").ExplainAsync(batch, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
 
             OxQLInternalController From(string? caller)
             {
@@ -241,7 +249,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             options.Explain.Enabled = false;
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
 
-            var answer = await Controller(service.Object, options).ExplainAsync(new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } }, CancellationToken.None);
+            var answer = await Controller(service.Object, options).ExplainAsync(Checks(), CancellationToken.None);
 
             answer.Should().BeOfType<NotFoundResult>();
             service.VerifyNoOtherCalls();

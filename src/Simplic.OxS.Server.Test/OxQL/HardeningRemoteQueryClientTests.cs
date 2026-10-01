@@ -124,6 +124,18 @@ namespace Simplic.OxS.Server.Test.OxQL
             }
         }
 
+        [Fact]
+        public async Task ACallOfAServiceThatKnowsItsName_NamesItAsTheCaller()
+        {
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"stages":[]}""");
+            var client = Client(handler, "vehicle-svc:8080");
+            client.Caller = "logistics";
+
+            await client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            handler.Sent.Should().ContainSingle().Which.Headers[RemoteQueryClient.CallerHeader].Should().Be("logistics");
+        }
+
         /// <summary>A clock a test moves by hand.</summary>
         private sealed class ManualTime(DateTimeOffset start) : TimeProvider
         {
@@ -162,7 +174,8 @@ namespace Simplic.OxS.Server.Test.OxQL
         private static ExplainRequest Explain() => new()
         {
             Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] },
-            Remote = ExplainRequest.RemoteSkip,
+            Remote = ExplainRequest.RemoteCheck,
+            Budget = new ExplainBudget(750, 3),
             IsEnvelope = true,
         };
 
@@ -232,7 +245,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task Explain_PostsTheEnvelopeToTheOwnersInternalExplain_WithTheKeyAndTheContractHeaderOnly()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"describe":[]}""");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"valid":true,"contract":2,"stages":[]}""");
 
             var answer = await Client(handler, "vehicle-svc:8080").ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
@@ -247,7 +260,8 @@ namespace Simplic.OxS.Server.Test.OxQL
 
             var body = JsonNode.Parse(sent.Body)!;
             body["query"]!["entityType"]!.GetValue<string>().Should().Be("vehicle.vehicle");
-            body["remote"]!.GetValue<string>().Should().Be(ExplainRequest.RemoteSkip);
+            body["remote"]!.GetValue<string>().Should().Be(ExplainRequest.RemoteCheck);
+            body["budget"]!.ToJsonString().Should().Be("""{"ms":750,"calls":3}""");
         }
 
         [Theory]

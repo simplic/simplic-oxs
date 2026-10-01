@@ -39,6 +39,12 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     /// <summary>The named client every call goes through.</summary>
     public const string HttpClientName = "OxQL.Remote";
 
+    /// <summary>The header naming the service that makes an internal call: what the owner's internal explain counts its places in flight by.</summary>
+    public const string CallerHeader = "X-OxQL-Caller";
+
+    /// <summary>The name of this service, sent as <see cref="CallerHeader"/>; no header without it.</summary>
+    public string? Caller { get; set; }
+
     /// <summary>The configuration section naming the owner's api version per service; a service without an entry is <c>v1</c>.</summary>
     public const string ApiVersionsSection = "InternalApiVersions";
 
@@ -422,6 +428,9 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     {
         message.Headers.Authorization = new AuthenticationHeaderValue(Constants.HttpAuthorizationSchemeInternalKey, internalApiKey);
         message.Headers.TryAddWithoutValidation(OxQLQueryService.ContractHeader, EngineCapabilities.Contract.ToString());
+
+        if (!string.IsNullOrWhiteSpace(Caller))
+            message.Headers.TryAddWithoutValidation(CallerHeader, Caller);
 
         var httpContext = httpContextAccessor.HttpContext;
         var scope = httpContext?.RequestServices.GetService<IOxQLScopeProvider>();

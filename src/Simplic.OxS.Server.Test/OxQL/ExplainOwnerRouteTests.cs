@@ -90,7 +90,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             var explained = await engine.ExplainAsync(request, context);
 
             var result = explained.Should().BeOfType<ExplainOutcome.Success>(explained is ExplainOutcome.Refused refused ? string.Join("; ", refused.Refusal.Errors?.Select(error => $"{error.Code}: {error.Message}") ?? [refused.Refusal.Title]) : "").Subject.Result;
-            var owner = result.Steps.Single(step => step.Index == 0).Owner!;
+            var owner = result.Owners.Should().ContainSingle().Subject;
 
             owner["route"]!.ToJsonString().Should().Be("""{"apiName":"staff-api","apiVersion":"v2"}""");
         }

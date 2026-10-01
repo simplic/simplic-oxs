@@ -18,6 +18,14 @@ namespace Simplic.OxS.Server.OxQL;
 /// headers like every internal call, and served by the same query service as the public routes,
 /// as an internal call: the route is the signal, so only here does a request carry the keyed
 /// fetch's <c>keyedBy</c>. Hidden from the API explorer: they are cluster routes.
+/// <para>
+/// The explain route admits at most <c>OxQL:Explain:MaxConcurrentPerCaller</c> explains in flight
+/// per calling service (<see cref="RemoteQueryClient.CallerHeader"/>; a call that does not name its
+/// service shares one place set): one more is 429 with <c>Retry-After</c> and <c>EXPLAIN_LIMIT</c>,
+/// before anything is bound, and the origin notes the parts unchecked. The call's deadline and the
+/// owner calls it has left ride in the body (<c>budget</c>), so a chain of owners never does more
+/// than the origin's explain may.
+/// </para>
 /// </summary>
 [ApiController]
 [Route("internal/oxql")]
@@ -59,10 +67,22 @@ public sealed class OxQLInternalController(IOxQLQueryService queryService, OxQLO
     [ProducesResponseType(typeof(Refusal), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(Refusal), StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(typeof(Refusal), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> ExplainAsync([FromBody] ExplainRequest request, CancellationToken ct)
     {
         if (!options.Explain.Enabled)
             return NotFound();
+
+        var caller = Request.Headers.TryGetValue(RemoteQueryClient.CallerHeader, out var named) && named.FirstOrDefault() is { Length: > 0 } name ? name : UnnamedCaller;
+
+        using var lease = ExplainRateLimiter.For(options).AcquireCaller(caller);
+
+        if (!lease.Acquired)
+        {
+            Response.Headers.RetryAfter = lease.RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            return Log("explain", lease.Refusal()).ToActionResult();
+        }
 
         var outcome = await queryService.ExplainAsync(request, internalCall: true, ct);
 
@@ -73,6 +93,9 @@ public sealed class OxQLInternalController(IOxQLQueryService queryService, OxQLO
             _ => StatusCode(StatusCodes.Status500InternalServerError),
         };
     }
+
+    /// <summary>The caller of an internal explain that does not name its service: all of them share one set of places.</summary>
+    private const string UnnamedCaller = "(unnamed)";
 
     private Refusal Log(string route, Refusal refusal)
     {

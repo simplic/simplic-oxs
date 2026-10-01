@@ -140,7 +140,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             return context.Response.StatusCode;
         }
 
-        private const string ExplainBody = """{"query":{"entityType":"vehicle.vehicle","pipeline":[]},"describe":[{"id":"d1","at":0,"prefix":"","usage":"match"}],"remote":"skip"}""";
+        private const string ExplainBody = """{"query":{"entityType":"vehicle.vehicle","pipeline":[]},"catalog":[{"id":"c1","entity":"vehicle.vehicle"}],"remote":"check","budget":{"ms":750,"calls":3}}""";
 
         private const string KeyedBatchBody = """{"queries":[{"entityType":"vehicle.vehicle","keyedBy":{"path":"id","keys":["c0ffee00-1111-2222-3333-444455556666"],"perKey":2},"pipeline":[]}],"maxTimeMs":250}""";
 
@@ -168,8 +168,12 @@ namespace Simplic.OxS.Server.Test.OxQL
             var (request, internalCall) = service.Explains.Should().ContainSingle().Subject;
             internalCall.Should().BeTrue();
             request.IsEnvelope.Should().BeTrue();
-            request.Remote.Should().Be(ExplainRequest.RemoteSkip);
-            request.Describe.Should().ContainSingle().Which["id"]!.GetValue<string>().Should().Be("d1");
+            request.Remote.Should().Be(ExplainRequest.RemoteCheck);
+            request.Catalog.Should().ContainSingle().Which["id"]!.GetValue<string>().Should().Be("c1");
+
+            // What the origin has left rides in the body: the owner never does more than that.
+            request.Budget!.Ms.Should().Be(750);
+            request.Budget.Calls.Should().Be(3);
         }
 
         [Fact]

@@ -149,7 +149,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task Explain_AnswersTheQueryServicesAnswer_AsAnInternalCall()
         {
-            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] }, Remote = ExplainRequest.RemoteSkip, IsEnvelope = true };
+            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] }, Remote = ExplainRequest.RemoteCheck, IsEnvelope = true };
             var result = ExplainResult.Invalid(2, new ExplainEngine { Capabilities = [] }, [new QueryValidationError { Code = "UNKNOWN_PATH", Message = "no such path" }]);
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
             service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainOutcome.Success(result));
@@ -163,7 +163,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task Explain_AnswersARefusalWithItsStatus()
         {
             var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } };
-            var refusal = Refusal.Validation([new QueryValidationError { Code = "REQUEST_TOO_LARGE", Message = "too many describes" }]);
+            var refusal = Refusal.Validation([new QueryValidationError { Code = "REQUEST_TOO_LARGE", Message = "too many catalog entries" }]);
             var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
             service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).ReturnsAsync(new ExplainOutcome.Refused(refusal));
 
@@ -172,6 +172,66 @@ namespace Simplic.OxS.Server.Test.OxQL
             var objectResult = answer.Should().BeOfType<ObjectResult>().Subject;
             objectResult.StatusCode.Should().Be(refusal.Status);
             objectResult.Value.Should().BeSameAs(refusal);
+        }
+
+        [Fact]
+        public async Task Explain_OfACallerWithItsPlacesInFlightTaken_Is429WithRetryAfter_AndAnotherCallerIsAdmitted()
+        {
+            var options = new OxQLOptions();
+            options.Explain.MaxConcurrentPerCaller = 2;
+
+            var request = new ExplainRequest { Query = new QueryRequest { EntityType = "vehicle.vehicle", Pipeline = [] } };
+            var result = ExplainResult.Invalid(2, new ExplainEngine { Capabilities = [] }, []);
+            var release = new TaskCompletionSource<ExplainOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var calls = 0;
+            var service = new Mock<IOxQLQueryService>(MockBehavior.Strict);
+            service.Setup(s => s.ExplainAsync(request, true, It.IsAny<CancellationToken>())).Returns(() =>
+            {
+                Interlocked.Increment(ref calls);
+
+                return release.Task;
+            });
+
+            var first = From("logistics").ExplainAsync(request, CancellationToken.None);
+            var second = From("logistics").ExplainAsync(request, CancellationToken.None);
+
+            // The third of the same service is refused at once, before the query service is asked.
+            var refusing = From("logistics");
+            var refused = (await refusing.ExplainAsync(request, CancellationToken.None)).Should().BeOfType<ObjectResult>().Subject;
+
+            refused.StatusCode.Should().Be(StatusCodes.Status429TooManyRequests);
+            refusing.Response.Headers.RetryAfter.ToString().Should().Be("1");
+
+            var error = refused.Value.Should().BeOfType<Refusal>().Subject.Errors!.Should().ContainSingle().Subject;
+            error.Code.Should().Be("EXPLAIN_LIMIT");
+            error.Params!["limit"].Should().Be("concurrentPerCaller");
+            error.Params["max"].Should().Be(2);
+            calls.Should().Be(2);
+
+            // Another service has places of its own; so has every call that names none, together.
+            var other = From("vehicle").ExplainAsync(request, CancellationToken.None);
+            var unnamed = From(null).ExplainAsync(request, CancellationToken.None);
+
+            calls.Should().Be(4);
+
+            release.SetResult(new ExplainOutcome.Success(result));
+            (await first).Should().BeOfType<OkObjectResult>();
+            (await second).Should().BeOfType<OkObjectResult>();
+            (await other).Should().BeOfType<OkObjectResult>();
+            (await unnamed).Should().BeOfType<OkObjectResult>();
+
+            // Answered: the places are free again.
+            (await From("logistics").ExplainAsync(request, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
+
+            OxQLInternalController From(string? caller)
+            {
+                var controller = Controller(service.Object, options);
+
+                if (caller is not null)
+                    controller.Request.Headers[RemoteQueryClient.CallerHeader] = caller;
+
+                return controller;
+            }
         }
 
         [Fact]

@@ -82,6 +82,11 @@ can spell it.
 `If-None-Match` is honoured for `*`, for a comma-separated list and for weak (`W/"…"`) entries.
 The document is only ever served whole, so weak and strong comparison coincide.
 
+The body is written in the content coding the caller accepts (`Accept-Encoding`): Brotli, else
+gzip, with `Vary: Accept-Encoding`; without the header, or for another coding only, as it is. The
+document is coded once per coding and kept, since it does not change while the host runs.
+`GET /schema/addons` is coded the same way, per answer.
+
 ### 1.4 Two id spaces
 
 | | entity id | structural type id |
@@ -187,6 +192,8 @@ Exactly one property list per type, describing the query shape. Members, in orde
 | `stored` | `false` on a member the service returns and does not store (`[BsonIgnore]`, computed and get-only members). A query can project it and nothing else, and the same holds for everything below it. Absent on a stored member. |
 | `storedAs` | How the value is stored where its kind does not say it, which is where a query treats it differently: `codePoint` (a `string` that is one character, stored as its code point: it compares by value and takes no `contains`, `startsWith`, `endsWith` or `regex`), `document` (a scalar stored as a document: it cannot be filtered or sorted on), `arrayOfDocuments` and `arrayOfArrays` (a `dictionary` stored as an array of entries: a collection a query can unwind, and whose values lie under one). Absent: the representation the kind implies. |
 
+| `relation` | `{ name, member }`: the name of the relation a reader finds at this member (section 1.10, *Relation names*), derived by the query engine. On a member that carries a reference it names that reference and `member` is absent. On a member that holds an object or a collection of objects whose key member (`id`, else `referenceId`) carries a reference it names that reference, and `member` is the key member's name. Absent on every other member. |
+
 A nested descriptor (an array's `of`, a dictionary's `value`) describes a shape, not a member:
 it carries `kind`, `type`, `of`, `value`, `snapshotOf` and `storedAs` only.
 
@@ -269,7 +276,7 @@ same enum with `nullable: true` on the property.
 | unknown, and no default is safe | `nullable` on a nested descriptor · `references.field` where the target's key cannot be resolved |
 | the code declares none | `description` · `constraints` (the service may still validate what it does not declare) · `deprecated` |
 | there is none, stated by an empty list instead | `aliases` `notFilterable` `notSortable` `items` on an entity |
-| a definite negative | `display` (nothing names an instance) · `operations` (no controller linked) · `snapshotOf` (not a copy) · `references` together with `referenceCases` (not a foreign key) · `discriminator` and `variants` (not polymorphic) · `baseVariant` (no value is stored as the type itself, or the type is not polymorphic) · `onlyFor` (every variant carries the member) · `keyAs` (no key conversion) · `when` (the case is unconditional) · `item` (the value names the entity itself) · `diagnostics` (the build was clean) |
+| a definite negative | `display` (nothing names an instance) · `operations` (no controller linked) · `snapshotOf` (not a copy) · `references` together with `referenceCases` (not a foreign key) · `relation` (the member neither carries a reference nor holds an object whose key member does) · `relation.member` (the name is the member's own reference's) · `discriminator` and `variants` (not polymorphic) · `baseVariant` (no value is stored as the type itself, or the type is not polymorphic) · `onlyFor` (every variant carries the member) · `keyAs` (no key conversion) · `when` (the case is unconditional) · `item` (the value names the entity itself) · `diagnostics` (the build was clean) |
 
 An absent `nullable` on a nested descriptor is not `false`; the annotation at that depth is
 unreliable, so the document says nothing. An absent `displayName` is not "no label".
@@ -335,6 +342,50 @@ reference ever reaches this member.
 Member order: case `when`, `keyAs`, `targets`; condition `path`, `equals`, `variant`; target
 `entity`, `item`, `field`. A case whose target the build cannot resolve is dropped and logged
 (section 3.3); a member left with no case carries neither member.
+
+**Relation names** (format 1.1). Every reference has a name, published as `relation`. The query
+engine derives it from the model alone. A service declares nothing for it: there is no attribute
+and no host call, no finding is logged for it, and nothing fails a start, a build or a schema load
+because of one. A name labels a declared reference for tools (a relation list, the default alias of
+a join along it); it never creates a reference, and no query names one, so stored pipelines keep
+their paths.
+
+```jsonc
+// a reference member: the name lies on the member
+{ "name": "billingLineId", "kind": "guid", "nullable": true, "references": { … }, "relation": { "name": "billingLine" } }
+
+// a reference on the key member of an embedded object: the name lies on the slot that holds the object
+{ "name": "sourceBillingLineReference", "kind": "object", "type": "#/types/t_sourceBillingLineReference", "nullable": true,
+  "relation": { "name": "sourceBillingLine", "member": "id" } }
+
+// the key member itself, in the pooled type, keeps the name it has where no slot stands above it
+{ "name": "id", "kind": "guid", "nullable": false, "referenceCases": [ … ], "relation": { "name": "id" } }
+```
+
+The rule, by wire names:
+
+1. A reference member whose id member a navigation property names (`[ReferenceId("StartAddressId")]`
+   on `StartAddress`) takes the navigation property's name: `startAddress`.
+2. A reference on the key member of an embedded object, or of the objects of a collection, is named
+   at the slot, the member that holds the object or the collection: the slot's name without a
+   trailing `Reference` or `Ref`. `sourceBillingLineReference.id` is `sourceBillingLine`,
+   `resources[].id` is `resources`. The key member is `id`, else `referenceId`; where both carry a
+   reference the slot names `id`.
+3. Any other reference member is named by its own name without a trailing `Ids` (the plural `s`
+   stays), `Id`, `Number` or `Key`: `tourId` is `tour`, `vehicleIds` is `vehicles`.
+4. Where none of those ends the name, without a trailing `Reference` or `Ref` (`ownerRef` is
+   `owner`), else the name as it is.
+
+A suffix is stripped only when something is left, one suffix only, and the result starts in lower
+case. Two members of one type that derive the same name both take their own wire name instead, and
+so does a member whose derived name is the wire name another one fell back to: names are unique
+among the relation names of a type. A stored member of the same name is no collision.
+
+**Reading it.** The name of the reference at a member path is the `relation.name` of the member one
+level above the path's last segment when that member's `relation.member` is the last segment (the
+slot), else the `relation.name` of the path's own member. One pooled type sits in several slots
+under several names, which is why the name of a key member lies on the slot. The query engine
+answers the same name in explain (`aliases.<alias>.reference.name`).
 
 ### 1.11 Paths
 
@@ -419,7 +470,7 @@ The array is inside the revision hash. Every other finding is logged at startup 
 
 **Format 1.1** is the first minor bump. It adds `description`, `constraints` and `deprecated`
 contents (reserved and empty in 1.0), enum value `description`, `discriminator`, `variants`,
-`baseVariant`, `onlyFor`, `referenceCases`, `stored`, `storedAs` and three limits. Two of its changes are not purely additive, and the
+`baseVariant`, `onlyFor`, `referenceCases`, `stored`, `storedAs`, `relation` and three limits. Two of its changes are not purely additive, and the
 rule above was amended in the same change to classify them as minor rather than ship 2.0:
 
 1. Members the 1.0 build published as `unknown` because it could not describe a polymorphic
@@ -594,7 +645,8 @@ startup thread, and is one pass in `OxSchemaBuilder`:
    ids, members in the model's order. A member's references are split there: a simple one into
    `references`, every other into `referenceCases`. What the model knows of storage and a kind does
    not say is published there too: `stored: false`, `storedAs`, and a concrete polymorphic type's
-   own name as `baseVariant`. Nothing is walked a second time: the engine
+   own name as `baseVariant`. The relation names are the model's as well (`relation`): the engine
+   derives them, the projection writes them and derives nothing itself. Nothing is walked a second time: the engine
    binds against this model, and the document is its wire view.
 4. **Entity metadata.** Per entity: the label, the key (the model's), the display property, the
    aliases (the retired ids, then the legacy ids of the linked controller), `extendable`, the
@@ -793,9 +845,21 @@ the one the engine scoped the parent query with.
   value a tenth (at most 250 ms) below the time it waits, so the owner stops before the caller
   does, and the client adds no second margin. A call without a positive budget is bounded by
   10 seconds; none waits on the HTTP client's timeout.
-- `ExplainAsync` posts the explain body and returns the owner's answer as written. An owner that
-  answers anything but 200, cannot be reached or times out makes it throw; a service with no
-  `InternalHosts` entry is a caller error (`InvalidOperationException`).
+- `ExplainBatchAsync` posts what one round of an explain asks the owner as one request,
+  `{ "checks": [ explain envelope, … ], "budget": { "ms", "calls" } }`, and returns the answers in
+  the order of the checks (`{ "answers": [ … ] }`; an entry is null where the owner left a check
+  unanswered). `ExplainAsync` is a batch of one check. An owner that answers anything but 200,
+  cannot be reached, times out or answers another number of answers than checks makes it throw, and
+  none of the checks is answered; a service with no `InternalHosts` entry is a caller error
+  (`InvalidOperationException`).
+- `POST internal/oxql/explain` takes that body. The owner explains the checks together: what they
+  ask its own owners in a round is one call per owner, within the budget for all of them. It answers
+  each check in its slim form (what an origin reads: `valid`, `errors`, the notes about the answer
+  itself, `stages` with their reads and creates, `aliases`, `types`, `catalog`, `owners`,
+  `revision`, `cache`, `engine`). A batch without checks, or with more than
+  `OxQL:Explain:MaxBatchChecks` (64), is 400 before anything is bound. The route admits at most
+  `OxQL:Explain:MaxConcurrentPerCaller` (4) calls in flight per calling service (`X-OxQL-Caller`);
+  a call is one place however many checks it carries.
 - An owner's refusal (any answer but 200 to a batch or an explain) is quoted in the thrown
   exception: the first error's `code` and `message` of the refusal body, else its `type` and
   `title`. The log line names the route, the service, the status and the code only. The quote is
@@ -811,8 +875,9 @@ the one the engine scoped the parent query with.
   not read again within the time to live. Facts are kept for the health probe's time to live
   (`OxQL:Cache:HealthProbeTtlSeconds`, 10 s by default) and are unknown after it, so a
   rolled-back owner is not taken for the engine it ran before. The engine sizes each batch by the
-  owner's cap and refuses a stage an old owner cannot run (`OWNER_NOT_CAPABLE`) from these facts;
-  the client sends a batch as it is given.
+  owner's cap and its key chunks by the owner's page from these facts, and refuses nothing by an
+  owner's version: every owner an origin reaches runs this package, since only it has the internal
+  routes. The client sends a batch as it is given.
 - The engine's model provider carries the revision of the published schema document. An explain
   answer names its types by reference to the documents (entity, service, `schemaRevision`) and lists
   the revision of every service it names in `revision.schema`, so a consumer that holds another
@@ -857,7 +922,9 @@ Nothing below needs a line of code in the service.
   `ModelDefinition/ModelDefinition.json` any more, and the route answers `GET` only. A
   controller the generator cannot describe is left out instead of replacing the whole document.
 - The document in format 1.1 (section 1.15): descriptions, deprecations and constraints where the
-  code declares them, polymorphic types with their variants, and typed and conditional references.
+  code declares them, polymorphic types with their variants, typed and conditional references, and
+  a relation name for every reference, derived by the engine (section 1.10): the service declares
+  nothing for it. `GET /schema` is written in the content coding the caller accepts (section 1.3).
 - The query engine with contract 2: the organisation scope on every entry into an entity (a
   request without an organisation is refused with 403), `POST /OxQL/batch`, resolves and keyed
   fetches into other services, `POST /OxQL/explain` on by default and never executing, and

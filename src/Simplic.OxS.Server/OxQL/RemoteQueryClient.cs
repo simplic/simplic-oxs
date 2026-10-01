@@ -31,7 +31,7 @@ namespace Simplic.OxS.Server.OxQL;
 /// read where reachability is measured, and when the engine asks for an owner whose facts are
 /// unknown or older than the health probe's time to live before a request's first batch
 /// (<see cref="OwnerOfAsync"/>), and kept per service (<see cref="IRemoteOwnerInfo"/>); facts
-/// older than that are unknown again. The engine sizes and gates its batches by them.
+/// older than that are unknown again. The engine sizes its batches by them.
 /// </para>
 /// </summary>
 public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo

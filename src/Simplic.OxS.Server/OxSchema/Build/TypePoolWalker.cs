@@ -73,6 +73,7 @@ namespace Simplic.OxS.Server.OxSchema
                     Deprecated = DeprecationOf(member.Deprecated),
                     OnlyFor = member.OnlyFor is { Count: > 0 } onlyFor ? [.. onlyFor] : null,
                     Stored = member.Stored ? null : false,
+                    Relation = member.Relation is { } relation ? new OxSchemaRelation { Name = relation.Name, Member = relation.Member } : null,
                 });
             }
 

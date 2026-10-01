@@ -109,6 +109,32 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         [JsonPropertyOrder(17)]
         public string? StoredAs { get; init; }
+
+        /// <summary>
+        /// The name of the relation a reader finds at this member (format 1.1), derived by the query
+        /// engine from the model alone: of the reference the member carries, or, on a member that
+        /// holds an object or a collection of objects whose key member carries one, of that reference
+        /// (<see cref="OxSchemaRelation.Member"/> names the key member). Absent on every other member,
+        /// and on a nested descriptor. A label for tooling: nothing declares it and no query names it.
+        /// </summary>
+        [JsonPropertyOrder(18)]
+        public OxSchemaRelation? Relation { get; init; }
+    }
+
+    /// <summary>The name of a relation (format 1.1): see <see cref="OxSchemaProperty.Relation"/>.</summary>
+    public sealed record OxSchemaRelation
+    {
+        /// <summary>The name: a wire segment, unique among the relation names of its type.</summary>
+        [JsonPropertyOrder(0)]
+        public required string Name { get; init; }
+
+        /// <summary>
+        /// Absent when the name is that of the reference the member itself carries. Otherwise the
+        /// member is a slot and the name is that of the reference its key member carries: <c>id</c> or
+        /// <c>referenceId</c>, written here.
+        /// </summary>
+        [JsonPropertyOrder(1)]
+        public string? Member { get; init; }
     }
 
     /// <summary>

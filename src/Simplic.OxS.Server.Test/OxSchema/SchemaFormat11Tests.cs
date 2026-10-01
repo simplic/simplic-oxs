@@ -115,10 +115,57 @@ namespace Simplic.OxS.Server.Test.OxSchema
             RawProperty(registry, "t_sourceReference", "id").Should().Be(
                 "{\"name\":\"id\",\"kind\":\"guid\",\"nullable\":false,\"referenceCases\":[" +
                 "{\"when\":{\"path\":\"type\",\"equals\":[\"widget\"]},\"targets\":[{\"entity\":\"probe.widget\",\"item\":\"slots\",\"field\":\"id\"}]}," +
-                "{\"when\":{\"path\":\"type\",\"equals\":[\"thing\"]},\"targets\":[{\"entity\":\"probe.thing\",\"field\":\"id\"}]}]}");
+                "{\"when\":{\"path\":\"type\",\"equals\":[\"thing\"]},\"targets\":[{\"entity\":\"probe.thing\",\"field\":\"id\"}]}],\"relation\":{\"name\":\"id\"}}");
             RawProperty(registry, "probe.ledger", "referenceId").Should().Be(
                 "{\"name\":\"referenceId\",\"kind\":\"string\",\"nullable\":true,\"referenceCases\":[" +
-                "{\"when\":{\"path\":\"dataType\",\"equals\":[\"thing\"]},\"keyAs\":\"guid\",\"targets\":[{\"entity\":\"probe.thing\",\"field\":\"id\"}]}]}");
+                "{\"when\":{\"path\":\"dataType\",\"equals\":[\"thing\"]},\"keyAs\":\"guid\",\"targets\":[{\"entity\":\"probe.thing\",\"field\":\"id\"}]}],\"relation\":{\"name\":\"reference\"}}");
+        }
+
+        [Fact]
+        public void Build_EveryReference_CarriesTheRelationNameTheEngineDerived_OnTheMemberAReaderFindsItAt()
+        {
+            var registry = SchemaBuild.Degraded;
+            var document = registry.Document;
+
+            // A reference member is named by itself, without its suffix: the name lies on the member.
+            document.Property("probe.ledger", "slotId").Relation.Should().Be(new OxSchemaRelation { Name = "slot" });
+            document.Property("probe.ledger", "referenceId").Relation.Should().Be(new OxSchemaRelation { Name = "reference" });
+
+            // A reference on the key member of an embedded object is named at the slot that holds the object.
+            document.Property("probe.ledger", "source").Relation.Should().Be(new OxSchemaRelation { Name = "source", Member = "id" });
+            RawProperty(registry, "probe.ledger", "source").Should().EndWith(",\"relation\":{\"name\":\"source\",\"member\":\"id\"}}", "the member is the last of the descriptor");
+
+            // No reference, no name: nothing is declared, so nothing else is written.
+            document.Property("probe.ledger", "name").Relation.Should().BeNull();
+            document.Property("probe.ledger", "owner").Relation.Should().BeNull("the party's id is no reference");
+            document.Property("probe.ledger", "entries").Relation.Should().BeNull("an entry's id is no reference");
+
+            // Every name is the engine's: the document writes what the model says and derives nothing itself.
+            foreach (var (id, entry) in document.Types)
+                foreach (var property in entry.Properties ?? [])
+                {
+                    var member = registry.Model.TypePool[id].Members.Single(candidate => candidate.WireName == property.Name);
+
+                    (property.Relation?.Name).Should().Be(member.Relation?.Name, $"{id}#{property.Name}");
+                    (property.Relation?.Member).Should().Be(member.Relation?.Member, $"{id}#{property.Name}");
+
+                    if (property.References is not null || property.ReferenceCases is not null)
+                        property.Relation.Should().NotBeNull($"{id}#{property.Name} carries a reference, so it has a name");
+                }
+
+            // A name costs a service nothing: no finding is written for one.
+            registry.Findings.Should().NotContain(finding => finding.Detail.Contains("relation", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void Read_ADocumentWithRelationNames_GivesTheEngineTheNamesAsPublished()
+        {
+            var registry = SchemaBuild.Degraded;
+            var read = global::OxQL.Model.Build.DocumentModelBuilder.Build(System.Text.Encoding.UTF8.GetString(registry.Body));
+
+            foreach (var (id, type) in registry.Model.TypePool)
+                foreach (var member in type.Members)
+                    read.TypePool[id].Members.Single(candidate => candidate.WireName == member.WireName).Relation.Should().Be(member.Relation, $"{id}#{member.WireName}");
         }
 
         [Fact]

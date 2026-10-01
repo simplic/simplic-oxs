@@ -169,7 +169,7 @@ namespace Simplic.OxS.Server.Test.OxQL
                 NullLogger<RemoteQueryClient>.Instance);
         }
 
-        private const string Health16 = """{"status":"ok","engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":16}}""";
+        private const string Health16 = """{"status":"ok","engine":{"version":"9.9.9","contract":2},"limits":{"maxBatchQueries":16}}""";
 
         private static ExplainRequest Explain() => new()
         {
@@ -377,13 +377,13 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task OwnerOfAsync_ForAnUnknownOwner_ReadsItsShallowHealthOnce_ThroughTheOwnerInterface()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", """{"engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":16,"maxPageSize":500}}""");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"results":[]}""", """{"engine":{"version":"9.9.9","contract":2},"limits":{"maxBatchQueries":16,"maxPageSize":500}}""");
             IRemoteOwnerInfo client = Client(handler, "vehicle-svc:8080");
 
             var first = await client.OwnerOfAsync("vehicle", CancellationToken.None);
             var second = await client.OwnerOfAsync("vehicle", CancellationToken.None);
 
-            first.Should().Be(new RemoteOwnerInfo("2.1.0", 2, 16, 500));
+            first.Should().Be(new RemoteOwnerInfo("9.9.9", 2, 16, 500));
             second.Should().Be(first);
             handler.HealthReads.Should().Be(1);
             (await client.OwnerOfAsync("unknown", CancellationToken.None)).Should().BeNull();
@@ -515,7 +515,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task OwnerOf_IsUnknownUntilTheOwnersShallowHealthWasRead()
         {
-            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"status":"ok","engine":{"version":"2.1.0","contract":2},"limits":{"maxBatchQueries":16}}""");
+            var handler = new AnsweringHandler(HttpStatusCode.OK, """{"status":"ok","engine":{"version":"9.9.9","contract":2},"limits":{"maxBatchQueries":16}}""");
             var client = Client(handler, "vehicle-svc:8080");
 
             client.Should().BeAssignableTo<IRemoteOwnerInfo>();
@@ -523,7 +523,7 @@ namespace Simplic.OxS.Server.Test.OxQL
 
             (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue();
 
-            client.OwnerOf("vehicle").Should().Be(new RemoteOwnerInfo("2.1.0", 2, 16));
+            client.OwnerOf("vehicle").Should().Be(new RemoteOwnerInfo("9.9.9", 2, 16));
             handler.Sent.Should().ContainSingle().Which.Uri.Should().Be(new Uri("http://vehicle-svc:8080/vehicle-api/v1/OxQL/health?shallow=true"));
             client.OwnerOf("unknown").Should().BeNull();
         }
@@ -580,7 +580,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task IsReachable_ForAnOwnerAnsweringAnError_IsFalse_AndLearnsNothing()
         {
-            var client = Client(new AnsweringHandler(HttpStatusCode.ServiceUnavailable, """{"engine":{"version":"2.1.0"}}"""), "vehicle-svc:8080");
+            var client = Client(new AnsweringHandler(HttpStatusCode.ServiceUnavailable, """{"engine":{"version":"9.9.9"}}"""), "vehicle-svc:8080");
 
             (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
             client.OwnerOf("vehicle").Should().BeNull();

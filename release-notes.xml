@@ -1,4 +1,11 @@
 <ReleaseNotes>
+  <ChangeSet guid="4c1f0e7a-9b2d-4e6f-8a3c-5d7e9f1b2c3d" date="2026-10-01">
+    <Change type="breaking">Add CancellationToken (last parameter, named ct, defaulted) to all async members of IReadOnlyRepository, IRepository, IOrganizationRepository, ITransactionRepository, ITransactionService, IDatabaseContext, IServiceBase, IOrganizationServiceBase, IOrganizationTransactionServiceBase, IFluentTransactionBuilder, IOrganizationSettingsProvider, ICacheRepository, ICacheService, IInternalClient, IRemoteServiceInvoker and IAsyncScopedJobService. Call sites compile unchanged; overrides of the base CRUD methods (Create/Update/Delete/GetById, GetAsync/GetByFilterAsync/FindAsync/CountAsync/...) and direct interface implementations must add the parameter.</Change>
+    <Change type="breaking">IOrganizationRepository.GetAsync(id, queryAllOrganizations): queryAllOrganizations no longer has a default value (GetAsync(id) would otherwise be ambiguous). IDatabaseContext.AddCommand now takes Func&lt;CancellationToken, Task&gt;; IFluentTransactionBuilder.Tasks is IList&lt;Func&lt;CancellationToken, Task&gt;&gt;.</Change>
+    <Change type="enhancement">Mongo base repositories forward the token to the driver (Find/ToListAsync, CountDocumentsAsync, InsertOne/ReplaceOne, sessions and transactions). FindAsync/GetByFilterAsync now materialize via ToListAsync instead of a synchronous ToList/ToEnumerable.</Change>
+    <Change type="feature">AsyncScopedJob.ExecuteJobAsync(Type, ScopedJobParameter, CancellationToken) overload: pass CancellationToken.None in the Hangfire job expression and Hangfire injects its shutdown/deletion token.</Change>
+    <Change type="enhancement">Framework controllers (AddonField, ModelDefinition, OrganizationSettings, ServiceContract) accept and forward CancellationToken. Post-commit cache invalidation deliberately runs with CancellationToken.None.</Change>
+  </ChangeSet>
   <ChangeSet guid="g6d48f4a-b886-260c-bf73-3aa3c4d7a54f" version="1.2.623.523" date="2023-05-23">
     <Change type="feature">Update the Patchhelper to patch list of guid, string or something else.</Change>
   </ChangeSet>

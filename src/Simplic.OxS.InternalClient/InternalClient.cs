@@ -68,9 +68,10 @@ namespace Simplic.OxS.InternalClient
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Get<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Get<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null, CancellationToken ct = default)
         {
             string host = "unset";
             if (hosts?.TryGetValue(service, out var _host) == true)
@@ -79,7 +80,7 @@ namespace Simplic.OxS.InternalClient
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
-            var result = await client.GetAsync(endpoint);
+            var result = await client.GetAsync(endpoint, ct);
 
             if (!result.IsSuccessStatusCode)
             {
@@ -93,7 +94,7 @@ namespace Simplic.OxS.InternalClient
             if (result.Content == null)
                 return default;
 
-            return await result.Content.ReadFromJsonAsync<T>();
+            return await result.Content.ReadFromJsonAsync<T>(ct);
         }
 
         /// <summary>
@@ -104,9 +105,10 @@ namespace Simplic.OxS.InternalClient
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<StreamResult?> GetStream([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<StreamResult?> GetStream([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null, CancellationToken ct = default)
         {
             var host = "unset";
             if (hosts?.TryGetValue(service, out var _host) == true)
@@ -115,7 +117,8 @@ namespace Simplic.OxS.InternalClient
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
-            var result = await client.GetAsync(endpoint);
+            // Return as soon as the headers arrive so the stream can be consumed without buffering the whole body.
+            var result = await client.GetAsync(endpoint, HttpCompletionOption.ResponseHeadersRead, ct);
 
             if (!result.IsSuccessStatusCode)
             {
@@ -131,7 +134,7 @@ namespace Simplic.OxS.InternalClient
 
             return new StreamResult
             {
-                Stream = await result.Content.ReadAsStreamAsync(),
+                Stream = await result.Content.ReadAsStreamAsync(ct),
                 FileName = result.Content.Headers.ContentDisposition?.FileName,
                 MimeType = result.Content.Headers.ContentType?.MediaType,
             };
@@ -148,9 +151,10 @@ namespace Simplic.OxS.InternalClient
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="body">Object to post as json</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Post<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Post<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null, CancellationToken ct = default)
         {
             string host = "unset";
             if (hosts?.TryGetValue(service, out var _host) == true)
@@ -159,7 +163,7 @@ namespace Simplic.OxS.InternalClient
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
-            var result = await client.PostAsJsonAsync(endpoint, body);
+            var result = await client.PostAsJsonAsync(endpoint, body, ct);
 
             if (!result.IsSuccessStatusCode)
             {
@@ -173,7 +177,7 @@ namespace Simplic.OxS.InternalClient
             if (result.Content == null)
                 return default;
 
-            return await result.Content.ReadFromJsonAsync<T>();
+            return await result.Content.ReadFromJsonAsync<T>(ct);
         }
 
         /// <summary>
@@ -187,9 +191,10 @@ namespace Simplic.OxS.InternalClient
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="body">Object to put as json</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Put<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Put<T, O>([NotNull] string service, [NotNull] string controller, string action, O body, IDictionary<string, string>? parameter = null, CancellationToken ct = default)
         {
             string host = "unset";
             if (hosts?.TryGetValue(service, out var _host) == true)
@@ -198,7 +203,7 @@ namespace Simplic.OxS.InternalClient
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
-            var result = await client.PutAsJsonAsync(endpoint, body);
+            var result = await client.PutAsJsonAsync(endpoint, body, ct);
 
             if (!result.IsSuccessStatusCode)
             {
@@ -212,7 +217,7 @@ namespace Simplic.OxS.InternalClient
             if (result.Content == null)
                 return default;
 
-            return await result.Content.ReadFromJsonAsync<T>();
+            return await result.Content.ReadFromJsonAsync<T>(ct);
         }
 
         /// <summary>
@@ -224,9 +229,10 @@ namespace Simplic.OxS.InternalClient
         /// <param name="controller">Controller name (e.g. auth, mail, ...)</param>
         /// <param name="action">Action name (e.g. get, search, ...)</param>
         /// <param name="parameter">Query parameter as dictionary (key-value)</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Result object</returns>
         /// <exception cref="Exception"></exception>
-        public virtual async Task<T?> Delete<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null)
+        public virtual async Task<T?> Delete<T>([NotNull] string service, [NotNull] string controller, string action, IDictionary<string, string>? parameter = null, CancellationToken ct = default)
         {
             string host = "unset";
             if (hosts?.TryGetValue(service, out var _host) == true)
@@ -235,7 +241,7 @@ namespace Simplic.OxS.InternalClient
             var endpoint = BuildUrl(host, service, controller, action, parameter);
             SetRequestHeader();
 
-            var result = await client.DeleteAsync(endpoint);
+            var result = await client.DeleteAsync(endpoint, ct);
 
             if (!result.IsSuccessStatusCode)
             {
@@ -249,7 +255,7 @@ namespace Simplic.OxS.InternalClient
             if (result.Content == null)
                 return default;
 
-            return await result.Content.ReadFromJsonAsync<T>();
+            return await result.Content.ReadFromJsonAsync<T>(ct);
         }
 
         /// <summary>

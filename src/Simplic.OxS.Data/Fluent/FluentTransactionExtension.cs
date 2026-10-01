@@ -37,7 +37,7 @@
             var service = builder.GetService<T, I>();
             var item = func(service);
 
-            builder.Tasks.Add(async () => await service.CreateAsync(item, await builder.GetTransaction()));
+            builder.Tasks.Add(async ct => await service.CreateAsync(item, await builder.GetTransaction(ct), ct));
 
             return builder;
         }
@@ -57,7 +57,7 @@
             var service = builder.GetService<T, I>();
             var item = func(service);
 
-            builder.Tasks.Add(async () => await service.UpdateAsync(item, await builder.GetTransaction()));
+            builder.Tasks.Add(async ct => await service.UpdateAsync(item, await builder.GetTransaction(ct), ct));
 
             return builder;
         }
@@ -77,7 +77,7 @@
             var service = builder.GetService<T, I>();
             var id = func(service);
 
-            builder.Tasks.Add(async () => await service.DeleteAsync(id, await builder.GetTransaction()));
+            builder.Tasks.Add(async ct => await service.DeleteAsync(id, await builder.GetTransaction(ct), ct));
 
             return builder;
         }
@@ -86,23 +86,26 @@
         /// Commit all operations
         /// </summary>
         /// <param name="builder">Actual builder instance</param>
-        public static async Task CommitAsync(this IFluentTransactionBuilder builder)
+        /// <param name="ct">Cancellation token</param>
+        public static async Task CommitAsync(this IFluentTransactionBuilder builder, CancellationToken ct = default)
         {
             foreach (var task in builder.Tasks)
             {
                 try
                 {
-                    await task();
+                    await task(ct);
                 }
                 catch (Exception)
                 {
-                    await builder.TransactionService.AbortAsync(await builder.GetTransaction());
+                    // The abort must run even when the caller's token is already cancelled,
+                    // otherwise the session stays open with a dangling transaction.
+                    await builder.TransactionService.AbortAsync(await builder.GetTransaction(CancellationToken.None), CancellationToken.None);
 
                     throw;
                 }
             }
 
-            await builder.TransactionService.CommitAsync(await builder.GetTransaction());
+            await builder.TransactionService.CommitAsync(await builder.GetTransaction(ct), ct);
             builder.Tasks.Clear();
         }
 
@@ -110,9 +113,10 @@
         /// Abort the actual transaction and undo changes
         /// </summary>
         /// <param name="builder">Actual builder instance</param>
-        public static async Task AbortAsync(this IFluentTransactionBuilder builder)
+        /// <param name="ct">Cancellation token</param>
+        public static async Task AbortAsync(this IFluentTransactionBuilder builder, CancellationToken ct = default)
         {
-            await builder.TransactionService.AbortAsync(await builder.GetTransaction());
+            await builder.TransactionService.AbortAsync(await builder.GetTransaction(ct), ct);
             builder.Tasks.Clear();
         }
     }

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 using MongoDB.Driver;
 using Simplic.OxS.Data;
 
@@ -29,36 +30,39 @@ namespace Simplic.OxS.Data.MongoDB
         /// <summary>
         /// Create new entity
         /// </summary>
-        /// <param name="entity">Entity to create</param>
-        public virtual async Task CreateAsync(TDocument document)
+        /// <param name="document">Entity to create</param>
+        /// <param name="ct">Cancellation token. The queued command itself runs with the token passed to <see cref="CommitAsync"/>.</param>
+        public virtual async Task CreateAsync(TDocument document, CancellationToken ct = default)
         {
             await Initialize();
-            Context.AddCommand(() => Collection.InsertOneAsync(document));
+            Context.AddCommand(commitCt => Collection.InsertOneAsync(document, cancellationToken: commitCt));
         }
 
         /// <summary>
         /// Update an entity in the database
         /// </summary>
-        /// <param name="obj"></param>
-        public virtual async Task UpdateAsync(TDocument document)
+        /// <param name="document"></param>
+        /// <param name="ct">Cancellation token. The queued command itself runs with the token passed to <see cref="CommitAsync"/>.</param>
+        public virtual async Task UpdateAsync(TDocument document, CancellationToken ct = default)
         {
             await Initialize();
-            Context.AddCommand(() => Collection.ReplaceOneAsync(GetFilterById(document.Id), document));
+            Context.AddCommand(commitCt => Collection.ReplaceOneAsync(GetFilterById(document.Id), document, cancellationToken: commitCt));
         }
 
         /// <summary>
         /// Mark entity as deleted in database
         /// </summary>
         /// <param name="id">Entity id</param>
-        public virtual async Task DeleteAsync(TId id)
+        /// <param name="ct">Cancellation token</param>
+        public virtual async Task DeleteAsync(TId id, CancellationToken ct = default)
         {
             await Initialize();
 
-            var document = await GetAsync(id);
+            var document = await GetAsync(id, ct);
             if (document != null)
             {
                 document.IsDeleted = true;
-                await UpdateAsync(document);
+                await UpdateAsync(document, ct);
             }
         }
 
@@ -67,22 +71,24 @@ namespace Simplic.OxS.Data.MongoDB
         /// </summary>
         /// <param name="filter">Filter instance</param>
         /// <param name="entity">Entity instance</param>
-        public async Task UpsertAsync(TFilter filter, TDocument entity)
+        /// <param name="ct">Cancellation token. The queued command itself runs with the token passed to <see cref="CommitAsync"/>.</param>
+        public async Task UpsertAsync(TFilter filter, TDocument entity, CancellationToken ct = default)
         {
             await Initialize();
 
             var filterQuery = BuildFilterQuery(filter);
 
-            Context.AddCommand(() => Collection.ReplaceOneAsync(filterQuery, entity, new ReplaceOptions { IsUpsert = true }));
+            Context.AddCommand(commitCt => Collection.ReplaceOneAsync(filterQuery, entity, new ReplaceOptions { IsUpsert = true }, commitCt));
         }
 
         /// <summary>
         /// Commit data
         /// </summary>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Amount of changed data</returns>
-        public virtual async Task<int> CommitAsync()
+        public virtual async Task<int> CommitAsync(CancellationToken ct = default)
         {
-            return await Context.SaveChangesAsync();
+            return await Context.SaveChangesAsync(ct);
         }
 
         /// <summary>
@@ -103,8 +109,9 @@ namespace Simplic.OxS.Data.MongoDB
         /// </summary>
         /// <param name="document">Entity to add.</param>
         /// <param name="transaction">Transaction.</param>
+        /// <param name="ct">Cancellation token.</param>
         /// <returns></returns>
-        public virtual async Task CreateAsync(TDocument document, ITransaction transaction)
+        public virtual async Task CreateAsync(TDocument document, ITransaction transaction, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -112,7 +119,7 @@ namespace Simplic.OxS.Data.MongoDB
                 throw new System.ArgumentNullException(nameof(transaction));
 
             if (transaction is MongoTransaction mongoTransaction)
-                await Collection.InsertOneAsync(mongoTransaction.Session, document);
+                await Collection.InsertOneAsync(mongoTransaction.Session, document, cancellationToken: ct);
             else
                 throw new System.Exception($"Transaction is no of type {typeof(MongoTransaction).FullName}.");
         }
@@ -122,7 +129,8 @@ namespace Simplic.OxS.Data.MongoDB
         /// </summary>
         /// <param name="document"></param>
         /// <param name="transaction"></param>
-        public virtual async Task UpdateAsync(TDocument document, ITransaction transaction)
+        /// <param name="ct">Cancellation token.</param>
+        public virtual async Task UpdateAsync(TDocument document, ITransaction transaction, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -133,7 +141,8 @@ namespace Simplic.OxS.Data.MongoDB
                 await Collection.ReplaceOneAsync(
                     mongoTransaction.Session,
                     GetFilterById(document.Id),
-                    document
+                    document,
+                    cancellationToken: ct
                 );
             else
                 throw new System.Exception($"Transaction is no of type {typeof(MongoTransaction).FullName}.");
@@ -144,7 +153,8 @@ namespace Simplic.OxS.Data.MongoDB
         /// </summary>
         /// <param name="id"></param>
         /// <param name="transaction"></param>
-        public virtual async Task DeleteAsync(TId id, ITransaction transaction)
+        /// <param name="ct">Cancellation token.</param>
+        public virtual async Task DeleteAsync(TId id, ITransaction transaction, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -153,11 +163,11 @@ namespace Simplic.OxS.Data.MongoDB
 
             if (transaction is MongoTransaction mongoTransaction)
             {
-                var document = await GetAsync(id);
+                var document = await GetAsync(id, ct);
                 if (document != null)
                 {
                     document.IsDeleted = true;
-                    await UpdateAsync(document, transaction);
+                    await UpdateAsync(document, transaction, ct);
                 }
             }
             else

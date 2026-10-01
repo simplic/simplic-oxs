@@ -18,31 +18,31 @@ namespace Simplic.OxS.Cache.Redis
         }
 
         /// <inheritdoc/>
-        public async Task<T?> Get<T>(string type, string keyName, string key)
+        public async Task<T?> Get<T>(string type, string keyName, string key, CancellationToken ct = default)
         {
-            var value = await cache.GetStringAsync($"{type}_{keyName}_{key}");
+            var value = await cache.GetStringAsync($"{type}_{keyName}_{key}", ct);
 
             if (string.IsNullOrWhiteSpace(value))
                 return default(T);
-            
+
             return JsonSerializer.Deserialize<T>(value);
         }
 
         /// <inheritdoc/>
-        public async Task Remove(string type, string keyName, string key)
+        public async Task Remove(string type, string keyName, string key, CancellationToken ct = default)
         {
-            await cache.RemoveAsync($"{type}_{keyName}_{key}");
+            await cache.RemoveAsync($"{type}_{keyName}_{key}", ct);
         }
 
         /// <inheritdoc/>
-        public async Task Set<T>(string type, string keyName, string key, T obj)
+        public async Task Set<T>(string type, string keyName, string key, T obj, CancellationToken ct = default)
         {
             if (obj == null)
                 return;
 
             var json = JsonSerializer.Serialize(obj);
 
-            await cache.SetStringAsync($"{type}_{keyName}_{key}", json);
+            await cache.SetStringAsync($"{type}_{keyName}_{key}", json, ct);
         }
     }
 }

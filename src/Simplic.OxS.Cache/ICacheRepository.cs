@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace Simplic.OxS.Cache
 {
@@ -14,8 +15,9 @@ namespace Simplic.OxS.Cache
         /// <param name="type">Data cache type</param>
         /// <param name="keyName">Key name of the object</param>
         /// <param name="key">Key value</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Cachned object if exists</returns>
-        Task<T?> Get<T>(string type, string keyName, string key);
+        Task<T?> Get<T>(string type, string keyName, string key, CancellationToken ct = default);
 
         /// <summary>
         /// Write data to the cache
@@ -25,7 +27,8 @@ namespace Simplic.OxS.Cache
         /// <param name="keyName">Key name of the object</param>
         /// <param name="key">Key value</param>
         /// <param name="obj">Object to cache</param>
-        Task Set<T>(string type, string keyName, string key, T obj);
+        /// <param name="ct">Cancellation token</param>
+        Task Set<T>(string type, string keyName, string key, T obj, CancellationToken ct = default);
 
         /// <summary>
         /// Remove object from cache
@@ -33,6 +36,7 @@ namespace Simplic.OxS.Cache
         /// <param name="type">Data cache type</param>
         /// <param name="keyName">Key name of the object</param>
         /// <param name="key">Key value</param>
-        Task Remove(string type, string keyName, string key);
+        /// <param name="ct">Cancellation token</param>
+        Task Remove(string type, string keyName, string key, CancellationToken ct = default);
     }
 }

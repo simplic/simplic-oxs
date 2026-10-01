@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace Simplic.OxS.Data
 {
@@ -13,23 +14,26 @@ namespace Simplic.OxS.Data
         /// </summary>
         /// <param name="obj">Object to create.</param>
         /// <param name="transaction">Transaction to add to.</param>
+        /// <param name="ct">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task CreateAsync(T obj, ITransaction transaction);
+        Task CreateAsync(T obj, ITransaction transaction, CancellationToken ct = default);
 
         /// <summary>
         /// Asynchronously adds deletion of an object object to the transaction.
         /// </summary>
         /// <param name="id">Identifier of object to delete.</param>
         /// <param name="transaction">Transaction to add to.</param>
+        /// <param name="ct">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task DeleteAsync(I id, ITransaction transaction);
+        Task DeleteAsync(I id, ITransaction transaction, CancellationToken ct = default);
 
         /// <summary>
         /// Asynchronously adds update of an object object to the transaction.
         /// </summary>
         /// <param name="obj">Object to update.</param>
         /// <param name="transaction">Transaction to add to.</param>
+        /// <param name="ct">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task UpdateAsync(T obj, ITransaction transaction);
+        Task UpdateAsync(T obj, ITransaction transaction, CancellationToken ct = default);
     }
 }

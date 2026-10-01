@@ -17,12 +17,12 @@ namespace Simplic.OxS.Data.MongoDB
             this.requestContext = requestContext;
         }
 
-        public override async Task<TDocument> GetAsync(Guid id)
+        public override async Task<TDocument> GetAsync(Guid id, CancellationToken ct = default)
         {
-            return await GetAsync(id, false);
+            return await GetAsync(id, false, ct);
         }
 
-        public async Task<TDocument> GetAsync(Guid id, bool queryAllOrganizations)
+        public async Task<TDocument> GetAsync(Guid id, bool queryAllOrganizations, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -30,7 +30,7 @@ namespace Simplic.OxS.Data.MongoDB
             {
                 Id = id,
                 QueryAllOrganizations = queryAllOrganizations
-            });
+            }, ct);
 
             return data.SingleOrDefault();
         }
@@ -43,8 +43,10 @@ namespace Simplic.OxS.Data.MongoDB
         /// <param name="limit">Number of requested entities</param>
         /// <param name="sortField">Sort field</param>
         /// <param name="isAscending">Ascending or Descending sort</param>
+        /// <param name="collation">Collation options</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        public async override Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null)
+        public async override Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -66,24 +68,24 @@ namespace Simplic.OxS.Data.MongoDB
             if (collation != null)
                 findOptions.Collation = collation;
 
-            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
+            return await Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToListAsync(ct);
         }
 
-        public async Task<IEnumerable<TDocument>> GetAllAsync()
+        public async Task<IEnumerable<TDocument>> GetAllAsync(CancellationToken ct = default)
         {
-            return await GetAllAsync(false);
+            return await GetAllAsync(false, ct);
         }
 
-        public async Task<IEnumerable<TDocument>> GetAllAsync(bool queryAllOrganizations)
+        public async Task<IEnumerable<TDocument>> GetAllAsync(bool queryAllOrganizations, CancellationToken ct = default)
         {
             return await GetByFilterAsync(new TFilter
             {
                 QueryAllOrganizations = queryAllOrganizations,
                 IsDeleted = false
-            });
+            }, ct);
         }
 
-        public override async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter)
+        public override async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -95,8 +97,7 @@ namespace Simplic.OxS.Data.MongoDB
                         // Using an empty guid to prevent reading data from all Organizations.
                         ?? Guid.Empty;
 
-            return (await Collection.FindAsync(BuildFilterQuery(filter)))
-                    .ToEnumerable();
+            return await Collection.Find(BuildFilterQuery(filter)).ToListAsync(ct);
         }
 
         private new FilterDefinition<TDocument> BuildFilterQuery(TFilter filter)

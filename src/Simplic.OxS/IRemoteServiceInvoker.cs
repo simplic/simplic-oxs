@@ -17,8 +17,9 @@ namespace Simplic.OxS
         /// <param name="provider">Contains the provider to call (if multiple provider are attached)</param>
         /// <param name="parameter">Parameter that is required for function calling</param>
         /// <param name="defaultImpl">Default implementation when no contract was found</param>
+        /// <param name="ct">Cancellation token, propagated to the cache lookup and the remote call</param>
         /// <returns>Processed value</returns>
-        Task<T?> Call<T, P>([NotNull] string contractOrUri, string? provider, P parameter, Func<P, Task<T>>? defaultImpl = null)
+        Task<T?> Call<T, P>([NotNull] string contractOrUri, string? provider, P parameter, Func<P, Task<T>>? defaultImpl = null, CancellationToken ct = default)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new();
     }

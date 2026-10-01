@@ -44,9 +44,9 @@ public class ServiceContractController : OxSController
     [ProducesResponseType(typeof(IList<EndpointContract>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> GetServiceContracts()
+    public async Task<IActionResult> GetServiceContracts(CancellationToken ct)
     {
-        return Ok(await endpointContractRepository.GetAllAsync());
+        return Ok(await endpointContractRepository.GetAllAsync(ct));
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public class ServiceContractController : OxSController
     [ProducesResponseType(typeof(EndpointContract), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> GetServiceContract([NotNull][Required] string contractName)
+    public async Task<IActionResult> GetServiceContract([NotNull][Required] string contractName, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(contractName))
             return BadRequest("ContractName must be set");
@@ -73,7 +73,7 @@ public class ServiceContractController : OxSController
             Name = contractName,
             OrganizationId = requestContext.OrganizationId.Value,
             IsDeleted = false
-        })).ToList();
+        }, ct)).ToList();
 
         if (!contracts.Any())
             return NotFound($"Could not find contract: {contractName}");
@@ -88,7 +88,7 @@ public class ServiceContractController : OxSController
     [ProducesResponseType((int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> SetEndpointContract(SetEndpointContractRequest endpoint)
+    public async Task<IActionResult> SetEndpointContract(SetEndpointContractRequest endpoint, CancellationToken ct)
     {
         if (!ModelState.IsValid)
             return BadRequest();
@@ -108,7 +108,7 @@ public class ServiceContractController : OxSController
                 ProviderName = requiredContract.AllowMultiple ? endpoint.ProviderName : null,
                 OrganizationId = requestContext.OrganizationId.Value,
                 IsDeleted = false
-            })).FirstOrDefault();
+            }, ct)).FirstOrDefault();
 
             var contract = new EndpointContract
             {
@@ -120,10 +120,12 @@ public class ServiceContractController : OxSController
                 Endpoint = endpoint.Endpoint
             };
 
-            await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract);
-            await endpointContractRepository.CommitAsync();
+            await endpointContractRepository.UpsertAsync(new EndpointContractFilter { Id = contract.Id }, contract, ct);
+            await endpointContractRepository.CommitAsync(ct);
 
-            await distributedCache.RemoveAsync($"{requestContext.OrganizationId.Value}_{contract.Name}_{contract.ProviderName ?? ""}");
+            // Post-commit cache invalidation must not be skipped on cancellation, otherwise the
+            // remote service invoker keeps routing to the old endpoint for up to 10 minutes.
+            await distributedCache.RemoveAsync($"{requestContext.OrganizationId.Value}_{contract.Name}_{contract.ProviderName ?? ""}", CancellationToken.None);
         }
 
         return Ok();

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Simplic.OxS.Data
@@ -31,8 +32,9 @@ namespace Simplic.OxS.Data
         /// Creates a new transaction if no transaction is existing. Only one instance
         /// will be created during builder-lifetime.
         /// </summary>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Transaction instance</returns>
-        Task<ITransaction> GetTransaction();
+        Task<ITransaction> GetTransaction(CancellationToken ct = default);
 
         /// <summary>
         /// Gets the transaction service for executing transaction operations on commit and abort
@@ -40,8 +42,9 @@ namespace Simplic.OxS.Data
         ITransactionService TransactionService { get; }
 
         /// <summary>
-        /// Gets the actual list of tasks to execute when committing or aborting
+        /// Gets the actual list of tasks to execute when committing or aborting.
+        /// Each task receives the cancellation token passed to commit/abort.
         /// </summary>
-        IList<Func<Task>> Tasks { get; }
+        IList<Func<CancellationToken, Task>> Tasks { get; }
     }
 }

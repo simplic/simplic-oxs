@@ -1,3 +1,5 @@
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Options;
 using OxQL.Model;
 
 namespace Simplic.OxS.Server.OxSchema
@@ -42,6 +44,7 @@ namespace Simplic.OxS.Server.OxSchema
                     Description = type.Description,
                     Discriminator = DiscriminatorOf(type),
                     Variants = VariantsOf(type),
+                    BaseVariant = BaseVariantOf(type),
                 };
             }
 
@@ -69,6 +72,7 @@ namespace Simplic.OxS.Server.OxSchema
                     Constraints = ConstraintsOf(member.Constraints),
                     Deprecated = DeprecationOf(member.Deprecated),
                     OnlyFor = member.OnlyFor is { Count: > 0 } onlyFor ? [.. onlyFor] : null,
+                    Stored = member.Stored ? null : false,
                 });
             }
 
@@ -78,11 +82,27 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>Describes one shape: scalars stop, composites recurse, pointers name the pooled entry.</summary>
         private static OxSchemaProperty Describe(ShapeDef shape) => shape.Kind switch
         {
-            Kind.Enum => new OxSchemaProperty { Kind = OxSchemaKinds.Enum, Type = Pointer(shape) },
-            Kind.Dictionary => new OxSchemaProperty { Kind = OxSchemaKinds.Dictionary, Value = shape.Value is null ? null : Describe(shape.Value) },
+            Kind.Enum => new OxSchemaProperty { Kind = OxSchemaKinds.Enum, Type = Pointer(shape), StoredAs = StoredAs(shape) },
+            Kind.Dictionary => new OxSchemaProperty { Kind = OxSchemaKinds.Dictionary, Value = shape.Value is null ? null : Describe(shape.Value), StoredAs = StoredAs(shape) },
             Kind.Array => new OxSchemaProperty { Kind = OxSchemaKinds.Array, Of = shape.Of is null ? null : Describe(shape.Of) },
             Kind.Object => new OxSchemaProperty { Kind = OxSchemaKinds.Object, Type = Pointer(shape), SnapshotOf = shape.SnapshotOf },
-            var kind => new OxSchemaProperty { Kind = Kinds.NameOf(kind) },
+            var kind => new OxSchemaProperty { Kind = Kinds.NameOf(kind), StoredAs = StoredAs(shape) },
+        };
+
+        /// <summary>
+        /// How a value is stored where its kind does not say it, which is exactly where the query
+        /// engine treats it differently: a character stored as its code point has no text operators,
+        /// a scalar stored as a document is not filterable, and a dictionary stored as an array is a
+        /// collection. Null for every representation a kind implies.
+        /// </summary>
+        private static string? StoredAs(ShapeDef shape) => shape switch
+        {
+            { Kind: Kind.Dictionary, DictionaryRepresentation: DictionaryRepresentation.ArrayOfDocuments } => OxSchemaStoredAs.ArrayOfDocuments,
+            { Kind: Kind.Dictionary, DictionaryRepresentation: DictionaryRepresentation.ArrayOfArrays } => OxSchemaStoredAs.ArrayOfArrays,
+            { Kind: Kind.Dictionary } => null,
+            { Kind: Kind.String, Representation.BsonType: BsonType.Int32 } => OxSchemaStoredAs.CodePoint,
+            { Representation.BsonType: BsonType.Document } when Kinds.IsScalar(shape.Kind) => OxSchemaStoredAs.Document,
+            _ => null,
         };
 
         private static string? Pointer(ShapeDef shape) => shape.Type is null ? null : OxSchemaPointer.To(shape.Type.PoolId);
@@ -133,6 +153,21 @@ namespace Simplic.OxS.Server.OxSchema
                 Element = type.DiscriminatorElement ?? "_t",
                 Form = type.DiscriminatorForm == DiscriminatorForm.Hierarchical ? OxSchemaDiscriminatorForms.Hierarchical : OxSchemaDiscriminatorForms.Scalar,
             };
+
+        /// <summary>
+        /// The name a value stored as a polymorphic type itself goes by: the class name without its
+        /// generic arity when the class is concrete, as the query engine's <c>is</c> accepts it; null
+        /// for an abstract class, an interface and a type without variants.
+        /// </summary>
+        private static string? BaseVariantOf(TypeDef type)
+        {
+            if (type.Variants.Count == 0 || type.ClrType is not { IsAbstract: false, IsInterface: false } clr)
+                return null;
+
+            var arity = clr.Name.IndexOf('`', StringComparison.Ordinal);
+
+            return arity > 0 ? clr.Name[..arity] : clr.Name;
+        }
 
         /// <summary>The variants of a type, ordinally by name, each pointing at its pooled entry; null when it has none.</summary>
         private static IReadOnlyList<OxSchemaVariant>? VariantsOf(TypeDef type) => type.Variants.Count == 0

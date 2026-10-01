@@ -185,10 +185,50 @@ namespace Simplic.OxS.Server.Test.OxSchema
             using var body = JsonDocument.Parse(SchemaBuild.Degraded.Body);
             var entry = RawEntry(body, "t_entry");
 
-            entry.EnumerateObject().Select(member => member.Name).Should().Equal("properties", "discriminator", "variants");
+            entry.EnumerateObject().Select(member => member.Name).Should().Equal("properties", "discriminator", "variants", "baseVariant");
             entry.GetProperty("discriminator").GetRawText().Should().Be("{\"element\":\"_t\",\"form\":\"scalar\"}");
             entry.GetProperty("variants").GetRawText().Should().Be(
                 "[{\"name\":\"GroupEntry\",\"type\":\"#/types/t_groupEntry\"},{\"name\":\"LineEntry\",\"type\":\"#/types/t_lineEntry\"}]");
+        }
+
+        [Fact]
+        public void Build_PolymorphicType_NamesItsConcreteBaseAsTheVariantOfItsOwnValues()
+        {
+            var document = SchemaBuild.Degraded.Document;
+
+            // Entry is a concrete class: a value stored as an Entry itself is one `is` can name.
+            document.Entry("t_entry").BaseVariant.Should().Be("Entry");
+
+            foreach (var (id, entry) in document.Types.Where(entry => entry.Value.Variants is null))
+                entry.BaseVariant.Should().BeNull(id);
+        }
+
+        [Fact]
+        public void Build_UnstoredMember_SaysSo_AndAStoredOneSaysNothing()
+        {
+            var registry = SchemaBuild.Degraded;
+
+            // `label` is in the wire view and has no storage: a query can project it and nothing else.
+            registry.Document.Property("probe.widget", "label").Stored.Should().BeFalse();
+            RawProperty(registry, "probe.widget", "label").Should().EndWith("\"stored\":false}");
+            registry.Document.Property("probe.ledger", "name").Stored.Should().BeNull();
+            RawProperty(registry, "probe.ledger", "name").Should().NotContain("stored");
+        }
+
+        [Fact]
+        public void Build_StoredAs_SaysHowAValueIsStoredWhereItsKindDoesNot()
+        {
+            var registry = SchemaBuild.Degraded;
+
+            RawProperty(registry, "probe.ledger", "grade").Should().Be("{\"name\":\"grade\",\"kind\":\"string\",\"nullable\":false,\"storedAs\":\"codePoint\"}");
+            registry.Document.Property("probe.ledger", "tally").StoredAs.Should().Be(OxSchemaStoredAs.ArrayOfDocuments);
+            registry.Document.Property("probe.ledger", "tally").Kind.Should().Be(OxSchemaKinds.Dictionary);
+            registry.Document.Property("probe.ledger", "stamp").StoredAs.Should().Be(OxSchemaStoredAs.Document);
+            registry.Document.Property("probe.ledger", "stamp").Kind.Should().Be(OxSchemaKinds.DateTime);
+
+            // The representation a kind implies is not published.
+            foreach (var name in new[] { "name", "rank", "kind", "slotId", "entries" })
+                registry.Document.Property("probe.ledger", name).StoredAs.Should().BeNull(name);
         }
 
         [Fact]

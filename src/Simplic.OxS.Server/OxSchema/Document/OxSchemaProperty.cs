@@ -93,6 +93,41 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         [JsonPropertyOrder(15)]
         public IReadOnlyList<OxSchemaReferenceCase>? ReferenceCases { get; init; }
+
+        /// <summary>
+        /// <c>false</c> on a member the service returns and does not store (format 1.1): the query
+        /// engine projects it and refuses every other use, for the member and for everything below
+        /// it. Absent on a stored member, and on a nested descriptor.
+        /// </summary>
+        [JsonPropertyOrder(16)]
+        public bool? Stored { get; init; }
+
+        /// <summary>
+        /// How the value is stored where its kind does not say it, one of
+        /// <see cref="OxSchemaStoredAs"/> (format 1.1). It travels with the shape, so it appears on a
+        /// nested descriptor too. Absent: the kind's own representation.
+        /// </summary>
+        [JsonPropertyOrder(17)]
+        public string? StoredAs { get; init; }
+    }
+
+    /// <summary>
+    /// The storage representations that change what a query can do with a value and that its kind
+    /// does not tell (format 1.1).
+    /// </summary>
+    public static class OxSchemaStoredAs
+    {
+        /// <summary>A <c>string</c> that is one character, stored as its code point: it compares by value and has no text to search.</summary>
+        public const string CodePoint = "codePoint";
+
+        /// <summary>A scalar stored as a document: it cannot be filtered or sorted on.</summary>
+        public const string Document = "document";
+
+        /// <summary>A <c>dictionary</c> stored as an array of key and value documents: a collection, which a query can unwind.</summary>
+        public const string ArrayOfDocuments = "arrayOfDocuments";
+
+        /// <summary>A <c>dictionary</c> stored as an array of key and value pairs: a collection, which a query can unwind.</summary>
+        public const string ArrayOfArrays = "arrayOfArrays";
     }
 
     /// <summary>One case of a reference (format 1.1). A case without <see cref="When"/> applies unconditionally.</summary>

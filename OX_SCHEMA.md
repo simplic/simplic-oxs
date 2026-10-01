@@ -129,6 +129,7 @@ An entity is a structural type that additionally carries entity metadata. Member
 | `properties` | object entries | The property list. Absent on an enum entry; an object entry always carries it, empty included. |
 | `discriminator` | polymorphic object entries | `{ element, form }`: the stored element that names a value's variant (`_t` unless the class map says otherwise) and its form, `scalar` (the variant's own name) or `hierarchical` (the names from the root class down to the variant). Present exactly when `variants` is. |
 | `variants` | polymorphic object entries | `{ name, type }` per concrete type a value can hold besides the type itself, ordinally by name. `name` is the value an `is` filter and an `onlyFor` list use; `type` points at the variant's own pool entry, which describes it whole. |
+| `baseVariant` | polymorphic object entries | The name an `is` filter accepts for a value stored as the type itself: the type's own name when it is a concrete class. Absent on an abstract class or an interface, whose values are always one of `variants`. The names `is` accepts are `baseVariant`, where present, then every `variants[].name`. |
 
 **Polymorphic types.** A type with registered subclasses (section 5.2) is described as its base:
 its own members, then every member only some variants carry, merged in and marked with `onlyFor`
@@ -149,7 +150,8 @@ variants is described as the union of its variants, every member marked.
   ],
   "discriminator": { "element": "_t", "form": "scalar" },
   "variants": [ { "name": "BillingLineTransactionItem", "type": "#/types/t_billingLineTransactionItem" },
-                { "name": "GroupTransactionItem",       "type": "#/types/t_groupTransactionItem" } ]
+                { "name": "GroupTransactionItem",       "type": "#/types/t_groupTransactionItem" } ],
+  "baseVariant": "TransactionItem"
 }
 ```
 
@@ -182,9 +184,20 @@ Exactly one property list per type, describing the query shape. Members, in orde
 | `values` | A closed value list `{ value, label }`. Only an addon descriptor of `GET /schema/addons` carries it; never a member of `/schema`. |
 | `onlyFor` | The variants of the holding type that carry this member, when not all of them do (section 1.5). A reader treats the member as absent on every other stored value. |
 | `referenceCases` | Every case of a reference that is not simple, in declaration order (section 1.10). Never beside `references`. |
+| `stored` | `false` on a member the service returns and does not store (`[BsonIgnore]`, computed and get-only members). A query can project it and nothing else, and the same holds for everything below it. Absent on a stored member. |
+| `storedAs` | How the value is stored where its kind does not say it, which is where a query treats it differently: `codePoint` (a `string` that is one character, stored as its code point: it compares by value and takes no `contains`, `startsWith`, `endsWith` or `regex`), `document` (a scalar stored as a document: it cannot be filtered or sorted on), `arrayOfDocuments` and `arrayOfArrays` (a `dictionary` stored as an array of entries: a collection a query can unwind, and whose values lie under one). Absent: the representation the kind implies. |
 
 A nested descriptor (an array's `of`, a dictionary's `value`) describes a shape, not a member:
-it carries `kind`, `type`, `of`, `value` and `snapshotOf` only.
+it carries `kind`, `type`, `of`, `value`, `snapshotOf` and `storedAs` only.
+
+**What a query can do with a member is a function of this descriptor.** Whether a member can be
+filtered and with which operators, sorted, grouped, unwound or followed is decided by its kind, its
+leaf kind (arrays unwrapped), `stored`, `storedAs`, whether its pool entry has `variants`, whether it
+declares a reference, and the collections above it. The document therefore publishes no flag per
+member, and the query engine's explain answer sends none either: it names each type by entity,
+service and this document's `revision`, and says only what a query changes (which collections are
+unwound, which rows are joined after the page). The function is written out in the engine's
+`oxql-operations.md` under `POST /oxql/explain`.
 
 **`storageName` and `displayName` mark where the derivation from `name` is wrong.** Both are
 absent in the ordinary case, and absence means "derive it". camelCasing is lossy over an acronym
@@ -250,13 +263,13 @@ same enum with `nullable: true` on the property.
 
 | absence reads as | members |
 |---|---|
-| a default the reader substitutes | `flags` (`false`) · `active` (`true`) · `inferred` (`false`) |
+| a default the reader substitutes | `flags` (`false`) · `active` (`true`) · `inferred` (`false`) · `stored` (`true`) · `storedAs` (the representation the kind implies) |
 | derive it from `name` | `displayName` · `storageName` |
 | does not apply to this descriptor | every entity-only member on a structural entry; every member-only member on a nested descriptor; `values`/`flags` outside an enum; `properties` on an enum; `of` outside an array; `value` outside a dictionary; `type` outside `object`/`enum` |
 | unknown, and no default is safe | `nullable` on a nested descriptor · `references.field` where the target's key cannot be resolved |
 | the code declares none | `description` · `constraints` (the service may still validate what it does not declare) · `deprecated` |
 | there is none, stated by an empty list instead | `aliases` `notFilterable` `notSortable` `items` on an entity |
-| a definite negative | `display` (nothing names an instance) · `operations` (no controller linked) · `snapshotOf` (not a copy) · `references` together with `referenceCases` (not a foreign key) · `discriminator` and `variants` (not polymorphic) · `onlyFor` (every variant carries the member) · `keyAs` (no key conversion) · `when` (the case is unconditional) · `item` (the value names the entity itself) · `diagnostics` (the build was clean) |
+| a definite negative | `display` (nothing names an instance) · `operations` (no controller linked) · `snapshotOf` (not a copy) · `references` together with `referenceCases` (not a foreign key) · `discriminator` and `variants` (not polymorphic) · `baseVariant` (no value is stored as the type itself, or the type is not polymorphic) · `onlyFor` (every variant carries the member) · `keyAs` (no key conversion) · `when` (the case is unconditional) · `item` (the value names the entity itself) · `diagnostics` (the build was clean) |
 
 An absent `nullable` on a nested descriptor is not `false`; the annotation at that depth is
 unreliable, so the document says nothing. An absent `displayName` is not "no label".
@@ -406,7 +419,7 @@ The array is inside the revision hash. Every other finding is logged at startup 
 
 **Format 1.1** is the first minor bump. It adds `description`, `constraints` and `deprecated`
 contents (reserved and empty in 1.0), enum value `description`, `discriminator`, `variants`,
-`onlyFor`, `referenceCases` and three limits. Two of its changes are not purely additive, and the
+`baseVariant`, `onlyFor`, `referenceCases`, `stored`, `storedAs` and three limits. Two of its changes are not purely additive, and the
 rule above was amended in the same change to classify them as minor rather than ship 2.0:
 
 1. Members the 1.0 build published as `unknown` because it could not describe a polymorphic
@@ -579,7 +592,9 @@ startup thread, and is one pass in `OxSchemaBuilder`:
    findings become the document's.
 3. **Projection.** `TypePoolWalker` turns the model's pool into pool entries under the model's
    ids, members in the model's order. A member's references are split there: a simple one into
-   `references`, every other into `referenceCases`. Nothing is walked a second time: the engine
+   `references`, every other into `referenceCases`. What the model knows of storage and a kind does
+   not say is published there too: `stored: false`, `storedAs`, and a concrete polymorphic type's
+   own name as `baseVariant`. Nothing is walked a second time: the engine
    binds against this model, and the document is its wire view.
 4. **Entity metadata.** Per entity: the label, the key (the model's), the display property, the
    aliases (the retired ids, then the legacy ids of the linked controller), `extendable`, the
@@ -716,7 +731,7 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
 | route | used for |
 |---|---|
 | `POST internal/oxql/batch` | Executing: remote resolves, semi-joins, keyed fetches, and the stages a keyed fetch continues at the owner (at most `maxContinuedStages`). |
-| `POST internal/oxql/explain` | Explaining: the origin's `POST /oxql/explain` checks the parts of a query continued at an owner there and reads the owner's types from the answer. Same body and answer as the public explain, plus `budget` (below). |
+| `POST internal/oxql/explain` | Explaining: the origin's `POST /oxql/explain` checks the parts of a query continued at an owner there and reads from the answer which of the owner's types the aliases have (by reference: entity, service, schema revision). Same body and answer as the public explain, plus `budget` (below). |
 | `GET OxQL/health?shallow=true` | Reachability, and what the owner says of itself (engine version, contract, batch cap). |
 
 | key | meaning | default |
@@ -798,8 +813,10 @@ the one the engine scoped the parent query with.
   rolled-back owner is not taken for the engine it ran before. The engine sizes each batch by the
   owner's cap and refuses a stage an old owner cannot run (`OWNER_NOT_CAPABLE`) from these facts;
   the client sends a batch as it is given.
-- The engine's model provider carries the revision of the published schema document, so an explain
-  answer names it in `revision.schema`.
+- The engine's model provider carries the revision of the published schema document. An explain
+  answer names its types by reference to the documents (entity, service, `schemaRevision`) and lists
+  the revision of every service it names in `revision.schema`, so a consumer that holds another
+  revision of a service's document loads it again; the answer itself carries no member.
 
 ### 4.3 The `OxQL` section
 

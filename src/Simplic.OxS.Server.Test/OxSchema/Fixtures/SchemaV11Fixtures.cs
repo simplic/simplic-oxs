@@ -53,6 +53,17 @@ namespace Simplic.OxS.Server.Test.OxSchema.Fixtures
 
         /// <summary>A shared type the service cannot annotate; the host declares its reference.</summary>
         public Party? Owner { get; set; }
+
+        /// <summary>One character, which the driver stores as its code point.</summary>
+        public char Grade { get; set; }
+
+        /// <summary>A dictionary the driver stores as an array of key and value documents.</summary>
+        [BsonDictionaryOptions(MongoDB.Bson.Serialization.Options.DictionaryRepresentation.ArrayOfDocuments)]
+        public Dictionary<string, int> Tally { get; set; } = [];
+
+        /// <summary>A scalar the driver stores as a document.</summary>
+        [BsonRepresentation(MongoDB.Bson.BsonType.Document)]
+        public DateTimeOffset Stamp { get; set; }
     }
 
     /// <summary>An enum with a type description and a described member.</summary>

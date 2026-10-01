@@ -89,6 +89,15 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         [JsonPropertyOrder(17)]
         public IReadOnlyList<OxSchemaVariant>? Variants { get; init; }
+
+        /// <summary>
+        /// The name an <c>is</c> filter accepts for a value stored as this polymorphic type itself
+        /// (format 1.1): the type's own name when it is a concrete class. Absent on an abstract class
+        /// or an interface, whose values are always one of <see cref="Variants"/>, and on a type that
+        /// has no variants.
+        /// </summary>
+        [JsonPropertyOrder(18)]
+        public string? BaseVariant { get; init; }
     }
 
     /// <summary>One member of an enum entry.</summary>

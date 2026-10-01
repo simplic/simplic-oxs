@@ -35,7 +35,7 @@ public class AddonFieldController : OxSController
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var fields = await addonFieldRepository.GetAllAsync();
+        var fields = await addonFieldRepository.GetAllAsync(ct);
         return Ok(fields.Select(MapToResponse));
     }
 
@@ -52,7 +52,7 @@ public class AddonFieldController : OxSController
         if (string.IsNullOrWhiteSpace(objectName))
             return BadRequest("Object name is required.");
 
-        var fields = await addonFieldRepository.GetByObjectNameAsync(objectName);
+        var fields = await addonFieldRepository.GetByObjectNameAsync(objectName, ct);
         return Ok(fields.Select(MapToResponse));
     }
 
@@ -66,7 +66,7 @@ public class AddonFieldController : OxSController
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var field = await addonFieldRepository.GetAsync(id);
+        var field = await addonFieldRepository.GetAsync(id, ct);
         if (field == null || field.IsDeleted)
             return NotFound();
 
@@ -106,8 +106,8 @@ public class AddonFieldController : OxSController
             IsDeleted = false
         };
 
-        await addonFieldRepository.CreateAsync(field);
-        await addonFieldRepository.CommitAsync();
+        await addonFieldRepository.CreateAsync(field, ct);
+        await addonFieldRepository.CommitAsync(ct);
 
         return Ok(MapToResponse(field));
     }
@@ -133,7 +133,7 @@ public class AddonFieldController : OxSController
         if (string.IsNullOrWhiteSpace(request.PropertyType))
             return BadRequest("Property type is required.");
 
-        var field = await addonFieldRepository.GetAsync(id);
+        var field = await addonFieldRepository.GetAsync(id, ct);
         if (field == null || field.IsDeleted)
             return NotFound();
 
@@ -144,8 +144,8 @@ public class AddonFieldController : OxSController
         field.PropertyType = request.PropertyType;
         field.Description = request.Description;
 
-        await addonFieldRepository.UpdateAsync(field);
-        await addonFieldRepository.CommitAsync();
+        await addonFieldRepository.UpdateAsync(field, ct);
+        await addonFieldRepository.CommitAsync(ct);
 
         return Ok(MapToResponse(field));
     }
@@ -160,7 +160,7 @@ public class AddonFieldController : OxSController
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var field = await addonFieldRepository.GetAsync(id);
+        var field = await addonFieldRepository.GetAsync(id, ct);
         if (field == null || field.IsDeleted)
             return NotFound();
 
@@ -169,8 +169,8 @@ public class AddonFieldController : OxSController
 
         field.IsDeleted = true;
 
-        await addonFieldRepository.UpdateAsync(field);
-        await addonFieldRepository.CommitAsync();
+        await addonFieldRepository.UpdateAsync(field, ct);
+        await addonFieldRepository.CommitAsync(ct);
 
         return NoContent();
     }

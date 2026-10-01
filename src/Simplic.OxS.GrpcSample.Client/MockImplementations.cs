@@ -61,7 +61,7 @@ public class MockDistributedCache : IDistributedCache
 /// </summary>
 public class MockEndpointContractRepository : IEndpointContractRepository
 {
-    public Task<IEnumerable<EndpointContract>> GetByFilterAsync(EndpointContractFilter filter)
+    public Task<IEnumerable<EndpointContract>> GetByFilterAsync(EndpointContractFilter filter, CancellationToken ct = default)
     {
         // For demonstration, return a mock endpoint contract for the UserService
         if (filter.Name == "user.service" || filter.Name == "userservice")
@@ -86,22 +86,22 @@ public class MockEndpointContractRepository : IEndpointContractRepository
         return Task.FromResult(obj);
     }
 
-    public Task DeleteAsync(Guid id)
+    public Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         return Task.CompletedTask;
     }
 
-    public Task<EndpointContract?> GetAsync(Guid id)
+    public Task<EndpointContract?> GetAsync(Guid id, CancellationToken ct = default)
     {
         return Task.FromResult<EndpointContract?>(null);
     }
 
-    public Task<EndpointContract> GetAsync(Guid id, bool queryAllOrganizations = false)
+    public Task<EndpointContract> GetAsync(Guid id, bool queryAllOrganizations, CancellationToken ct = default)
     {
         return Task.FromResult<EndpointContract>(null);
     }
 
-    public Task<IEnumerable<EndpointContract>> GetAllAsync()
+    public Task<IEnumerable<EndpointContract>> GetAllAsync(CancellationToken ct = default)
     {
         return Task.FromResult(Enumerable.Empty<EndpointContract>());
     }
@@ -111,32 +111,32 @@ public class MockEndpointContractRepository : IEndpointContractRepository
         return Task.FromResult<IExecutable<EndpointContract>>(null);
     }
 
-    public Task CreateAsync(EndpointContract entity)
+    public Task CreateAsync(EndpointContract entity, CancellationToken ct = default)
     {
         return Task.CompletedTask;
     }
 
-    public Task UpdateAsync(EndpointContract obj)
+    public Task UpdateAsync(EndpointContract obj, CancellationToken ct = default)
     {
         return Task.CompletedTask;
     }
 
-    public Task UpsertAsync(EndpointContractFilter filter, EndpointContract entity)
+    public Task UpsertAsync(EndpointContractFilter filter, EndpointContract entity, CancellationToken ct = default)
     {
         return Task.CompletedTask;
     }
 
-    public Task<int> CommitAsync()
+    public Task<int> CommitAsync(CancellationToken ct = default)
     {
         return Task.FromResult(0);
     }
 
-    public Task<IEnumerable<EndpointContract>> FindAsync(EndpointContractFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null)
+    public Task<IEnumerable<EndpointContract>> FindAsync(EndpointContractFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null, CancellationToken ct = default)
     {
         return Task.FromResult(Enumerable.Empty<EndpointContract>());
     }
 
-    public Task<long> CountAsync(EndpointContractFilter predicate, Collation collation = null)
+    public Task<long> CountAsync(EndpointContractFilter predicate, Collation collation = null, CancellationToken ct = default)
     {
         return Task.FromResult(0L);
     }

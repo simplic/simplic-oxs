@@ -13,14 +13,14 @@ namespace Simplic.OxS.Data.MongoDB
     {
         private IMongoDatabase database;
         private ConnectionSettings settings;
-        private readonly List<Func<Task>> commands;
+        private readonly List<Func<CancellationToken, Task>> commands;
         private readonly IConfiguration configuration;
         private IDictionary<string, string> connectionStringCache = new Dictionary<string, string>();
 
         public MongoContext(IConfiguration configuration)
         {
             // Every command will be stored and it'll be processed at SaveChanges
-            commands = new List<Func<Task>>();
+            commands = new List<Func<CancellationToken, Task>>();
 
             this.configuration = configuration;
             SetConfiguration("MongoDB");
@@ -50,31 +50,31 @@ namespace Simplic.OxS.Data.MongoDB
             GC.SuppressFinalize(this);
         }
 
-        public void AddCommand(Func<Task> func)
+        public void AddCommand(Func<CancellationToken, Task> func)
         {
             commands.Add(func);
         }
 
-        public async Task<int> SaveChangesAsync()
+        public async Task<int> SaveChangesAsync(CancellationToken ct = default)
         {
             Initialize();
 
             if (EnableTransactions)
             {
-                using (Session = await MongoClient.StartSessionAsync())
+                using (Session = await MongoClient.StartSessionAsync(cancellationToken: ct))
                 {
                     Session.StartTransaction();
 
-                    var commandTasks = commands.Select(c => c());
+                    var commandTasks = commands.Select(c => c(ct));
 
                     await Task.WhenAll(commandTasks);
 
-                    await Session.CommitTransactionAsync();
+                    await Session.CommitTransactionAsync(ct);
                 }
             }
             else
             {
-                var commandTasks = commands.Select(c => c());
+                var commandTasks = commands.Select(c => c(ct));
                 await Task.WhenAll(commandTasks);
             }
 

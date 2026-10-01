@@ -11,6 +11,7 @@ public interface IOrganizationSettingRepository : IOrganizationRepository<Guid, 
     /// <summary>
     /// Retrieves all organization settings.
     /// </summary>
+    /// <param name="ct">Cancellation token</param>
     /// <returns>A task that represents the asynchronous operation, containing a list of organization settings.</returns>
-    Task<IEnumerable<OrganizationSetting>> GetAllAsync();
+    Task<IEnumerable<OrganizationSetting>> GetAllAsync(CancellationToken ct = default);
 }

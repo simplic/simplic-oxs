@@ -32,21 +32,22 @@ namespace Simplic.OxS.Data.MongoDB
 
         protected abstract string GetCollectionName();
 
-        public virtual async Task<TDocument> GetAsync(TId id)
+        public virtual async Task<TDocument> GetAsync(TId id, CancellationToken ct = default)
         {
             await Initialize();
 
-            var data = await GetByFilterAsync(new TFilter { Id = id });
+            var data = await GetByFilterAsync(new TFilter { Id = id }, ct);
 
             return data.SingleOrDefault();
         }
 
-        public virtual async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter)
+        public virtual async Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter, CancellationToken ct = default)
         {
             await Initialize();
 
-            return (await Collection.FindAsync(BuildFilterQuery(filter)))
-                .ToEnumerable();
+            // Materialize inside the method: a lazily enumerated cursor would pull further batches
+            // synchronously and outside the scope of the cancellation token.
+            return await Collection.Find(BuildFilterQuery(filter)).ToListAsync(ct);
         }
 
         public void Dispose()
@@ -88,8 +89,10 @@ namespace Simplic.OxS.Data.MongoDB
         /// <param name="limit">Number of requested entities</param>
         /// <param name="sortField">Sort field</param>
         /// <param name="isAscending">Ascending or Descending sort</param>
+        /// <param name="collation">Collation options</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        public virtual async Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null)
+        public virtual async Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -101,7 +104,7 @@ namespace Simplic.OxS.Data.MongoDB
             var findOptions = new FindOptions();
             if (collation != null)
                 findOptions.Collation = collation;
-            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
+            return await Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToListAsync(ct);
         }
 
         /// <summary>
@@ -109,8 +112,9 @@ namespace Simplic.OxS.Data.MongoDB
         /// </summary>
         /// <param name="predicate">The filter predicate</param>
         /// <param name="collation">Collation options</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Number of expected elements</returns>
-        public virtual async Task<long> CountAsync(TFilter predicate, Collation collation = null)
+        public virtual async Task<long> CountAsync(TFilter predicate, Collation collation = null, CancellationToken ct = default)
         {
             await Initialize();
 
@@ -119,7 +123,7 @@ namespace Simplic.OxS.Data.MongoDB
             if (collation != null)
                 countOption.Collation = collation;
 
-            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption);
+            return await Collection.CountDocumentsAsync(BuildFilterQuery(predicate), countOption, ct);
         }
     }
 }

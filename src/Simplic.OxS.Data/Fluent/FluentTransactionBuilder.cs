@@ -28,10 +28,10 @@
         }
 
         /// <inheritdoc />
-        public async Task<ITransaction> GetTransaction()
+        public async Task<ITransaction> GetTransaction(CancellationToken ct = default)
         {
             if (transaction == null)
-                transaction = await TransactionService.CreateAsync();
+                transaction = await TransactionService.CreateAsync(ct);
 
             return transaction;
         }
@@ -40,6 +40,6 @@
         public ITransactionService TransactionService { get; }
 
         /// <inheritdoc />
-        public IList<Func<Task>> Tasks { get; } = new List<Func<Task>>();
+        public IList<Func<CancellationToken, Task>> Tasks { get; } = new List<Func<CancellationToken, Task>>();
     }
 }

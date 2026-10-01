@@ -18,31 +18,36 @@ namespace Simplic.OxS.Data
         /// Create new entity
         /// </summary>
         /// <param name="entity">Entity to create</param>
-        Task CreateAsync(TDocument entity);
+        /// <param name="ct">Cancellation token</param>
+        Task CreateAsync(TDocument entity, CancellationToken ct = default);
 
         /// <summary>
         /// Update an entity in the database
         /// </summary>
         /// <param name="obj"></param>
-        Task UpdateAsync(TDocument obj);
+        /// <param name="ct">Cancellation token</param>
+        Task UpdateAsync(TDocument obj, CancellationToken ct = default);
 
         /// <summary>
         /// Mark entity as deleted in database
         /// </summary>
         /// <param name="id">Entity id</param>
-        Task DeleteAsync(TId id);
+        /// <param name="ct">Cancellation token</param>
+        Task DeleteAsync(TId id, CancellationToken ct = default);
 
         /// <summary>
         /// Upsert an entity
         /// </summary>
         /// <param name="filter">Filter for upserting</param>
         /// <param name="entity">Entity instance</param>
-        Task UpsertAsync(TFilter filter, TDocument entity);
+        /// <param name="ct">Cancellation token</param>
+        Task UpsertAsync(TFilter filter, TDocument entity, CancellationToken ct = default);
 
         /// <summary>
         /// Commit data
         /// </summary>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Amount of changed data</returns>
-        Task<int> CommitAsync();
+        Task<int> CommitAsync(CancellationToken ct = default);
     }
 }

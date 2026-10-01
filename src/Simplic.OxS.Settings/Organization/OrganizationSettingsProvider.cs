@@ -43,11 +43,11 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     }
 
     /// <inheritdoc/>
-    public async Task<OrganizationSettingResult<T>> GetAsync<TDefinition, T>()
+    public async Task<OrganizationSettingResult<T>> GetAsync<TDefinition, T>(CancellationToken ct = default)
         where TDefinition : OrganizationSettingDefinition<T>, new()
     {
         var definition = GetOrCreateDefinition<TDefinition>();
-        var result = await GetAsync(definition.InternalName);
+        var result = await GetAsync(definition.InternalName, ct);
 
         return new OrganizationSettingResult<T>(
             result.InternalName,
@@ -62,17 +62,17 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     }
 
     /// <inheritdoc/>
-    public async Task<OrganizationSettingResult> GetAsync(string internalName)
+    public async Task<OrganizationSettingResult> GetAsync(string internalName, CancellationToken ct = default)
     {
         if (!registry.TryGet(internalName, out var definition) || definition == null)
             throw new SettingNotFoundException(internalName);
 
         var cacheKey = GetCacheKey(internalName);
-        
+
         try
         {
             // Try to get from cache first
-            var cachedJson = await distributedCache.GetStringAsync(cacheKey);
+            var cachedJson = await distributedCache.GetStringAsync(cacheKey, ct);
             if (!string.IsNullOrEmpty(cachedJson))
             {
                 var cachedResult = JsonSerializer.Deserialize<CachedSettingValue>(cachedJson);
@@ -98,7 +98,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to retrieve setting {InternalName} from cache, falling back to database", internalName);
         }
@@ -107,7 +107,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
         var result = (await repository.GetByFilterAsync(new SettingFilter
         {
             InternalName = internalName
-        })).FirstOrDefault();
+        }, ct)).FirstOrDefault();
 
         object? effectiveValue;
         if (result == null)
@@ -120,7 +120,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
         }
 
         // Cache the result
-        await CacheSettingValueAsync(cacheKey, effectiveValue, DefaultCacheDuration);
+        await CacheSettingValueAsync(cacheKey, effectiveValue, DefaultCacheDuration, ct);
 
         return new OrganizationSettingResult(
             definition.InternalName,
@@ -136,14 +136,14 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyCollection<OrganizationSettingResult>> GetAllAsync()
+    public async Task<IReadOnlyCollection<OrganizationSettingResult>> GetAllAsync(CancellationToken ct = default)
     {
         var allCacheKey = GetAllSettingsCacheKey();
-        
+
         try
         {
             // Try to get all settings from cache first
-            var cachedJson = await distributedCache.GetStringAsync(allCacheKey);
+            var cachedJson = await distributedCache.GetStringAsync(allCacheKey, ct);
             if (!string.IsNullOrEmpty(cachedJson))
             {
                 var cachedResults = JsonSerializer.Deserialize<List<OrganizationSettingResult>>(cachedJson);
@@ -155,14 +155,14 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to retrieve all settings from cache, falling back to database");
         }
 
         try
         {
-            var overrides = await repository.GetAllAsync();
+            var overrides = await repository.GetAllAsync(ct);
             var overrideMap = overrides.ToDictionary(o => o.InternalName, o => o);
 
             var results = registry.All
@@ -189,7 +189,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
                 .ToList();
 
             // Cache all settings
-            await CacheAllSettingsAsync(allCacheKey, results, AllSettingsCacheDuration);
+            await CacheAllSettingsAsync(allCacheKey, results, AllSettingsCacheDuration, ct);
 
             return results.AsReadOnly();
         }
@@ -201,15 +201,15 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     }
 
     /// <inheritdoc/>
-    public async Task SetAsync<TDefinition, T>(T value)
+    public async Task SetAsync<TDefinition, T>(T value, CancellationToken ct = default)
         where TDefinition : OrganizationSettingDefinition<T>, new()
     {
         var definition = GetOrCreateDefinition<TDefinition>();
-        await SetAsync(definition.InternalName, value!);
+        await SetAsync(definition.InternalName, value!, ct);
     }
 
     /// <inheritdoc/>
-    public async Task SetAsync(string internalName, object value)
+    public async Task SetAsync(string internalName, object value, CancellationToken ct = default)
     {
         if (requestContext.OrganizationId == null || requestContext.OrganizationId == Guid.Empty)
             throw new InvalidOperationException("Organization context is not set.");
@@ -220,7 +220,7 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
         ValidateValue(definition, value);
 
         // Check if value is the same as current to avoid unnecessary work
-        var current = await GetAsync(internalName);
+        var current = await GetAsync(internalName, ct);
 
         if (AreValuesEqual(current.Value, value))
         {
@@ -241,21 +241,22 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
             var currentSetting = (await repository.GetByFilterAsync(new SettingFilter
             {
                 InternalName = internalName
-            })).FirstOrDefault();
+            }, ct)).FirstOrDefault();
 
             if (currentSetting == null)
             {
                 entity.Id = Guid.NewGuid();
-                await repository.CreateAsync(entity);
+                await repository.CreateAsync(entity, ct);
             }
             else
             {
                 entity.Id = currentSetting.Id;
-                await repository.UpdateAsync(entity);
+                await repository.UpdateAsync(entity, ct);
             }
-            await repository.CommitAsync();
+            await repository.CommitAsync(ct);
 
-            // Invalidate cache after successful update
+            // Invalidate cache after successful update. Deliberately not cancellable:
+            // the value is already persisted, skipping this would serve stale data for up to 15 minutes.
             await InvalidateCacheAsync(internalName);
 
             logger.LogDebug("Updated setting {InternalName} for organization {OrganizationId} in service {ServiceName} and invalidated cache", 
@@ -356,21 +357,21 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     /// <summary>
     /// Cache a setting value
     /// </summary>
-    private async Task CacheSettingValueAsync(string cacheKey, object? value, TimeSpan duration)
+    private async Task CacheSettingValueAsync(string cacheKey, object? value, TimeSpan duration, CancellationToken ct)
     {
         try
         {
             var cachedValue = new CachedSettingValue { Value = value };
             var json = JsonSerializer.Serialize(cachedValue);
-            
+
             var options = new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = duration
             };
-            
-            await distributedCache.SetStringAsync(cacheKey, json, options);
+
+            await distributedCache.SetStringAsync(cacheKey, json, options, ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to cache setting value for key {CacheKey}", cacheKey);
         }
@@ -379,20 +380,20 @@ public class OrganizationSettingsProvider : IOrganizationSettingsProvider
     /// <summary>
     /// Cache all settings
     /// </summary>
-    private async Task CacheAllSettingsAsync(string cacheKey, List<OrganizationSettingResult> results, TimeSpan duration)
+    private async Task CacheAllSettingsAsync(string cacheKey, List<OrganizationSettingResult> results, TimeSpan duration, CancellationToken ct)
     {
         try
         {
             var json = JsonSerializer.Serialize(results);
-            
+
             var options = new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = duration
             };
-            
-            await distributedCache.SetStringAsync(cacheKey, json, options);
+
+            await distributedCache.SetStringAsync(cacheKey, json, options, ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to cache all settings for key {CacheKey}", cacheKey);
         }

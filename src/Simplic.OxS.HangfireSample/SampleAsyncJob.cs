@@ -15,14 +15,14 @@ namespace Simplic.OxS.HangfireSample
             this.requestContext = requestContext;
         }
 
-        public async Task ExecuteAsync(ScopedJobParameter parameter)
+        public async Task ExecuteAsync(ScopedJobParameter parameter, CancellationToken ct = default)
         {
             logger.LogWarning($"ASYNC! Executing job with data: {requestContext.CorrelationId}");
             logger.LogWarning($" User: {requestContext.UserId}");
             logger.LogWarning($" Organization: {requestContext.OrganizationId}");
 
             // Execute your job logic here
-            await Task.Delay(1000);
+            await Task.Delay(1000, ct);
         }
     }
 }

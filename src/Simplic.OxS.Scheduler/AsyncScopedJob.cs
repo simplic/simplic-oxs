@@ -28,7 +28,22 @@ namespace Simplic.OxS.Scheduler
         /// <param name="jobService">Job to execute as type. The type must be registered using services.AddTransient before.</param>
         /// <param name="parameter">Parameter for passing e.g. user-id, organization-id, etv.</param>
         /// <exception cref="Exception">Throws an exception, if the jobService is not registered</exception>
-        public async Task ExecuteJobAsync(Type jobService, ScopedJobParameter parameter)
+        /// <remarks>
+        /// Kept without a token parameter because Hangfire job expressions (<c>x => x.ExecuteJobAsync(...)</c>)
+        /// cannot omit optional arguments. Prefer the overload with <see cref="CancellationToken"/>:
+        /// pass <c>CancellationToken.None</c> in the expression and Hangfire substitutes its own token at runtime.
+        /// </remarks>
+        public Task ExecuteJobAsync(Type jobService, ScopedJobParameter parameter)
+            => ExecuteJobAsync(jobService, parameter, CancellationToken.None);
+
+        /// <summary>
+        /// Execute job async with cancellation support
+        /// </summary>
+        /// <param name="jobService">Job to execute as type. The type must be registered using services.AddTransient before.</param>
+        /// <param name="parameter">Parameter for passing e.g. user-id, organization-id, etv.</param>
+        /// <param name="ct">Cancellation token. Hangfire injects its shutdown/deletion token for this parameter.</param>
+        /// <exception cref="Exception">Throws an exception, if the jobService is not registered</exception>
+        public async Task ExecuteJobAsync(Type jobService, ScopedJobParameter parameter, CancellationToken ct)
         {
             // Set requestContext data for the current scope
             requestContext!.CorrelationId = Guid.NewGuid();
@@ -43,7 +58,7 @@ namespace Simplic.OxS.Scheduler
 
             if (service is IAsyncScopedJobService scopedService)
             {
-                await scopedService.ExecuteAsync(parameter);
+                await scopedService.ExecuteAsync(parameter, ct);
             }
             else
             {

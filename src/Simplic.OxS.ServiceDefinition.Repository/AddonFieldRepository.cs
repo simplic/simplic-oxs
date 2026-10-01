@@ -25,12 +25,12 @@ public class AddonFieldRepository(IMongoContext context, IRequestContext request
     protected override string GetCollectionName() => "model_definition.addon_field";
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<AddonField>> GetByObjectNameAsync(string objectName)
+    public async Task<IEnumerable<AddonField>> GetByObjectNameAsync(string objectName, CancellationToken ct = default)
     {
         return await GetByFilterAsync(new AddonFieldFilter
         {
             ObjectName = objectName,
             IsDeleted = false
-        });
+        }, ct);
     }
 }

@@ -14,9 +14,9 @@ namespace Simplic.OxS.Data.Service
             this.requestContext = requestContext;
         }
 
-        public virtual async Task<TDocument> GetById(Guid id) => await repository.GetAsync(id);
+        public virtual async Task<TDocument> GetById(Guid id, CancellationToken ct = default) => await repository.GetAsync(id, ct);
 
-        public virtual async Task<TDocument> Create([NotNull] TDocument obj)
+        public virtual async Task<TDocument> Create([NotNull] TDocument obj, CancellationToken ct = default)
         {
             AssertRequest(obj, false);
 
@@ -34,13 +34,13 @@ namespace Simplic.OxS.Data.Service
                 ext.UpdateUserId = ext.CreateUserId;
             }
 
-            await repository.CreateAsync(obj);
-            await repository.CommitAsync();
+            await repository.CreateAsync(obj, ct);
+            await repository.CommitAsync(ct);
 
             return obj;
         }
 
-        public virtual async Task<TDocument> Update([NotNull] TDocument obj)
+        public virtual async Task<TDocument> Update([NotNull] TDocument obj, CancellationToken ct = default)
         {
             AssertRequest(obj, true);
 
@@ -53,13 +53,13 @@ namespace Simplic.OxS.Data.Service
                 ext.UpdateUserId = requestContext.UserId;
             }
 
-            await repository.UpdateAsync(obj);
-            await repository.CommitAsync();
+            await repository.UpdateAsync(obj, ct);
+            await repository.CommitAsync(ct);
 
             return obj;
         }
 
-        public virtual async Task<TDocument> Delete([NotNull] TDocument obj)
+        public virtual async Task<TDocument> Delete([NotNull] TDocument obj, CancellationToken ct = default)
         {
             AssertRequest(obj, true);
 
@@ -71,17 +71,17 @@ namespace Simplic.OxS.Data.Service
                 ext.UpdateUserId = requestContext.UserId;
             }
 
-            await repository.UpdateAsync(obj);
-            await repository.CommitAsync();
+            await repository.UpdateAsync(obj, ct);
+            await repository.CommitAsync(ct);
 
             return obj;
         }
 
-        public virtual async Task Delete(Guid id)
+        public virtual async Task Delete(Guid id, CancellationToken ct = default)
         {
-            var obj = await GetById(id);
+            var obj = await GetById(id, ct);
             if (obj != null)
-                await Delete(obj);
+                await Delete(obj, ct);
         }
 
         private void AssertRequest(TDocument obj, bool compareOrganizationId)

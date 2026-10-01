@@ -15,7 +15,7 @@ namespace Simplic.OxS.Data.Service
             this.requestContext = requestContext;
         }
 
-        public virtual async Task<TDocument> Create([NotNull] TDocument obj, ITransaction transaction)
+        public virtual async Task<TDocument> Create([NotNull] TDocument obj, ITransaction transaction, CancellationToken ct = default)
         {
             AssertRequest(obj, false);
 
@@ -31,12 +31,12 @@ namespace Simplic.OxS.Data.Service
                 ext.UpdateUserId = ext.CreateUserId;
             }
 
-            await repository.CreateAsync(obj, transaction);
+            await repository.CreateAsync(obj, transaction, ct);
 
             return obj;
         }
 
-        public virtual async Task<TDocument> Update([NotNull] TDocument obj, ITransaction transaction)
+        public virtual async Task<TDocument> Update([NotNull] TDocument obj, ITransaction transaction, CancellationToken ct = default)
         {
             AssertRequest(obj, true);
 
@@ -49,12 +49,12 @@ namespace Simplic.OxS.Data.Service
                 ext.UpdateUserId = requestContext.UserId;
             }
 
-            await repository.UpdateAsync(obj, transaction);
+            await repository.UpdateAsync(obj, transaction, ct);
 
             return obj;
         }
 
-        public virtual async Task<TDocument> Delete([NotNull] TDocument obj, ITransaction transaction)
+        public virtual async Task<TDocument> Delete([NotNull] TDocument obj, ITransaction transaction, CancellationToken ct = default)
         {
             AssertRequest(obj, true);
 
@@ -66,16 +66,16 @@ namespace Simplic.OxS.Data.Service
                 ext.UpdateUserId = requestContext.UserId;
             }
 
-            await repository.UpdateAsync(obj, transaction);
+            await repository.UpdateAsync(obj, transaction, ct);
 
             return obj;
         }
 
-        public virtual async Task Delete(Guid id, ITransaction transaction)
+        public virtual async Task Delete(Guid id, ITransaction transaction, CancellationToken ct = default)
         {
-            var obj = await GetById(id);
+            var obj = await GetById(id, ct);
             if (obj != null)
-                await Delete(obj, transaction);
+                await Delete(obj, transaction, ct);
         }
 
         private void AssertRequest(TDocument obj, bool compareOrganizationId)

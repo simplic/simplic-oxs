@@ -53,7 +53,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
                                   , IRequestContext requestContext) : IRemoteServiceInvoker
 {
     /// <inheritdoc />
-    public async Task<T?> Call<T, P>([NotNull] string contractOrUri, string? provider, P parameter, Func<P, Task<T>>? defaultImpl = null)
+    public async Task<T?> Call<T, P>([NotNull] string contractOrUri, string? provider, P parameter, Func<P, Task<T>>? defaultImpl = null, CancellationToken ct = default)
             where T : class, IMessage<T>, new()
             where P : class, IMessage<P>, new()
 
@@ -69,7 +69,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
         if (contractOrUri.StartsWith("["))
             uri = contractOrUri;
         else
-            uri = await GetEndpointAsync(contractOrUri, provider);
+            uri = await GetEndpointAsync(contractOrUri, provider, ct);
 
         if (!string.IsNullOrWhiteSpace(uri))
         {
@@ -77,7 +77,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
             {
                 if (protocol == "grpc")
                 {
-                    return await RemoteGrpcCall<T, P>(settings, requestContext, parameter, url);
+                    return await RemoteGrpcCall<T, P>(settings, requestContext, parameter, url, ct);
                 }
                 else
                 {
@@ -94,7 +94,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
         return default;
     }
 
-    private static async Task<T?> RemoteGrpcCall<T, P>(IOptions<AuthSettings> settings, IRequestContext requestContext, P parameter, [NotNull] string url)
+    private static async Task<T?> RemoteGrpcCall<T, P>(IOptions<AuthSettings> settings, IRequestContext requestContext, P parameter, [NotNull] string url, CancellationToken ct)
         where T : class, IMessage<T>, new()
         where P : class, IMessage<P>, new()
     {
@@ -125,7 +125,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
                     { Constants.HttpAuthorizationSchemeInternalKey, settings.Value.InternalApiKey }
                 };
 
-        var options = new CallOptions(headers);
+        var options = new CallOptions(headers, cancellationToken: ct);
 
         // 4.  Fire the RPC and await the protobuf reply
         return await invoker
@@ -152,12 +152,13 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
     /// thread-safe and intended for use in asynchronous workflows.</remarks>
     /// <param name="contract">The name of the contract for which to retrieve the endpoint. Cannot be null or empty.</param>
     /// <param name="provider">An optional provider identifier to further specify the endpoint. Can be null.</param>
+    /// <param name="ct">Cancellation token.</param>
     /// <returns>A string containing the endpoint URL if found; otherwise, null.</returns>
-    private async Task<string?> GetEndpointAsync(string contract, string? provider)
+    private async Task<string?> GetEndpointAsync(string contract, string? provider, CancellationToken ct)
     {
         var key = $"{requestContext.OrganizationId.Value}_{contract}_{provider ?? ""}";
 
-        var value = await distributedCache.GetStringAsync(key);
+        var value = await distributedCache.GetStringAsync(key, ct);
 
         if (!string.IsNullOrWhiteSpace(value))
         {
@@ -173,7 +174,7 @@ internal class RemoteServiceInvoker(IDistributedCache distributedCache
             OrganizationId = requestContext.OrganizationId.Value,
             Name = contract,
             IsDeleted = false
-        })).ToList();
+        }, ct)).ToList();
         var endpointContract = endpointContracts.FirstOrDefault(x => (x.ProviderName ?? "") == "");
 
         // Select by provider, if one is required

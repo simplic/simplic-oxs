@@ -35,7 +35,7 @@ namespace Simplic.OxS.Server.Controller
         /// Returns the model definition. When a valid auth token is provided the response
         /// is extended with the organization's addon field configurations.
         /// </summary>
-        public async Task<ActionResult> Get()
+        public async Task<ActionResult> Get(CancellationToken ct)
         {
             var filePath = System.IO.Path.Combine(env.ContentRootPath, "ModelDefinition", "ModelDefinition.json");
 
@@ -46,7 +46,11 @@ namespace Simplic.OxS.Server.Controller
 
             try
             {
-                content = System.IO.File.ReadAllBytes(filePath);
+                content = await System.IO.File.ReadAllBytesAsync(filePath, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception)
             {
@@ -67,7 +71,7 @@ namespace Simplic.OxS.Server.Controller
 
                     if (modelDef != null)
                     {
-                        var addonFields = (await addonFieldRepository.GetAllAsync())
+                        var addonFields = (await addonFieldRepository.GetAllAsync(ct))
                             .Where(f => f.ObjectName == modelDef.Model)
                             .ToList();
 

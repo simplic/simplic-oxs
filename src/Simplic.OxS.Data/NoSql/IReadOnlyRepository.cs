@@ -16,15 +16,17 @@ namespace Simplic.OxS.Data
         /// Get an entity by its id
         /// </summary>
         /// <param name="id"></param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Entity</returns>
-        Task<TDocument> GetAsync(TId id);
+        Task<TDocument> GetAsync(TId id, CancellationToken ct = default);
 
         /// <summary>
         /// Get entities by filter
         /// </summary>
         /// <param name="filter"></param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Enumerable of entities</returns>
-        Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter);
+        Task<IEnumerable<TDocument>> GetByFilterAsync(TFilter filter, CancellationToken ct = default);
 
         /// <summary>
         /// Finds the documents matching the filter.
@@ -34,15 +36,18 @@ namespace Simplic.OxS.Data
         /// <param name="limit">Number of requested entities</param>
         /// <param name="sortField">Sort field</param>
         /// <param name="isAscending">Ascending or Descending sort</param>
+        /// <param name="collation">Collation options</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns><see cref="TDocument"/> entities matching the search criteria</returns>
-        Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null);
+        Task<IEnumerable<TDocument>> FindAsync(TFilter predicate, int? skip, int? limit, string sortField = "", bool isAscending = true, Collation collation = null, CancellationToken ct = default);
 
         /// <summary>
         /// Returns count of expected documents
         /// </summary>
         /// <param name="predicate">The filter predicate</param>
         /// <param name="collation">Collation options</param>
+        /// <param name="ct">Cancellation token</param>
         /// <returns>Number of expected elements</returns>
-        Task<long> CountAsync(TFilter predicate, Collation collation = null);
+        Task<long> CountAsync(TFilter predicate, Collation collation = null, CancellationToken ct = default);
     }
 }

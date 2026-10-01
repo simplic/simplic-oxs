@@ -45,12 +45,12 @@ public class OrganizationSettingsController : OxSController
     [ProducesResponseType(typeof(IReadOnlyCollection<OrganizationSettingResult>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<ActionResult<IReadOnlyCollection<OrganizationSettingResult>>> GetAllSettings()
+    public async Task<ActionResult<IReadOnlyCollection<OrganizationSettingResult>>> GetAllSettings(CancellationToken ct)
     {
         if (!requestContext.OrganizationId.HasValue)
             return BadRequest("Organization context is required");
 
-        var settings = await settingsProvider.GetAllAsync();
+        var settings = await settingsProvider.GetAllAsync(ct);
         return Ok(settings);
     }
 
@@ -64,14 +64,14 @@ public class OrganizationSettingsController : OxSController
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    public async Task<ActionResult<OrganizationSettingResult>> GetSetting(string internalName)
+    public async Task<ActionResult<OrganizationSettingResult>> GetSetting(string internalName, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(internalName))
             return BadRequest("Internal name is required");
 
         try
         {
-            var setting = await settingsProvider.GetAsync(internalName);
+            var setting = await settingsProvider.GetAsync(internalName, ct);
             return Ok(setting);
         }
         catch (SettingNotFoundException ex)
@@ -93,7 +93,8 @@ public class OrganizationSettingsController : OxSController
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     public async Task<IActionResult> UpdateSetting(
         string internalName,
-        [FromBody] UpdateSettingRequest request)
+        [FromBody] UpdateSettingRequest request,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(internalName))
             return BadRequest("Internal name is required");
@@ -113,7 +114,7 @@ public class OrganizationSettingsController : OxSController
             // Convert JsonElement to the proper type if needed
             var convertedValue = ConvertValueToExpectedType(request.Value, definition.ValueType);
 
-            await settingsProvider.SetAsync(internalName, convertedValue);
+            await settingsProvider.SetAsync(internalName, convertedValue, ct);
 
             return NoContent();
         }

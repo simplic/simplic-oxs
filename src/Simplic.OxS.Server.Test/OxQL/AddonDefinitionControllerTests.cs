@@ -240,5 +240,40 @@ namespace Simplic.OxS.Server.Test.OxQL
             (await harness.Controller.DeleteAsync(existing.Id, CancellationToken.None)).Should().BeOfType<NoContentResult>();
             harness.Repository.Verify(repository => repository.UpdateAsync(existing), Times.Once);
         }
+
+        [Fact]
+        public async Task Create_AnswersConflictWhenTheStoreRefusesTheRowAnotherRequestStoredFirst()
+        {
+            var harness = new Harness();
+            harness.Cache.Set(Organisation, "probe.widget", []);
+            harness.Repository.Setup(repository => repository.CommitAsync()).ThrowsAsync(new AddonDefinitionConflictException("duplicate"));
+
+            var answer = await harness.Controller.CreateAsync(Create(), CancellationToken.None);
+
+            answer.Should().BeOfType<ConflictObjectResult>().Which.Value.Should().Be("'weight' is already defined on 'probe.widget'.");
+            harness.Cache.TryGet(Organisation, "probe.widget", out _).Should().BeTrue("nothing was written");
+        }
+
+        [Fact]
+        public async Task Update_AndDelete_AnswerConflictWhenTheStoreRefusesTheWrite()
+        {
+            var existing = Existing("weight", "decimal");
+            var harness = new Harness(existing: existing);
+            harness.Cache.Set(Organisation, "probe.widget", []);
+            harness.Repository.Setup(repository => repository.CommitAsync()).ThrowsAsync(new AddonDefinitionConflictException("duplicate"));
+
+            (await harness.Controller.UpdateAsync(existing.Id, new UpdateAddonDefinitionRequest(), CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
+            (await harness.Controller.DeleteAsync(existing.Id, CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
+            harness.Cache.TryGet(Organisation, "probe.widget", out _).Should().BeTrue("nothing was written");
+        }
+
+        [Fact]
+        public async Task AnotherFailureOfTheStoreIsNotAnsweredAsAConflict()
+        {
+            var harness = new Harness();
+            harness.Repository.Setup(repository => repository.CommitAsync()).ThrowsAsync(new TimeoutException("store"));
+
+            await harness.Invoking(h => h.Controller.CreateAsync(Create(), CancellationToken.None)).Should().ThrowAsync<TimeoutException>();
+        }
     }
 }

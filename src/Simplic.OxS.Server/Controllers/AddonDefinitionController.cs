@@ -17,6 +17,7 @@ namespace Simplic.OxS.Server.Controllers;
 /// retired definition stays as a row and its key is opaque again. An entity's definitions are
 /// the rows under its current id and under every id it retired; the API answers with the
 /// current id and moves a row it writes to it, unless the current id already holds that path.
+/// The store keeps one row per organisation, entity id and path; a write it refuses is a 409.
 /// </summary>
 [Authorize]
 [ApiController]
@@ -157,7 +158,10 @@ public class AddonDefinitionController : OxSController
             await repository.CreateAsync(definition);
         }
 
-        await repository.CommitAsync();
+        // Another request may have stored the path between the read above and this write.
+        if (!await TryCommitAsync())
+            return Conflict($"'{request.Path}' is already defined on '{entity}'.");
+
         cache.Invalidate(organizationId, entity);
 
         return CreatedAtAction(nameof(GetByIdAsync), new { id = definition.Id }, MapToResponse(definition));
@@ -174,6 +178,7 @@ public class AddonDefinitionController : OxSController
     [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    [ProducesResponseType((int)HttpStatusCode.Conflict)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> UpdateAsync(Guid id, [FromBody] UpdateAddonDefinitionRequest request, CancellationToken ct)
     {
@@ -195,7 +200,10 @@ public class AddonDefinitionController : OxSController
         definition.Description = request.Description;
 
         await repository.UpdateAsync(definition);
-        await repository.CommitAsync();
+
+        if (!await TryCommitAsync())
+            return Conflict(MovedOnto(definition, current));
+
         cache.Invalidate(definition.OrganizationId, current);
 
         return Ok(MapToResponse(definition));
@@ -210,6 +218,7 @@ public class AddonDefinitionController : OxSController
     [HttpDelete("{id:guid}")]
     [ProducesResponseType((int)HttpStatusCode.NoContent)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    [ProducesResponseType((int)HttpStatusCode.Conflict)]
     [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken ct)
     {
@@ -225,7 +234,10 @@ public class AddonDefinitionController : OxSController
             definition.Retired = true;
 
             await repository.UpdateAsync(definition);
-            await repository.CommitAsync();
+
+            if (!await TryCommitAsync())
+                return Conflict(MovedOnto(definition, current));
+
             cache.Invalidate(definition.OrganizationId, current);
         }
 
@@ -252,6 +264,35 @@ public class AddonDefinitionController : OxSController
 
         return current;
     }
+
+    /// <summary>
+    /// Commits the write, and answers false when the store refused it because the organisation
+    /// already holds a row of that entity id and path. The checks before a write read first and
+    /// write then, so two requests can pass them together; the store's unique index decides
+    /// between them, and the one it refuses is answered as the conflict the check would have
+    /// found. Nothing of the refused write is stored.
+    /// </summary>
+    private async Task<bool> TryCommitAsync()
+    {
+        try
+        {
+            await repository.CommitAsync();
+
+            return true;
+        }
+        catch (AddonDefinitionConflictException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The conflict of a row that was to move to its entity's current id (<see cref="MoveToCurrentAsync"/>)
+    /// while another request stored its path there. Sent again, the request finds that row and
+    /// leaves this one under its id.
+    /// </summary>
+    private static string MovedOnto(AddonDefinitionDocument definition, string current) =>
+        $"'{definition.Path}' was defined on '{current}' while this request was written; send it again.";
 
     /// <summary>The definition with the given id in the current organisation, or null.</summary>
     private async Task<AddonDefinitionDocument?> FindAsync(Guid id)

@@ -972,9 +972,36 @@ Nothing below needs a line of code in the service.
   one (hidden from the API explorer, section 4.2). Callers written against contract 1 keep working
   at runtime while `OxQL:Compat:Enabled` is on, which is the default.
 - `/AddonDefinition`: `GET {entity}`, `GET by-id/{id}`, `POST`, `PUT {id}`, `DELETE {id}`, for an
-  organisation's typed addon keys. The definitions are stored in the service's own database, in
-  the collection `model_definition.addon_definition`, and survive a retired entity id
-  (section 2.1).
+  organisation's typed addon keys. The definitions survive a retired entity id (section 2.1) and
+  are stored in the database the service is configured with, in a collection of the service's
+  own:
+  - **`model_definition.addon_definition.{service}`**, the service name trimmed and lower-cased
+    (`model_definition.addon_definition.vehicle`), as the scheduler names its collections
+    `hangfire.{service}`. Several services are deployed onto one database; with a collection
+    each, no route of one service reads, changes or retires a definition of another, also not by
+    id, and two services that declare the same entity id keep separate definitions. The name is
+    the host's `ServiceName`; a host that names none cannot store definitions.
+  - **One row per organisation, entity id and path.** The collection has the unique index
+    `organization_entity_path_unique` on `{ OrganizationId: 1, Entity: 1, Path: 1 }`, partial
+    over `{ IsDeleted: false }`. The package creates it itself, when a process first writes a
+    definition; creating an index that exists is a no-op, so every replica asks once. If it
+    cannot be created (no right to, or rows that already break it) the host logs a warning,
+    goes on, and asks again at the next write. The API reads before it writes; of two requests
+    that pass that check together the index admits one, and the other is answered `409` like
+    the check would have. `PUT` and `DELETE` can answer `409` too, when the row was to move to
+    its entity's current id and another request stored its path there meanwhile; sent again,
+    they succeed.
+  - **A retired definition keeps its row and its place in the index.** `DELETE` sets `Retired`
+    and deletes nothing, so the path is still taken: `POST` for a retired path of the same kind
+    revives that row instead of storing a second one, and another kind is `409`. Only rows
+    marked `IsDeleted` are outside the index, and no route of the API sets that; such a row is
+    outside every read as well, so it never blocks its path.
+  - **Nothing to migrate.** No released package version ever stored definitions; the earlier
+    name `model_definition.addon_definition` (without the service) existed on unreleased
+    branches only. A development database that holds such a collection keeps it unread: create
+    the definitions again through the API, or copy the rows of one service's entities into that
+    service's collection, and drop the old one. The older `model_definition.addon_field`,
+    `settings` and `contract.endpoint` are unchanged and still one collection per database.
 - The OxQL Studio console at `{pathBase}/oxql` (`/vehicle-api/v2/oxql`), its assets under
   `{pathBase}/oxql/`. Every path the console is configured with (`RoutePath` and `ApiBasePath`
   `/oxql`, `SchemaBasePath` `/schema`) is relative to the path base, which the console prefixes

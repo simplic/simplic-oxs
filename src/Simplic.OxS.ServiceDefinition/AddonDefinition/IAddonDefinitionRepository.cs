@@ -3,7 +3,10 @@ using Simplic.OxS.Data;
 namespace Simplic.OxS.ServiceDefinition;
 
 /// <summary>
-/// Repository interface for <see cref="AddonDefinitionDocument"/> persistence.
+/// Repository interface for <see cref="AddonDefinitionDocument"/> persistence. The store is the
+/// service's own (one collection per service) and keeps one row per organisation, entity id and
+/// path: committing a write that would store a second one throws
+/// <see cref="AddonDefinitionConflictException"/>.
 /// </summary>
 public interface IAddonDefinitionRepository : IOrganizationRepository<Guid, AddonDefinitionDocument, AddonDefinitionFilter>
 {

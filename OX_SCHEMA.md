@@ -883,6 +883,46 @@ the one the engine scoped the parent query with.
   the revision of every service it names in `revision.schema`, so a consumer that holds another
   revision of a service's document loads it again; the answer itself carries no member.
 
+#### One internal mechanism, two senders
+
+An owner call is an ordinary internal call. On the wire and at the receiver nothing is OxQL's
+own:
+
+- the key is sent as `Authorization: i-api-key <Auth:InternalApiKey>`;
+- the identity is the three headers every internal call carries, `UserId`, `OrganizationId`
+  and `X-Correlation-ID`, filled from the same `IRequestContext`;
+- the owner is found in `InternalHosts` and addressed as
+  `http://{host}/{service}-api/{version}/internal/{controller}/{action}`, with `oxql` as the
+  controller;
+- `OxQLInternalController` derives from `OxSInternalController`, so `[AuthorizeInternalApiKey]`
+  admits the call and the global `RequestContextActionFilter` restores user, organisation and
+  correlation id from the headers. There is no OxQL-specific authentication.
+
+`X-OxQL-Contract` and `X-OxQL-Caller` are added to that; neither is identity, and the caller
+header only picks a limiter bucket.
+
+Only the sending code is separate: `RemoteQueryClient` does not derive from
+`InternalClientBase`, because the engine needs what that client does not offer.
+
+| need | `InternalClientBase` | `RemoteQueryClient` |
+|---|---|---|
+| Owner calls of one request run in parallel. | Writes the identity into the default headers of its one `HttpClient` before each call; concurrent calls would overwrite each other's. | One `HttpRequestMessage` per call, over `IHttpClientFactory`. |
+| A query is cancellable and every owner call has a time budget. | No cancellation token; the `HttpClient` default of 100 s. | The engine's token plus the call's budget (10 s without one, 2 s for health). |
+| The engine turns an owner's 401, 404 or 429 into a diagnostic. | Any answer but 2xx is an `InternalClientException` without the status. | `HttpRequestException` with the status and the owner's refusal code. |
+| Owner facts (engine version, caps) are cached and probes shared. | Scoped, one instance per request. | Singleton; it reads the request's identity through `IHttpContextAccessor`. |
+
+`InternalApiVersions` is the map from a service to the version segment it answers on, with
+`v1` where it has no entry. The internal client has no such map: each client class states its
+version in code (`ApiVersion`). One client that reaches every owner cannot, so the map is
+configuration, and today only OxQL reads it.
+
+**Keeping them in step.** `InternalClientBase.SetRequestHeader` is the reference for the
+identity headers. A change there, such as a further context header, has to be made in
+`RemoteQueryClient.ForwardAsync` as well, or owner calls silently go without it. One difference
+exists today: where the request has no correlation id, the internal client sends no
+`X-Correlation-ID` and OxQL sends the request's trace identifier, which the receiver drops
+unless it is a GUID.
+
 ### 4.3 The `OxQL` section
 
 The query engine binds its options from the host's `OxQL` section, and `/schema` publishes the

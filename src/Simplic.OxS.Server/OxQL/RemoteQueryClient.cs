@@ -444,6 +444,14 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     /// by both sides happening to read the same thing. The key authorises the call; the
     /// forwarded user is who it is made for, and the owner scopes on that.
     /// </para>
+    /// <para>
+    /// The key and the three identity headers are the shared internal mechanism's, not OxQL's:
+    /// <c>Simplic.OxS.InternalClient.InternalClientBase</c> (its constructor and
+    /// <c>SetRequestHeader</c>) is the reference for that set. This client is a second sender of
+    /// it only because the engine calls owners in parallel, with a token and a budget per call
+    /// (OX_SCHEMA.md, section 4.2). Whatever the shared client starts or stops forwarding has to
+    /// be mirrored here; the contract and caller headers are this client's own and no identity.
+    /// </para>
     /// </summary>
     private async Task ForwardAsync(HttpRequestMessage message, CancellationToken cancellationToken)
     {

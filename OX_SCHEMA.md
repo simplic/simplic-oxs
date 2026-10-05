@@ -825,7 +825,9 @@ retryAfter }`) before anything is bound, and the origin reports those parts as u
 and the owner calls the origin's explain has left. The owner works within them, so a chain of
 owners never spends more than the origin's limits (`Explain:TimeoutMs`, `Explain:MaxOwnerCalls`);
 the public `POST /oxql/explain` refuses `budget` as an unknown request member. The public route's
-own limits (20 a minute with a burst of 5, 2 in flight per user, 8 per host) are the engine's and
+own limits (120 explains a minute with a burst of 30 admitted; of them 20 a minute with a burst of
+5 may call owners, beyond which an explain is answered from what is kept instead of refused; 2 in
+flight per user, 8 per host) are the engine's and
 are listed in `GET /OxQL/health` under `limits`.
 
 **The remote client** (`RemoteQueryClient`) sends one message per call over the named

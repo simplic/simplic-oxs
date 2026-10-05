@@ -82,7 +82,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             ((IRemoteOwnerInfo)remote).ApiVersionOf("staff").Should().Be("v2", "the engine reads the version through its interface");
 
             var request = System.Text.Json.JsonSerializer.Deserialize<QueryRequest>(
-                """{ "entityType": "probe.contact", "pipeline": [ { "resolve": { "path": "employeeId", "as": "employee", "select": ["name"] } } ] }""",
+                """{ "entityType": "probe.contact", "pipeline": [ { "resolve": { "path": "employeeId", "as": "employee" } }, { "project": { "employee.name": 1 } } ] }""",
                 OxQLJson.Wire)!;
             var context = new RequestContext
             {

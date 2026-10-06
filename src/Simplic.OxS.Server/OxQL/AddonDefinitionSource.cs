@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using OxQL.Model;
 using OxQL.Model.Addon;
 using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.ServiceDefinition;
+using Simplic.OxS.ServiceDefinition.Repository;
 
 namespace Simplic.OxS.Server.OxQL;
 
@@ -12,23 +14,62 @@ namespace Simplic.OxS.Server.OxQL;
 /// that renames an entity keeps its definitions. Retired definitions are included, as the
 /// engine's contract asks; a stored kind the engine does not know is read as
 /// <see cref="AddonKind.Object"/>, an untyped container.
+/// <para>
+/// A call that had to wait for the repository says so to the engine
+/// (<see cref="IReportingAddonDefinitionSource"/>): the wait is a command at the database in the
+/// request's timing, of kind <c>addon</c>, and not the service's own time. A call the cache
+/// answered reports nothing.
+/// </para>
 /// </summary>
-public sealed class AddonDefinitionSource(IAddonDefinitionRepository repository, AddonDefinitionCache cache, OxSchemaRegistry schema) : IAddonDefinitionSource
+public sealed class AddonDefinitionSource(IAddonDefinitionRepository repository, AddonDefinitionCache cache, OxSchemaRegistry schema, ICurrentService? service = null) : IReportingAddonDefinitionSource
 {
+    /// <summary>The collection the definitions are read from, as a request's timing names it.</summary>
+    private readonly string collection = string.IsNullOrWhiteSpace(service?.ServiceName)
+        ? AddonDefinitionRepository.CollectionNamePrefix
+        : AddonDefinitionRepository.CollectionNameOf(service.ServiceName);
+
     /// <inheritdoc/>
-    public async ValueTask<IReadOnlyList<AddonDefinition>> ForEntityAsync(string entity, Guid organisation, CancellationToken cancellationToken)
+    public ValueTask<IReadOnlyList<AddonDefinition>> ForEntityAsync(string entity, Guid organisation, CancellationToken cancellationToken) =>
+        ForEntityAsync(entity, organisation, null, cancellationToken);
+
+    /// <inheritdoc/>
+    public ValueTask<IReadOnlyList<AddonDefinition>> ForEntityAsync(string entity, Guid organisation, AddonReadReport? report, CancellationToken cancellationToken)
     {
         var current = CurrentId(schema.Model, entity);
+        var started = Stopwatch.GetTimestamp();
+        var lookup = cache.GetAsync(organisation, current, token => LoadAsync(repository, schema.Model, current, organisation, token), cancellationToken);
 
-        if (cache.TryGet(organisation, current, out var cached))
-            return cached;
+        // The cache answered: nothing was waited for, nothing is reported.
+        return lookup.IsCompletedSuccessfully && lookup.Result.Waited == AddonDefinitionWait.None
+            ? ValueTask.FromResult(lookup.Result.Definitions)
+            : WaitedAsync(lookup, started, report);
+    }
 
-        var documents = await ReadAsync(repository, schema.Model, current, organisation, cancellationToken);
-        var definitions = documents.Select(document => ToDefinition(document) with { Entity = current }).ToList();
+    private async ValueTask<IReadOnlyList<AddonDefinition>> WaitedAsync(ValueTask<AddonDefinitionLookup> lookup, long started, AddonReadReport? report)
+    {
+        var (definitions, waited) = await lookup;
 
-        cache.Set(organisation, current, definitions);
+        // A read another request had sent cost this one the wait and no round trip.
+        if (waited != AddonDefinitionWait.None)
+            report?.Database(collection, started, definitions.Count, waited == AddonDefinitionWait.Read ? 1 : 0);
 
         return definitions;
+    }
+
+    /// <summary>
+    /// The engine's records of every stored definition of an entity, under its current id
+    /// (<see cref="ReadAsync"/>): what the cache holds.
+    /// </summary>
+    /// <param name="repository">The definition repository.</param>
+    /// <param name="model">The entity model that knows the retired ids.</param>
+    /// <param name="current">The entity's current id.</param>
+    /// <param name="organisation">The organisation.</param>
+    /// <param name="cancellationToken">A token to stop the read with.</param>
+    public static async Task<IReadOnlyList<AddonDefinition>> LoadAsync(IAddonDefinitionRepository repository, EntityModel model, string current, Guid organisation, CancellationToken cancellationToken)
+    {
+        var documents = await ReadAsync(repository, model, current, organisation, cancellationToken);
+
+        return documents.Select(document => ToDefinition(document) with { Entity = current }).ToList();
     }
 
     /// <summary>

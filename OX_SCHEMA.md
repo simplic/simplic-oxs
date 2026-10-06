@@ -666,7 +666,7 @@ authorization. Three controllers read from it: `SchemaController`, `ModelDefinit
 and `AddonDefinitionController`, which checks an entity id against the model. The actions behind
 `GET /schema` and `GET /ModelDefinition` are synchronous and take a cancellation token they
 never await, because they serve bytes built at startup; `GET /schema/addons` reads the calling
-organisation's definitions per request, through a cache.
+organisation's definitions per request, through a cache (section 3.4).
 
 ### 3.1 Layout
 
@@ -741,6 +741,64 @@ document that is complete. Both sets are closed and keyed on the code.
 
 The startup log carries one summary line, one line per finding, and one line per controller the
 legacy generator could not describe.
+
+### 3.4 How addon definitions reach a request
+
+The query engine asks for an organisation's definitions of every extendable entity a request
+enters, and `GET /schema/addons` for those of every extendable entity. Both ask
+`AddonDefinitionSource`, which answers from `AddonDefinitionCache`, one per process, keyed by
+organisation and current entity id. A definition's lifetime in the cache is
+`OxQL:Cache:AddonDefinitionTtlSeconds` (30 by default, at least 1).
+
+**When a request waits for the database.** Only when the cache holds nothing it may serve:
+
+| the cache holds | the request | the database |
+|---|---|---|
+| a value no older than its lifetime | is answered from memory | is not read |
+| a value older than its lifetime, up to ten lifetimes (5 minutes by default) | is answered from memory, with that value | is read once, in the background, in a scope of its own; the answer replaces the value. Requests that arrive while it runs get the old value and start no second read |
+| nothing: the first request for that entity and organisation in this process, the first after a write on this instance, an entry that left a full cache | waits for the read | is read once. Requests that miss together wait for the same read |
+| a value older than ten lifetimes (nobody asked for it that long) | waits for the read, as if nothing were held | is read once |
+
+So after its first read an entity that is queried at least once in five minutes never costs a
+request a round trip again. A background read that fails is logged, leaves the held value in
+place and is not tried again for 5 seconds (or one lifetime, if that is shorter). A read a
+request waits for and that fails, fails that request and the ones waiting with it; the next
+request reads again. When the request that was reading is cancelled, a request waiting for its
+read reads for itself.
+
+**How old a definition can be.** For a definition written through `/AddonDefinition`:
+
+- **On the instance that took the write**: every request that starts once the write has been
+  answered reads it. The write drops the cache entry, and a read that was under way when it was
+  dropped stores nothing, since it may have begun before the write.
+- **On every other instance**: a request sees the write no later than one lifetime plus one
+  background read after that instance last read the entity, provided requests keep arriving.
+  Exactly: the instance serves the value it holds until that value is one lifetime old; the
+  first request after that is still answered with it and starts the read; requests that arrive
+  once the read is back (a few milliseconds) see the write. Without any request in between, the
+  one request that ends the pause is answered with the old value if the pause was shorter than
+  ten lifetimes, and waits for a fresh read if it was longer. No request is ever answered with a
+  value older than ten lifetimes.
+- A definition written straight into the collection, past the API, is on every instance in the
+  second case.
+
+`GET /schema/addons` and its `revision` follow the same rule, since they read the same cache.
+
+**What the cache is bounded by.** 4 096 entries (an entity of an organisation each); beyond
+that the entries asked for longest ago leave, a quarter of the capacity at a time.
+
+**What a request's timing says.** A request that waited for the read lists it in its `timing`
+as a database command, `db.list[]` with `kind: "addon"` and the collection's name
+(`model_definition.addon_definition.{service}`), inside `db.ms` and outside `oursMs`; a request
+that waited for a read another request had sent lists it with `shared: true`, and it counts in
+neither `db.commands` nor `db.roundTrips`. `Server-Timing` then carries `addon;dur=…;desc="db"`.
+A request answered from memory lists nothing. The background read belongs to no request and is
+in no request's timing.
+
+The request's cancellation token does not reach the database: the repository's read takes no
+token. A request cancelled before the read never starts it; the request that sent the read
+waits for it to end, as before; a request waiting for another request's read stops waiting at
+once.
 
 ---
 

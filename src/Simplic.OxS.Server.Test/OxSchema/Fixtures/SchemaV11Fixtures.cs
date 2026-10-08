@@ -83,11 +83,16 @@ namespace Simplic.OxS.Server.Test.OxSchema.Fixtures
         public Guid Id { get; set; }
 
         public string? Note { get; set; }
+
+        /// <summary>The model's own type member: a constant of each class, returned and never stored.</summary>
+        public virtual string Kind => "entry";
     }
 
     /// <summary>A variant carrying a reference only it has.</summary>
     public class LineEntry : Entry
     {
+        public override string Kind => "line";
+
         [OxQLReference("probe.thing")]
         public Guid ThingId { get; set; }
     }
@@ -95,6 +100,8 @@ namespace Simplic.OxS.Server.Test.OxSchema.Fixtures
     /// <summary>A variant that nests entries of the base type.</summary>
     public class GroupEntry : Entry
     {
+        public override string Kind => "group";
+
         public List<Entry> Items { get; set; } = [];
     }
 

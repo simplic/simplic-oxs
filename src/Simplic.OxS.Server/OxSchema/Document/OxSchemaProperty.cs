@@ -73,8 +73,10 @@ namespace Simplic.OxS.Server.OxSchema
         public OxSchemaDeprecation? Deprecated { get; init; }
 
         /// <summary>
-        /// A closed value list with labels. Only an addon definition descriptor
-        /// (<c>GET /schema/addons</c>) carries it; never a member of the schema document.
+        /// A closed value list. An addon definition descriptor (<c>GET /schema/addons</c>) carries
+        /// the organisation's list with labels. In the schema document only a member that holds one
+        /// value per variant carries it (<see cref="ByVariant"/>): the distinct values, ordinally
+        /// sorted, without labels, so a reader can offer them as it offers an enum's.
         /// </summary>
         [JsonPropertyOrder(13)]
         public IReadOnlyList<OxSchemaValue>? Values { get; init; }
@@ -95,9 +97,10 @@ namespace Simplic.OxS.Server.OxSchema
         public IReadOnlyList<OxSchemaReferenceCase>? ReferenceCases { get; init; }
 
         /// <summary>
-        /// <c>false</c> on a member the service returns and does not store (format 1.1): the query
-        /// engine projects it and refuses every other use, for the member and for everything below
-        /// it. Absent on a stored member, and on a nested descriptor.
+        /// <c>false</c> on a member the service returns and does not store (format 1.1): no row of a
+        /// query carries it and the query engine refuses every use of it, a projection included, for
+        /// the member and for everything below it; unless it carries <see cref="ByVariant"/>. Absent
+        /// on a stored member, and on a nested descriptor.
         /// </summary>
         [JsonPropertyOrder(16)]
         public bool? Stored { get; init; }
@@ -119,6 +122,18 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         [JsonPropertyOrder(18)]
         public OxSchemaRelation? Relation { get; init; }
+
+        /// <summary>
+        /// The value the member holds for each variant of the type it is a member of, by variant name
+        /// as <see cref="OxSchemaType.Variants"/> and <see cref="OxSchemaType.BaseVariant"/> spell it,
+        /// ordinally sorted (format 1.1). Only on a member with <see cref="Stored"/> <c>false</c> that
+        /// is a constant of the class in every variant: the model's own type member
+        /// (<c>type</c>: <c>"driver"</c>). The query engine answers such a member from the stored
+        /// discriminator and compares it with <c>eq</c>, <c>neq</c>, <c>in</c> and <c>nin</c>.
+        /// Absent on every other member, and on a nested descriptor.
+        /// </summary>
+        [JsonPropertyOrder(19)]
+        public IReadOnlyDictionary<string, string>? ByVariant { get; init; }
     }
 
     /// <summary>The name of a relation (format 1.1): see <see cref="OxSchemaProperty.Relation"/>.</summary>
@@ -289,10 +304,10 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>A 32-bit or narrower integer.</summary>
         public const string Int = "int";
 
-        /// <summary>A 64-bit integer, a JSON string on the wire.</summary>
+        /// <summary>A 64-bit integer, a JSON number on the wire with every digit.</summary>
         public const string Long = "long";
 
-        /// <summary>A decimal, a JSON string on the wire.</summary>
+        /// <summary>A decimal, a JSON number on the wire with every digit.</summary>
         public const string Decimal = "decimal";
 
         /// <summary>A floating-point number.</summary>

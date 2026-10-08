@@ -74,6 +74,8 @@ namespace Simplic.OxS.Server.OxSchema
                     OnlyFor = member.OnlyFor is { Count: > 0 } onlyFor ? [.. onlyFor] : null,
                     Stored = member.Stored ? null : false,
                     Relation = member.Relation is { } relation ? new OxSchemaRelation { Name = relation.Name, Member = relation.Member } : null,
+                    Values = ValuesOf(member),
+                    ByVariant = ByVariantOf(member),
                 });
             }
 
@@ -89,6 +91,24 @@ namespace Simplic.OxS.Server.OxSchema
             Kind.Object => new OxSchemaProperty { Kind = OxSchemaKinds.Object, Type = Pointer(shape), SnapshotOf = shape.SnapshotOf },
             var kind => new OxSchemaProperty { Kind = Kinds.NameOf(kind), StoredAs = StoredAs(shape) },
         };
+
+        /// <summary>
+        /// The seam to the query engine's model for the model's own type member: the engine reads,
+        /// when it builds the model, the constant each variant's class answers for a member the driver
+        /// does not store (<see cref="MemberDef.ByVariant"/>, OxQL 2.1), and answers the member from
+        /// the stored discriminator. The document publishes exactly that map, in the engine's order
+        /// (ordinal by variant name), and nothing where the engine found none.
+        /// </summary>
+        private static IReadOnlyDictionary<string, string>? ByVariantOf(MemberDef member) =>
+            member.ByVariant is { Count: > 0 } byVariant
+                ? new SortedDictionary<string, string>(byVariant.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal), StringComparer.Ordinal)
+                : null;
+
+        /// <summary>The distinct values of <see cref="ByVariantOf"/>, ordinally sorted: the closed list a reader offers for the member.</summary>
+        private static IReadOnlyList<OxSchemaValue>? ValuesOf(MemberDef member) =>
+            member.ByVariant is { Count: > 0 } byVariant
+                ? [.. byVariant.Values.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(value => new OxSchemaValue { Value = value })]
+                : null;
 
         /// <summary>
         /// How a value is stored where its kind does not say it, which is exactly where the query

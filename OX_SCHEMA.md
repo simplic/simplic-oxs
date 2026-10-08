@@ -186,20 +186,58 @@ Exactly one property list per type, describing the query shape. Members, in orde
 | `references` | The foreign key this member is, when it is a **simple** one: `{ entity, field, joinable, inferred }` (section 1.10). |
 | `constraints` | `{ maxLength, min, max, pattern }`, from the member's validation attributes (section 2.3). `maxLength` is a number and on strings only; `min` and `max` are strings, written in the invariant culture, because a JSON number is a double. |
 | `deprecated` | `{ since, replacedBy, note }`, from `[Obsolete]`, whose message becomes `note`. |
-| `values` | A closed value list `{ value, label }`. Only an addon descriptor of `GET /schema/addons` carries it; never a member of `/schema`. |
+| `values` | A closed value list `{ value, label }`. An addon descriptor of `GET /schema/addons` carries the organisation's list. In `/schema` only a member with `byVariant` carries it: the distinct values it can hold, ordinally sorted, without labels, so a reader offers them as it offers an enum's. |
 | `onlyFor` | The variants of the holding type that carry this member, when not all of them do (section 1.5). A reader treats the member as absent on every other stored value. |
 | `referenceCases` | Every case of a reference that is not simple, in declaration order (section 1.10). Never beside `references`. |
-| `stored` | `false` on a member the service returns and does not store (`[BsonIgnore]`, computed and get-only members). A query can project it and nothing else, and the same holds for everything below it. Absent on a stored member. |
+| `stored` | `false` on a member the service returns and does not store (`[BsonIgnore]`, computed and get-only members). No row of a query carries it, so the query engine refuses every use of it, a projection included (`NOT_STORED`), and the same holds for everything below it; the one exception is a member with `byVariant`. Absent on a stored member. |
 | `storedAs` | How the value is stored where its kind does not say it, which is where a query treats it differently: `codePoint` (a `string` that is one character, stored as its code point: it compares by value and takes no `contains`, `startsWith`, `endsWith` or `regex`), `document` (a scalar stored as a document: it cannot be filtered or sorted on), `arrayOfDocuments` and `arrayOfArrays` (a `dictionary` stored as an array of entries: a collection a query can unwind, and whose values lie under one). Absent: the representation the kind implies. |
 
 | `relation` | `{ name, member }`: the name of the relation a reader finds at this member (section 1.10, *Relation names*), derived by the query engine. On a member that carries a reference it names that reference and `member` is absent. On a member that holds an object or a collection of objects whose key member (`id`, else `referenceId`) carries a reference it names that reference, and `member` is the key member's name. Absent on every other member. |
+
+| `byVariant` | `{ "<variant>": "<value>", … }` on a `string` member with `stored: false` of a polymorphic type: the value the member holds for each variant, by the names `variants` and `baseVariant` use, ordinally sorted. It is the model's own type member (below). Absent on every other member. |
+
+**The model's own type member.** A polymorphic type usually says which kind a value is in a
+member of its own: `type` on a tour action, on a resource. In the service that member is a
+constant of each class (`public override string Type => "driver";`), which REST returns because
+the serializer calls the getter and which the driver does not store because it has no setter. The
+document publishes it as what it is, and says what a reader needs to use it:
+
+```jsonc
+"transport.resource": {
+  "properties": [
+    { "name": "type", "kind": "string", "nullable": false,
+      "values": [ { "value": "car" }, { "value": "carrier" }, { "value": "container" }, { "value": "driver" },
+                  { "value": "equipment" }, { "value": "tractor_unit" }, { "value": "trailer" } ],
+      "stored": false,
+      "byVariant": { "CarResource": "car", "CarrierResource": "carrier", "ContainerResource": "container", "DriverResource": "driver",
+                     "EquipmentResource": "equipment", "TractorUnitResource": "tractor_unit", "TrailerResource": "trailer" } },
+    …
+  ],
+  "discriminator": { "element": "_t", "form": "scalar" },
+  "variants": [ { "name": "CarResource", "type": "#/types/t_carResource" }, … ]
+}
+```
+
+The query engine reads the constants when it builds the model, without running a constructor: a
+getter is a constant of its class when its code never reads the instance. A member qualifies when
+it is a `string`, has no setter, is not stored, and is such a constant in **every** variant (and
+in the type itself where the type is concrete and stored under its own name: its value is then
+under `baseVariant`'s name). Several variants may hold one value. Under contract 2 the engine
+writes the member into every row from the stored discriminator, and compares it with `eq`, `neq`,
+`in` and `nin` by the variants that hold a value; it cannot sort, group or list values by it, and
+`values` is the pick list instead. A member that is a constant in some variants and reads the
+instance in others gets the log-only finding `variant-constant-unresolved`, which names the
+classes, and stays a plain `stored: false` member. The type's own entry carries `byVariant`; a
+variant's own pool entry lists the member with `stored: false` alone. A polymorphic type that
+has no such member cannot be told apart by a query's rows: add one to the model (one get-only
+string property per class).
 
 A nested descriptor (an array's `of`, a dictionary's `value`) describes a shape, not a member:
 it carries `kind`, `type`, `of`, `value`, `snapshotOf` and `storedAs` only.
 
 **What a query can do with a member is a function of this descriptor.** Whether a member can be
 filtered and with which operators, sorted, grouped, unwound or followed is decided by its kind, its
-leaf kind (arrays unwrapped), `stored`, `storedAs`, whether its pool entry has `variants`, whether it
+leaf kind (arrays unwrapped), `stored`, `byVariant`, `storedAs`, whether its pool entry has `variants`, whether it
 declares a reference, and the collections above it. The document therefore publishes no flag per
 member, and the query engine's explain answer sends none either: it names each type by entity,
 service and this document's `revision`, and says only what a query changes (which collections are
@@ -227,13 +265,18 @@ Scalar: `string` · `int` `long` `decimal` `double` · `bool` · `guid` · `date
 | kind | in a query result |
 |---|---|
 | `int` `double` | JSON number |
-| `long` `decimal` | JSON string |
+| `long` `decimal` | JSON number, with every digit: exact on the wire. A decimal is in canonical digits (no exponent, no trailing fractional zeros). A reader that parses a JSON number into an IEEE double keeps 15 to 17 significant digits of it |
 | `guid` | string |
 | `date` | `YYYY-MM-DD` |
 | `dateTime` | ISO-8601 UTC |
 | `timeSpan` | ISO-8601 duration |
-| `enum` | JSON number |
+| `enum` | JSON number, also where a 64-bit integer backs the enum |
 | `binary` | base64 |
+
+This is what the services' REST API writes for the same members (`System.Text.Json`), with one
+difference a reader does not see as a number: a decimal's trailing zeros are not kept. Until OxQL
+2.1 a `long` and a `decimal` were JSON strings in a query result; a reader typed against that
+changes its types. The query endpoint has no option for text.
 
 This table describes the values a service *returns*. A filter operand of the query endpoint is
 encoded differently; that is the query endpoint's request contract, not this document's.
@@ -470,7 +513,7 @@ The array is inside the revision hash. Every other finding is logged at startup 
 
 **Format 1.1** is the first minor bump. It adds `description`, `constraints` and `deprecated`
 contents (reserved and empty in 1.0), enum value `description`, `discriminator`, `variants`,
-`baseVariant`, `onlyFor`, `referenceCases`, `stored`, `storedAs`, `relation` and three limits. Two of its changes are not purely additive, and the
+`baseVariant`, `onlyFor`, `referenceCases`, `stored`, `storedAs`, `relation`, `byVariant` (with `values` on such a member) and three limits. Two of its changes are not purely additive, and the
 rule above was amended in the same change to classify them as minor rather than ship 2.0:
 
 1. Members the 1.0 build published as `unknown` because it could not describe a polymorphic
@@ -712,7 +755,7 @@ independent costs:
 | `entity-assemblies-missing` | no | yes |
 | `entity-id-off-grammar`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
 | `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared` | no | no |
-| `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
+| `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `variant-constant-unresolved`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
 
 The last row are the model's format 1.1 codes. Each marks a member the document still describes
 (as `unknown`), a variant or a reference case it leaves out in a way its absence shows, so each is
@@ -1111,6 +1154,13 @@ Nothing below needs a line of code in the service.
   reports every public member without a doc comment as CS1591, a build break under
   `TreatWarningsAsErrors`; add `<NoWarn>$(NoWarn);1591</NoWarn>` there. Optional: a service
   without descriptions publishes a complete document.
+- **Give a polymorphic type a type member, and keep it a constant.** A query tells the variants
+  of a value apart by the member the model has for it: one get-only string property that every
+  concrete class answers with a constant (`public override string Type => "driver";`). It needs
+  no attribute and no storage: the document publishes its value per variant (`byVariant`, section
+  1.6) and the query engine answers it. A getter that reads the instance, throws or returns null
+  in one class takes the member out for all (`variant-constant-unresolved` in the log, with the
+  class and the reason). A type without such a member has none in a query.
 - **A reference on a member the service cannot annotate** needs a host-side declaration
   (section 2.2).
 - **`ConfigureModelDefinitions()` and `GetOxQLTypeAssemblies()` are called during

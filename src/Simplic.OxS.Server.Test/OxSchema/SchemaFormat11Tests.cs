@@ -218,7 +218,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
         {
             var document = SchemaBuild.Degraded.Document;
 
-            document.PropertyNames("t_entry").Should().Equal("id", "note", "items", "thingId");
+            document.PropertyNames("t_entry").Should().Equal("id", "note", "kind", "items", "thingId");
             document.Property("t_entry", "id").OnlyFor.Should().BeNull();
             document.Property("t_entry", "note").OnlyFor.Should().BeNull();
             document.Property("t_entry", "items").OnlyFor.Should().Equal("GroupEntry");
@@ -250,12 +250,41 @@ namespace Simplic.OxS.Server.Test.OxSchema
                 entry.BaseVariant.Should().BeNull(id);
         }
 
+        /// <summary>
+        /// The model's own type member: the engine's model holds the constant each class answers
+        /// (<c>MemberDef.ByVariant</c>, OxQL 2.1), and the document publishes it as the engine holds
+        /// it, with the distinct values as the member's closed list. This is the seam between the
+        /// two packages: the walker writes what the model says and derives nothing itself.
+        /// </summary>
+        [Fact]
+        public void Build_TypeMember_PublishesItsValuePerVariantAndItsValues()
+        {
+            var registry = SchemaBuild.Degraded;
+            var kind = registry.Document.Property("t_entry", "kind");
+
+            kind.Stored.Should().BeFalse();
+            kind.ByVariant.Should().Equal(new Dictionary<string, string> { ["Entry"] = "entry", ["GroupEntry"] = "group", ["LineEntry"] = "line" },
+                "the concrete base answers under the name baseVariant publishes");
+            kind.Values!.Select(value => value.Value).Should().Equal("entry", "group", "line");
+            kind.Values.Should().OnlyContain(value => value.Label == null);
+            RawProperty(registry, "t_entry", "kind").Should().Be(
+                "{\"name\":\"kind\",\"kind\":\"string\",\"nullable\":false,\"values\":[{\"value\":\"entry\"},{\"value\":\"group\"},{\"value\":\"line\"}],"
+                + "\"stored\":false,\"byVariant\":{\"Entry\":\"entry\",\"GroupEntry\":\"group\",\"LineEntry\":\"line\"}}");
+
+            // A variant's own entry lists the member as what it is there: returned, not stored.
+            RawProperty(registry, "t_lineEntry", "kind").Should().Be("{\"name\":\"kind\",\"kind\":\"string\",\"nullable\":false,\"stored\":false}");
+
+            // An unstored member that is no constant of a class has neither.
+            registry.Document.Property("probe.widget", "label").ByVariant.Should().BeNull();
+            registry.Document.Property("probe.widget", "label").Values.Should().BeNull();
+        }
+
         [Fact]
         public void Build_UnstoredMember_SaysSo_AndAStoredOneSaysNothing()
         {
             var registry = SchemaBuild.Degraded;
 
-            // `label` is in the wire view and has no storage: a query can project it and nothing else.
+            // `label` is in the wire view and has no storage: no row of a query carries it.
             registry.Document.Property("probe.widget", "label").Stored.Should().BeFalse();
             RawProperty(registry, "probe.widget", "label").Should().EndWith("\"stored\":false}");
             registry.Document.Property("probe.ledger", "name").Stored.Should().BeNull();

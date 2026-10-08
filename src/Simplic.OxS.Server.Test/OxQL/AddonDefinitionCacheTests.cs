@@ -321,6 +321,46 @@ namespace Simplic.OxS.Server.Test.OxQL
             (await source.ForEntityAsync(Widget, Organisation, CancellationToken.None)).Select(definition => definition.Path).Should().Equal("weight", "colour");
         }
 
+        [Theory]
+        [InlineData(1, 10)]
+        [InlineData(20, 200)]
+        [InlineData(30, 300)]     // the default lifetime: ten lifetimes are the cap
+        [InlineData(31, 300)]
+        [InlineData(60, 300)]     // a longer lifetime does not multiply the staleness
+        [InlineData(299, 300)]
+        [InlineData(300, 300)]
+        [InlineData(600, 600)]    // past the cap a value is served for its lifetime, and never stale
+        public void ServedFor_IsTenLifetimesAtMostFiveMinutesAndNeverLessThanTheLifetime(int lifetimeSeconds, int servedSeconds)
+        {
+            AddonDefinitionCache.MaxStale.Should().Be(TimeSpan.FromMinutes(5));
+            AddonDefinitionCache.ServedFor(TimeSpan.FromSeconds(lifetimeSeconds)).Should().Be(TimeSpan.FromSeconds(servedSeconds));
+        }
+
+        [Fact]
+        public async Task AHostThatRaisesTheLifetime_ServesAValueNoOlderThanFiveMinutes()
+        {
+            // Two minutes of lifetime: ten of them would be twenty minutes of a definition that was retired elsewhere.
+            var clock = new Clock();
+            var store = new Store();
+            using var cache = new AddonDefinitionCache(Options(lifetimeSeconds: 120), store.Scopes(), clock);
+            var old = Held("weight");
+
+            cache.Set(Organisation, Widget, old);
+            clock.Advance(TimeSpan.FromMinutes(5));
+            cache.TryGet(Organisation, Widget, out _).Should().BeTrue("five minutes old is still served while it is read again");
+
+            clock.Advance(TimeSpan.FromSeconds(1));
+            cache.TryGet(Organisation, Widget, out _).Should().BeFalse("ten lifetimes would have served it for twenty minutes");
+
+            var request = cache.GetAsync(Organisation, Widget, store.Read, CancellationToken.None).AsTask();
+
+            await store.AskedAsync();
+            request.IsCompleted.Should().BeFalse("the request waits for the read instead of binding with a value that old");
+            store.Answer("colour");
+
+            (await request.WaitAsync(Patience)).Definitions.Select(definition => definition.Path).Should().Equal("colour");
+        }
+
         [Fact]
         public async Task AValueNobodyAskedForDuringTenLifetimes_IsNotServed_TheRequestWaitsForTheRead()
         {

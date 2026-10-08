@@ -31,7 +31,8 @@ public readonly record struct AddonDefinitionLookup(IReadOnlyList<AddonDefinitio
 /// <para>
 /// A request waits for the repository only when the cache holds nothing it may serve: the first
 /// read of an entity and organisation in this process, the read after a write here
-/// (<see cref="Invalidate"/>), and a value older than <see cref="StaleFactor"/> lifetimes. Calls
+/// (<see cref="Invalidate"/>), and a value older than it may be served (<see cref="ServedFor"/>:
+/// <see cref="StaleFactor"/> lifetimes, and never longer than <see cref="MaxStale"/>). Calls
 /// that miss together share one read. A value older than its lifetime
 /// (<c>OxQL:Cache:AddonDefinitionTtlSeconds</c>) is served at once and replaced by one read in the
 /// background, in a scope of its own, so no request waits for it.
@@ -42,7 +43,10 @@ public readonly record struct AddonDefinitionLookup(IReadOnlyList<AddonDefinitio
 /// value is a lifetime old; the first request after that still gets it and starts the read, and
 /// requests that arrive once the read is back (a few milliseconds) get the write. A value nobody
 /// asked for during <see cref="StaleFactor"/> lifetimes is not served at all: that request waits
-/// for the read.
+/// for the read. So the oldest definition a request can bind with is <see cref="StaleFactor"/>
+/// lifetimes old, five minutes at the default lifetime of 30 seconds, and a host that raises the
+/// lifetime does not multiply that: past <see cref="MaxStale"/> a value is served only while it is
+/// within its lifetime.
 /// </para>
 /// <para>
 /// The cache holds at most <see cref="Capacity"/> entries; beyond that the entries asked for
@@ -53,6 +57,13 @@ public sealed class AddonDefinitionCache : IDisposable
 {
     /// <summary>How many lifetimes old a value may be and still be served while it is read again; an older one is read before it is served.</summary>
     public const int StaleFactor = 10;
+
+    /// <summary>
+    /// The longest a value past its lifetime is served while it is read again, whatever the lifetime:
+    /// <see cref="StaleFactor"/> lifetimes of the default lifetime. A host that configures a longer
+    /// lifetime gets that lifetime and no more staleness on top of it than this allows.
+    /// </summary>
+    public static readonly TimeSpan MaxStale = TimeSpan.FromMinutes(5);
 
     /// <summary>The most entries (an entity of an organisation each) the cache holds.</summary>
     public const int Capacity = 4096;
@@ -90,6 +101,17 @@ public sealed class AddonDefinitionCache : IDisposable
 
     private TimeSpan Lifetime => TimeSpan.FromSeconds(Math.Max(1, options.Cache.AddonDefinitionTtlSeconds));
 
+    /// <summary>
+    /// How old a value may be and still be served: <see cref="StaleFactor"/> lifetimes, at most
+    /// <see cref="MaxStale"/>, and never less than the lifetime itself (within it a value is not stale).
+    /// </summary>
+    public static TimeSpan ServedFor(TimeSpan lifetime)
+    {
+        var stale = lifetime * StaleFactor;
+
+        return stale <= MaxStale ? stale : lifetime > MaxStale ? lifetime : MaxStale;
+    }
+
     /// <summary>The cached definitions of one entity and organisation, when the cache holds a value it may serve. Starts no read.</summary>
     public bool TryGet(Guid organisation, string entity, out IReadOnlyList<AddonDefinition> definitions)
     {
@@ -100,7 +122,7 @@ public sealed class AddonDefinitionCache : IDisposable
 
         lock (entry)
         {
-            if (entry.Dropped || entry.Value is null || time.GetElapsedTime(entry.Loaded) > Lifetime * StaleFactor)
+            if (entry.Dropped || entry.Value is null || time.GetElapsedTime(entry.Loaded) > ServedFor(Lifetime))
                 return false;
 
             definitions = entry.Value;
@@ -186,7 +208,7 @@ public sealed class AddonDefinitionCache : IDisposable
             if (age > lifetime)
             {
                 // Without a scope of its own nothing reads outside a request: the caller reads.
-                if (scopes is null || age > lifetime * StaleFactor)
+                if (scopes is null || age > ServedFor(lifetime))
                     return null;
 
                 if (entry.Flight is null && now >= entry.RetryAt)

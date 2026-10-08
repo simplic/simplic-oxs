@@ -17,9 +17,13 @@ namespace Simplic.OxS.ServiceDefinition.Repository;
 /// One organisation holds at most one row per entity id and path. A unique index says so
 /// (<see cref="UniqueIndex"/>); it is created when this process first writes to the collection,
 /// and a write that would store a second row is a <see cref="AddonDefinitionConflictException"/>.
+/// Where the index cannot be created (the service's account may not create one, rows already break
+/// it) the writes go on without it, the failure is logged once, and the creation is asked for again
+/// only after <see cref="IndexRetryAfter"/>, not at every write; <see cref="IndexStateOf"/> says
+/// which of the two a collection is in.
 /// </para>
 /// </summary>
-public class AddonDefinitionRepository(IMongoContext context, IRequestContext requestContext, ICurrentService currentService, ILogger<AddonDefinitionRepository>? logger = null) :
+public class AddonDefinitionRepository(IMongoContext context, IRequestContext requestContext, ICurrentService currentService, ILogger<AddonDefinitionRepository>? logger = null, TimeProvider? time = null) :
     MongoOrganizationRepositoryBase<AddonDefinitionDocument, AddonDefinitionFilter>(context, requestContext),
     IAddonDefinitionRepository
 {
@@ -29,10 +33,30 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
     /// <summary>The name of the unique index over organisation, entity id and path.</summary>
     public const string UniqueIndexName = "organization_entity_path_unique";
 
-    /// <summary>The collections this process has created the index on, by <c>database.collection</c>.</summary>
-    private static readonly ConcurrentDictionary<string, bool> Indexed = new(StringComparer.Ordinal);
+    /// <summary>
+    /// How long a failed creation of the unique index keeps the next one from being asked for. The
+    /// causes do not pass by themselves (a missing right, rows that break the index, an index of the
+    /// name with other options), so a write does not pay a refused command each time; an hour later
+    /// one write asks again, which is how the index appears without a restart once the cause is gone.
+    /// </summary>
+    public static readonly TimeSpan IndexRetryAfter = TimeSpan.FromHours(1);
 
-    private readonly string collectionName = CollectionNameOf(currentService.ServiceName);
+    /// <summary>What this process knows of the unique index of each collection it wrote to, by <c>database.collection</c>.</summary>
+    private static readonly ConcurrentDictionary<string, AddonDefinitionIndexState> Indexes = new(StringComparer.Ordinal);
+
+    private readonly TimeProvider clock = time ?? TimeProvider.System;
+    private string? collectionName;
+
+    /// <summary>
+    /// What this process knows of the unique index of a collection (<c>database.collection</c>): null
+    /// before its first write, else whether the index is in place or its creation failed, when, and
+    /// why. While it failed, uniqueness rests on the caller's own read before its write.
+    /// </summary>
+    public static AddonDefinitionIndexState? IndexStateOf(string collectionNamespace) =>
+        Indexes.TryGetValue(collectionNamespace, out var state) ? state : null;
+
+    /// <summary>Every collection this process wrote to, with the state of its unique index: what a host reports of them.</summary>
+    public static IReadOnlyDictionary<string, AddonDefinitionIndexState> IndexStates => Indexes.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
     /// <summary>
     /// The collection of one service: <c>model_definition.addon_definition.{service}</c>, the
@@ -85,7 +109,12 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
             yield return definition;
     }
 
-    protected override string GetCollectionName() => collectionName;
+    /// <summary>
+    /// The service's collection. Named when it is first needed, not when the repository is built: a
+    /// host that names no service fails the reads and writes of addon definitions, not every request
+    /// whose services happen to hold a repository.
+    /// </summary>
+    protected override string GetCollectionName() => collectionName ??= CollectionNameOf(currentService.ServiceName);
 
     /// <inheritdoc/>
     public async Task<IEnumerable<AddonDefinitionDocument>> GetByEntitiesAsync(IReadOnlyCollection<string> entities, Guid? organizationId = null, CancellationToken cancellationToken = default)
@@ -110,8 +139,9 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
     /// Creates the unique index unless this process already has. Creating an index that exists
     /// as specified is a no-op at the server, so every replica and every restart may ask. An
     /// index that cannot be created (rows that already break it, an index of that name with
-    /// other options, no right to create one) is logged and asked for again at the next write;
-    /// the write goes on, guarded by the caller's own read as before.
+    /// other options, no right to create one) is logged once, as a warning, and asked for again
+    /// only after <see cref="IndexRetryAfter"/>: the writes in between send no command that is
+    /// refused. The write goes on, guarded by the caller's own read as before.
     /// </summary>
     /// <param name="cancellationToken">A token to stop waiting with.</param>
     public async Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
@@ -119,18 +149,28 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
         await Initialize();
 
         var key = Collection.CollectionNamespace.FullName;
+        var known = IndexStateOf(key);
 
-        if (Indexed.ContainsKey(key))
+        if (known is { Created: true } || (known is { FailedAt: { } failed } && clock.GetUtcNow() - failed < IndexRetryAfter))
             return;
 
         try
         {
             await Collection.Indexes.CreateOneAsync(UniqueIndex(), cancellationToken: cancellationToken);
-            Indexed[key] = true;
+            Indexes[key] = new AddonDefinitionIndexState(Created: true, FailedAt: null, Reason: null);
+
+            if (known is not null)
+                logger?.LogInformation("The unique index {Index} on {Collection} is in place now.", UniqueIndexName, key);
         }
         catch (MongoException exception)
         {
-            logger?.LogWarning(exception, "The unique index {Index} on {Collection} could not be created; one path may be stored twice until it is.", UniqueIndexName, key);
+            Indexes[key] = new AddonDefinitionIndexState(Created: false, FailedAt: clock.GetUtcNow(), Reason: exception.GetType().Name + ": " + exception.Message);
+
+            // Said once per process and collection: a later attempt that fails the same way says it at debug level.
+            if (known is null)
+                logger?.LogWarning(exception, "The unique index {Index} on {Collection} could not be created; one path may be stored twice until it is. The creation is asked for again in {Retry}, not at every write.", UniqueIndexName, key, IndexRetryAfter);
+            else
+                logger?.LogDebug(exception, "The unique index {Index} on {Collection} still cannot be created.", UniqueIndexName, key);
         }
     }
 
@@ -162,3 +202,9 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
         _ => false,
     };
 }
+
+/// <summary>What a process knows of the unique index of one addon definition collection.</summary>
+/// <param name="Created">Whether the index is in place: this process created it, or found it as specified.</param>
+/// <param name="FailedAt">When its creation last failed; null while <paramref name="Created"/>.</param>
+/// <param name="Reason">The server's or the driver's reason for the failure; null while <paramref name="Created"/>.</param>
+public sealed record AddonDefinitionIndexState(bool Created, DateTimeOffset? FailedAt, string? Reason);

@@ -27,7 +27,7 @@ the tests in `src/Simplic.OxS.Server.Test/OxSchema/` and `src/Simplic.OxS.Server
   "limits": {
     "maxPageSize": 500, "defaultPageSize": 100,
     "maxPipelineStages": 20, "maxLookupStages": 5, "maxUnwindStages": 5,
-    "maxGroupFields": 20, "maxProjectionFields": 500, "regexMaxLength": 200,
+    "maxGroupFields": 40, "maxProjectionFields": 500, "regexMaxLength": 200,
     "maxOffset": 5000, "maxResolveStages": 8, "maxBatchQueries": 10, "maxLookupLimit": 100,
     "maxContinuedStages": 8, "maxFlattenDepth": 5, "maxReportPageSize": 5000
   },
@@ -487,7 +487,7 @@ reference on such a member at all. Consumers:
 | a reader built for 1.0 | Must accept the document (minor bump) and ignore the new members. The query engine's document reader and the frontend generator `oxql-gen` both accept `1.x` and ignore members they do not know. |
 | the query engine's document reader (OxQL, contract 2) | Reads every 1.1 member back into its model; `referenceCases` wins over `references`. |
 | a service's generated OxQL module | Regenerated against 1.1, it may type former `unknown` members as objects and former subclass members as optional. The frontend's generator check and type check catch every call site this touches when the module is regenerated. |
-| the revision | Every service's revision changes with the upgrade, since `schemaVersion` and the new limits are inside it; clients that cached the document by entity tag fetch it once again. Descriptions are inside the revision too, so editing a doc comment changes it. |
+| the revision | Every service's revision changes with the upgrade, since `schemaVersion` and the new limits are inside it; clients that cached the document by entity tag fetch it once again. Descriptions are inside the revision too, so editing a doc comment changes it. The limits are the engine's values, so an engine that changes a default changes the revision of every service that takes it, without a change to any model: with OxQL 2.1, `maxGroupFields` 20 → 40 (and against the published 2.0 engine `maxResolveStages` 2 → 8); a host that configures the limit publishes its own value. The engine's README lists them under *Upgrading to 2.1*. |
 
 Out of scope in this version: writes — the document describes read shapes only.
 
@@ -755,9 +755,16 @@ organisation and current entity id. A definition's lifetime in the cache is
 | the cache holds | the request | the database |
 |---|---|---|
 | a value no older than its lifetime | is answered from memory | is not read |
-| a value older than its lifetime, up to ten lifetimes (5 minutes by default) | is answered from memory, with that value | is read once, in the background, in a scope of its own; the answer replaces the value. Requests that arrive while it runs get the old value and start no second read |
+| a value older than its lifetime, up to ten lifetimes and never more than 5 minutes (5 minutes at the default lifetime) | is answered from memory, with that value | is read once, in the background, in a scope of its own; the answer replaces the value. Requests that arrive while it runs get the old value and start no second read |
 | nothing: the first request for that entity and organisation in this process, the first after a write on this instance, an entry that left a full cache | waits for the read | is read once. Requests that miss together wait for the same read |
-| a value older than ten lifetimes (nobody asked for it that long) | waits for the read, as if nothing were held | is read once |
+| a value older than that (nobody asked for it that long) | waits for the read, as if nothing were held | is read once |
+
+**The bound is ten times the configured lifetime, capped at five minutes.** A value is served
+until it is ten lifetimes old: 5 minutes at the default of 30 seconds, 100 seconds at a lifetime
+of 10. A host that raises the lifetime does not multiply the staleness with it: ten lifetimes
+above 5 minutes are cut to 5 minutes (a lifetime of 60 seconds serves for 5 minutes, not 10), and
+a lifetime above 5 minutes is served for that lifetime and not a second longer, so a value past
+it is always read before it is served (`AddonDefinitionCache.ServedFor`, `MaxStale`).
 
 So after its first read an entity that is queried at least once in five minutes never costs a
 request a round trip again. A background read that fails is logged, leaves the held value in
@@ -777,8 +784,8 @@ read reads for itself.
   first request after that is still answered with it and starts the read; requests that arrive
   once the read is back (a few milliseconds) see the write. Without any request in between, the
   one request that ends the pause is answered with the old value if the pause was shorter than
-  ten lifetimes, and waits for a fresh read if it was longer. No request is ever answered with a
-  value older than ten lifetimes.
+  the bound above (ten lifetimes, at most 5 minutes), and waits for a fresh read if it was
+  longer. No request is ever answered with a value older than that bound.
 - A definition written straight into the collection, past the API, is on every instance in the
   second case.
 
@@ -1040,13 +1047,24 @@ Nothing below needs a line of code in the service.
     `hangfire.{service}`. Several services are deployed onto one database; with a collection
     each, no route of one service reads, changes or retires a definition of another, also not by
     id, and two services that declare the same entity id keep separate definitions. The name is
-    the host's `ServiceName`; a host that names none cannot store definitions.
+    the host's `ServiceName`; a host that names none cannot store or read definitions: the first
+    read or write of one fails (the repository itself is built, so a route that never touches a
+    definition is not affected).
   - **One row per organisation, entity id and path.** The collection has the unique index
     `organization_entity_path_unique` on `{ OrganizationId: 1, Entity: 1, Path: 1 }`, partial
     over `{ IsDeleted: false }`. The package creates it itself, when a process first writes a
     definition; creating an index that exists is a no-op, so every replica asks once. If it
-    cannot be created (no right to, or rows that already break it) the host logs a warning,
-    goes on, and asks again at the next write. The API reads before it writes; of two requests
+    cannot be created (the service's account has no right to create an index, rows already break
+    it, an index of that name has other options) the host logs **one** warning for that
+    collection, goes on, and does not ask again at every write: the creation is asked for again an
+    hour later (`AddonDefinitionRepository.IndexRetryAfter`), by the first write after that, which
+    is how the index appears without a restart once the cause is gone. While it is missing,
+    uniqueness rests on the API's own read before its write, and two requests that pass that check
+    together can both store their row; two such rows keep the index from ever being built until
+    one is removed. What a process knows is `AddonDefinitionRepository.IndexStates`
+    (`database.collection` → `{ Created, FailedAt, Reason }`); the base package has no health
+    route of its own to publish it on, and the engine's `oxql/health` is the engine's. A service
+    account that may create indexes on its own collections needs none of this. The API reads before it writes; of two requests
     that pass that check together the index admits one, and the other is answered `409` like
     the check would have. `PUT` and `DELETE` can answer `409` too, when the row was to move to
     its entity's current id and another request stored its path there meanwhile; sent again,

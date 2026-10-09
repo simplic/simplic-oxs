@@ -80,13 +80,17 @@ namespace Simplic.OxS.Server.Test.OxSchema
         {
             var document = SchemaBuild.Degraded.Document;
 
-            foreach (var (_, entry) in document.Types.Where(entry => entry.Value.Entity == true))
+            foreach (var (id, entry) in document.Types.Where(entry => entry.Value.Entity == true))
             {
                 entry.NotFilterable.Should().NotBeNull();
 
-                // Everything that makes a stored scalar unsortable is visible in the
-                // descriptors, so this one stays empty and consumers derive it.
-                entry.NotSortable.Should().NotBeNull().And.BeEmpty();
+                // Everything that makes a stored scalar unsortable is visible in the descriptors, so
+                // this one is empty and consumers derive it, but for an entity with a type member:
+                // that one scalar the engine filters and does not sort (SchemaFormat11Tests).
+                if (id == "probe.ledger")
+                    entry.NotSortable.Should().Equal("entries.kind", "lead.kind");
+                else
+                    entry.NotSortable.Should().NotBeNull().And.BeEmpty();
             }
 
             // `label` is in the wire view and has no storage, so the engine refuses a filter on

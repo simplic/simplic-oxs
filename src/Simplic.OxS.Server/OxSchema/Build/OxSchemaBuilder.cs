@@ -84,12 +84,16 @@ namespace Simplic.OxS.Server.OxSchema
 
                     // A member the driver does not store is in the wire view and refused by the
                     // engine with NOT_STORED. Saying so here is what keeps a consumer from
-                    // offering a filter the service will not answer.
+                    // offering a filter the service will not answer. The model's own type member
+                    // is not stored either, and the engine does filter it (eq, neq, in, nin, by
+                    // the variants that hold a value): it is not on this list.
                     NotFilterable = UnstoredScalarPaths(model, entity.Id),
 
-                    // Everything that makes a stored scalar unsortable - crossing a collection -
-                    // is already visible in the descriptors, and every consumer derives it.
-                    NotSortable = [],
+                    // What makes a stored scalar unsortable - crossing a collection - is already
+                    // visible in the descriptors, and every consumer derives it. The type member
+                    // is the one scalar the engine filters and refuses to sort or group by
+                    // wherever it stands, which no descriptor says: it is listed.
+                    NotSortable = TypeMemberPaths(model, entity.Id),
                     Operations = controller is null ? null : ControllerLink.OperationsOf(controller),
                 };
             }
@@ -195,12 +199,25 @@ namespace Simplic.OxS.Server.OxSchema
         }
 
         /// <summary>
-        /// The scalar paths of an entity the driver does not store: in the wire view, refused by
-        /// the query engine. Ordinally sorted, because the list is inside the revision.
+        /// The scalar paths of an entity the driver does not store and the query engine therefore
+        /// refuses a condition on: in the wire view only. A path the engine answers from the stored
+        /// discriminator (the model's own type member, <c>PathDef.Derived</c>) is not stored and is
+        /// filtered all the same, so it is left out. Ordinally sorted, because the list is inside
+        /// the revision.
         /// </summary>
         private static IReadOnlyList<string> UnstoredScalarPaths(EntityModel model, string entityId) =>
             model.Entities.TryGetValue(entityId, out var entity)
-                ? [.. entity.Paths.Where(path => !path.Stored && Kinds.IsScalar(path.LeafKind)).Select(path => path.Wire).Order(StringComparer.Ordinal)]
+                ? [.. entity.Paths.Where(path => !path.Stored && path.Derived is null && Kinds.IsScalar(path.LeafKind)).Select(path => path.Wire).Order(StringComparer.Ordinal)]
+                : [];
+
+        /// <summary>
+        /// The paths of an entity's type members (<c>PathDef.Derived</c>): scalars the query engine
+        /// compares with <c>eq</c>, <c>neq</c>, <c>in</c> and <c>nin</c> and refuses to sort, group
+        /// or list values by. Ordinally sorted, because the list is inside the revision.
+        /// </summary>
+        private static IReadOnlyList<string> TypeMemberPaths(EntityModel model, string entityId) =>
+            model.Entities.TryGetValue(entityId, out var entity)
+                ? [.. entity.Paths.Where(path => path.Derived is not null && Kinds.IsScalar(path.LeafKind)).Select(path => path.Wire).Order(StringComparer.Ordinal)]
                 : [];
 
         /// <summary>The ids an entity retired, ordinally sorted: the list is inside the revision, so the host's declaration order must not reach it.</summary>

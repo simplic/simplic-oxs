@@ -1,7 +1,13 @@
 using System.Text.Json;
+using MongoDB.Bson;
+using OxQL.Core.Binding;
+using OxQL.Core.Cursor;
+using OxQL.Core.Engine;
 using OxQL.Core.Models;
 using OxQL.Model;
+using OxQL.Model.Addon;
 using OxQL.Model.Attributes;
+using OxQL.Mongo;
 using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.Server.Test.OxSchema.Fixtures;
 
@@ -277,6 +283,87 @@ namespace Simplic.OxS.Server.Test.OxSchema
             // An unstored member that is no constant of a class has neither.
             registry.Document.Property("probe.widget", "label").ByVariant.Should().BeNull();
             registry.Document.Property("probe.widget", "label").Values.Should().BeNull();
+        }
+
+        /// <summary>Explain never executes, so a runner that is called is a failure.</summary>
+        private sealed class NoRunner : IAggregateRunner
+        {
+            public Task<IReadOnlyList<BsonDocument>> AggregateAsync(EntityDef entity, IReadOnlyList<BsonDocument> stages, AggregateRunOptions options, CancellationToken cancellationToken) =>
+                throw new InvalidOperationException("Explain must not execute.");
+        }
+
+        /// <summary>
+        /// What the document says a query can do with the type member is what the query engine does
+        /// with it. The document says it in two lists a reader honours without knowing the member
+        /// (<c>notFilterable</c>, <c>notSortable</c>); the engine says it in the flags of its explain
+        /// answer for the same model. The type member is filtered with <c>eq</c>, <c>neq</c>,
+        /// <c>in</c> and <c>nin</c> and is neither sorted nor grouped by; a member that is merely not
+        /// stored takes no condition at all. A reader of either source arrives at the same answer.
+        /// </summary>
+        [Fact]
+        public async Task Build_TypeMember_SaysOfFilteringAndSortingWhatTheQueryEnginesExplainSays()
+        {
+            var registry = SchemaBuild.Degraded;
+            var entry = registry.Document.Entry("probe.ledger");
+
+            // The document: the member is not on the list of what cannot be filtered, and is on the list of what cannot be sorted.
+            entry.NotFilterable.Should().NotContain(["lead.kind", "entries.kind"], "the query engine filters the type member");
+            entry.NotSortable.Should().Equal(["entries.kind", "lead.kind"], "the query engine refuses to sort and to group by it, which nothing else in the descriptors says of a scalar outside a collection");
+            entry.NotFilterable.Should().Contain("caption", "a member that is merely not stored stays on the list");
+            registry.Document.Entry("probe.widget").NotFilterable.Should().Contain("label");
+            registry.Document.Entry("probe.widget").NotSortable.Should().BeEmpty("an entity without a type member lists nothing");
+
+            // The engine, for the same model: the flags of each member in an explain answer with the types written out.
+            var options = new OxQLOptions { Cursor = { SigningKey = "test-signing-key" } };
+            var engine = new MongoQueryEngine(new StaticEntityModelProvider(registry.Model), new NoRunner(), new CursorCodec("test-signing-key"), options);
+            var context = new RequestContext
+            {
+                Organisation = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                Options = options,
+                AddonSource = EmptyAddonDefinitionSource.Instance,
+                Contract = 2,
+            };
+
+            async Task<Dictionary<string, System.Text.Json.Nodes.JsonObject>> FlagsOf(string entity)
+            {
+                var query = JsonSerializer.Deserialize<QueryRequest>($$"""{ "entityType": "{{entity}}", "pipeline": [] }""", OxQLJson.Wire)!;
+                var outcome = await engine.ExplainAsync(new ExplainRequest { Query = query, Include = [ExplainRequest.IncludeTypes], IsEnvelope = true }, context, CancellationToken.None);
+                var answer = outcome.Should().BeOfType<ExplainOutcome.Success>(outcome is ExplainOutcome.Refused refused ? string.Join("; ", (refused.Refusal.Errors ?? []).Select(error => error.Code + " " + error.Message)) : "").Subject.Result;
+                var table = answer.Types.Single(type => type.Key.EndsWith(entity, StringComparison.Ordinal)).Value!.AsObject();
+
+                return table["members"]!.AsArray().ToDictionary(
+                    member => member!.AsArray()[0]!.GetValue<string>(),
+                    member => answer.FlagSets![member!.AsArray()[3]!.GetValue<string>()]!.AsObject());
+            }
+
+            var ledger = await FlagsOf("probe.ledger");
+
+            foreach (var path in new[] { "lead.kind", "entries.kind" })
+            {
+                ledger[path]["operators"]!.AsArray().Select(op => op!.GetValue<string>()).Should().Equal(["eq", "neq", "in", "nin"], $"the engine compares '{path}' by the variants that hold a value");
+                ledger[path]["sortable"]!.GetValue<bool>().Should().BeFalse(path);
+                ledger[path]["groupable"]!.GetValue<bool>().Should().BeFalse(path);
+            }
+
+            // A member that is merely not stored: the engine does nothing with it, and the document lists it.
+            ledger["caption"]["operators"]!.AsArray().Should().BeEmpty();
+            ledger["caption"]["projectable"]!.GetValue<bool>().Should().BeFalse();
+
+            // Every path a list names is one the engine refuses for that use, and no path the engine filters is on the list.
+            entry.NotFilterable!.Should().OnlyContain(path => ledger.ContainsKey(path), "the engine's answer lists every member the document does");
+
+            foreach (var path in entry.NotFilterable!)
+                ledger[path]["operators"]!.AsArray().Should().BeEmpty($"'{path}' is published as not filterable");
+
+            foreach (var path in entry.NotSortable!)
+                ledger[path]["sortable"]!.GetValue<bool>().Should().BeFalse($"'{path}' is published as not sortable");
+
+            ledger.Where(member => member.Value["operators"]!.AsArray().Count > 0).Select(member => member.Key)
+                .Should().NotIntersectWith(entry.NotFilterable!, "what the engine filters is not published as not filterable");
+
+            // And a stored scalar of the row is sorted by both: the list holds the exception only.
+            ledger["name"]["sortable"]!.GetValue<bool>().Should().BeTrue();
+            entry.NotSortable.Should().NotContain("name");
         }
 
         [Fact]

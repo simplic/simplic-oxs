@@ -37,6 +37,15 @@ namespace Simplic.OxS.Server.Test.OxSchema.Fixtures
         /// <summary>A collection of a polymorphic item type.</summary>
         public List<Entry> Entries { get; set; } = [];
 
+        /// <summary>One value of the polymorphic type, under no collection: its type member is a scalar of the row.</summary>
+        public Entry? Lead { get; set; }
+
+        /// <summary>The organisation the query engine scopes the entity by; without it the engine answers nothing about the entity.</summary>
+        public Guid OrganizationId { get; set; }
+
+        /// <summary>Returned and not stored, and no constant of the class: a query can do nothing with it.</summary>
+        public string Caption => Name ?? "";
+
         /// <summary>A conditional reference whose cases name an entity and an item of another one.</summary>
         public SourceReference? Source { get; set; }
 

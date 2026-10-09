@@ -180,6 +180,35 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Fact]
+        public async Task EnsureIndexes_ACommandThatDidNotReachAServerSaysNothingOfTheIndexAndTheNextWriteAsksAgain()
+        {
+            var endpoint = new System.Net.DnsEndPoint("localhost", 27017);
+            var connection = new MongoDB.Driver.Core.Connections.ConnectionId(new MongoDB.Driver.Core.Servers.ServerId(new MongoDB.Driver.Core.Clusters.ClusterId(1), endpoint), 1);
+            var store = new Store { Refuse = new MongoConnectionException(connection, "the connection was closed while the primary stepped down") };
+
+            AddonDefinitionRepository.IsRefusal(store.Refuse).Should().BeFalse();
+            AddonDefinitionRepository.IsRefusal(new MongoNotPrimaryException(connection, new MongoDB.Bson.BsonDocument("createIndexes", "x"), new MongoDB.Bson.BsonDocument("code", 10107))).Should().BeFalse();
+            AddonDefinitionRepository.IsRefusal(new MongoCommandException(connection, "not authorized on lab to execute command { createIndexes }", new MongoDB.Bson.BsonDocument("createIndexes", "x"))).Should().BeTrue();
+            AddonDefinitionRepository.IsRefusal(new MongoException("an index of that name exists with other options")).Should().BeTrue();
+
+            // Three writes during the election: each asks, none concludes that the index cannot be created.
+            for (var write = 0; write < 3; write++)
+                await store.Repository.EnsureIndexesAsync();
+
+            store.Asked.Should().Be(3, "a command that reached no server that could answer is asked again by the next write, not an hour later");
+            AddonDefinitionRepository.IndexStateOf(store.Namespace).Should().BeNull("nothing is known of the index yet");
+            store.Log.Written.Should().OnlyContain(line => line.Level == Microsoft.Extensions.Logging.LogLevel.Debug, "it is no warning: the unique index is not known to be missing");
+
+            // The primary is back: the next write creates the index, and no write asks after that.
+            store.Refuse = null;
+            await store.Repository.EnsureIndexesAsync();
+            await store.Repository.EnsureIndexesAsync();
+
+            store.Asked.Should().Be(4);
+            AddonDefinitionRepository.IndexStateOf(store.Namespace).Should().Be(new AddonDefinitionIndexState(true, null, null));
+        }
+
+        [Fact]
         public async Task AHostThatNamesNoServiceBuildsTheRepositoryAndFailsItsFirstUse()
         {
             // The repository is a dependency of the addon source every OxQL request holds: building it must not throw.

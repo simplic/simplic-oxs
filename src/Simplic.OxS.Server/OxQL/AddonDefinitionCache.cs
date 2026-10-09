@@ -184,7 +184,7 @@ public sealed class AddonDefinitionCache : IDisposable
     }
 
     /// <summary>The background read of an entity's definitions that is under way, or a completed task: what a test waits for.</summary>
-    public Task RefreshedAsync(Guid organisation, string entity)
+    internal Task RefreshedAsync(Guid organisation, string entity)
     {
         if (!entries.TryGetValue((organisation, entity), out var entry))
             return Task.CompletedTask;
@@ -302,7 +302,7 @@ public sealed class AddonDefinitionCache : IDisposable
                 Failed((organisation, entity), entry, mine, exception, backOff: true);
 
                 if (exception is not OperationCanceledException)
-                    logger?.LogWarning(exception, "The addon definitions of {Entity} could not be read again; the ones held are served until they are {Factor} lifetimes old.", entity, StaleFactor);
+                    logger?.LogWarning(exception, "The addon definitions of {Entity} could not be read again; the ones held are served until they are {ServedFor} old.", entity, ServedFor(Lifetime));
             }
         });
     }

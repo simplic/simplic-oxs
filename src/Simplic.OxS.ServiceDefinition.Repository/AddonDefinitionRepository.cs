@@ -17,10 +17,13 @@ namespace Simplic.OxS.ServiceDefinition.Repository;
 /// One organisation holds at most one row per entity id and path. A unique index says so
 /// (<see cref="UniqueIndex"/>); it is created when this process first writes to the collection,
 /// and a write that would store a second row is a <see cref="AddonDefinitionConflictException"/>.
-/// Where the index cannot be created (the service's account may not create one, rows already break
-/// it) the writes go on without it, the failure is logged once, and the creation is asked for again
-/// only after <see cref="IndexRetryAfter"/>, not at every write; <see cref="IndexStateOf"/> says
-/// which of the two a collection is in.
+/// Where the server refuses to create the index (the service's account may not create one, rows
+/// already break it) the writes go on without it, the failure is logged as a warning by the write
+/// that met it first (by each of them where several wrote at the same moment), and the creation is
+/// asked for again only after <see cref="IndexRetryAfter"/>, not at every write. Where the command
+/// did not reach a server that could answer it (a connection lost, an election under way) nothing
+/// is concluded and the next write asks again. <see cref="IndexStateOf"/> says which state a
+/// collection is in.
 /// </para>
 /// </summary>
 public class AddonDefinitionRepository(IMongoContext context, IRequestContext requestContext, ICurrentService currentService, ILogger<AddonDefinitionRepository>? logger = null, TimeProvider? time = null) :
@@ -138,10 +141,13 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
     /// <summary>
     /// Creates the unique index unless this process already has. Creating an index that exists
     /// as specified is a no-op at the server, so every replica and every restart may ask. An
-    /// index that cannot be created (rows that already break it, an index of that name with
-    /// other options, no right to create one) is logged once, as a warning, and asked for again
-    /// only after <see cref="IndexRetryAfter"/>: the writes in between send no command that is
-    /// refused. The write goes on, guarded by the caller's own read as before.
+    /// index the server refuses to create (rows that already break it, an index of that name with
+    /// other options, no right to create one) is logged as a warning by the first write that met
+    /// the refusal and asked for again only after <see cref="IndexRetryAfter"/>: the writes in
+    /// between send no command that is refused. A command that failed for another reason than a
+    /// refusal (the connection, a primary stepping down, a write concern not met in time) says
+    /// nothing about the index: the next write asks again. The write goes on either way, guarded
+    /// by the caller's own read as before.
     /// </summary>
     /// <param name="cancellationToken">A token to stop waiting with.</param>
     public async Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
@@ -161,6 +167,11 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
 
             if (known is not null)
                 logger?.LogInformation("The unique index {Index} on {Collection} is in place now.", UniqueIndexName, key);
+        }
+        catch (MongoException exception) when (!IsRefusal(exception))
+        {
+            // Not an answer about the index: nothing is recorded, so the next write asks again.
+            logger?.LogDebug(exception, "The unique index {Index} on {Collection} could not be asked for; the next write asks again.", UniqueIndexName, key);
         }
         catch (MongoException exception)
         {
@@ -192,6 +203,15 @@ public class AddonDefinitionRepository(IMongoContext context, IRequestContext re
             throw new AddonDefinitionConflictException("The organisation already holds a definition of that entity and path.", exception);
         }
     }
+
+    /// <summary>
+    /// Whether a failed index creation is the server's refusal of the command, which waiting an hour
+    /// answers, and not a failure to reach a server that could answer it, which the next write may
+    /// not meet: a connection or its timeout, a node that is no primary or is recovering, a write
+    /// concern not met in time, a command the server ran out of time for.
+    /// </summary>
+    public static bool IsRefusal(MongoException exception) => exception is not
+        (MongoConnectionException or MongoNotPrimaryException or MongoNodeIsRecoveringException or MongoWriteConcernException or MongoExecutionTimeoutException or MongoInternalException);
 
     /// <summary>Whether the server refused a write because of a unique index.</summary>
     public static bool IsDuplicateKey(MongoException exception) => exception switch

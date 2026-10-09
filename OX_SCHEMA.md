@@ -127,8 +127,8 @@ An entity is a structural type that additionally carries entity metadata. Member
 | `display` | entities | The property that names an instance: the first of `name`, `matchCode`, `number` the entity has as a string. Absent when it has none. |
 | `extendable` | entities | Whether the entity accepts an organisation's declared addon fields. |
 | `queryable` | entities | `true`: every entity in the pool is accepted as a query's entity type. |
-| `notFilterable` | entities | The scalar paths the entity refuses to filter on: members the service returns and does not store, which the query engine refuses with `NOT_STORED`. Ordinally sorted. Always present, possibly empty. |
-| `notSortable` | entities | Paths the entity refuses to sort on. Always present; empty in this version: what makes a stored scalar unsortable, crossing a collection, is visible in the descriptors. |
+| `notFilterable` | entities | The scalar paths the entity refuses to filter on: members the service returns and does not store, which the query engine refuses with `NOT_STORED`. A member with `byVariant` is not stored either and is **not** on the list: the query engine filters it (with `eq`, `neq`, `in` and `nin`). Ordinally sorted. Always present, possibly empty. |
+| `notSortable` | entities | The scalar paths the entity filters on and refuses to sort on: the paths of its members with `byVariant`, which the query engine compares and can neither sort nor group by, wherever they stand. Ordinally sorted. Always present; empty for an entity without such a member: what makes a stored scalar unsortable, crossing a collection, is visible in the descriptors and not repeated here. |
 | `operations` | entities | The REST operations by slot. Absent when no controller is linked. |
 | `items` | entities | The item collections under the entity. Always present, possibly empty. |
 | `properties` | object entries | The property list. Absent on an enum entry; an object entry always carries it, empty included. |
@@ -225,7 +225,8 @@ in the type itself where the type is concrete and stored under its own name: its
 under `baseVariant`'s name). Several variants may hold one value. Under contract 2 the engine
 writes the member into every row from the stored discriminator, and compares it with `eq`, `neq`,
 `in` and `nin` by the variants that hold a value; it cannot sort, group or list values by it, and
-`values` is the pick list instead. A member that is a constant in some variants and reads the
+`values` is the pick list instead. The entity's lists say the same to a reader that does not
+know the member: its path is not in `notFilterable` and is in `notSortable`. A member that is a constant in some variants and reads the
 instance in others gets the log-only finding `variant-constant-unresolved`, which names the
 classes, and stays a plain `stored: false` member. The type's own entry carries `byVariant`; a
 variant's own pool entry lists the member with `stored: false` alone. A polymorphic type that
@@ -693,7 +694,8 @@ startup thread, and is one pass in `OxSchemaBuilder`:
    binds against this model, and the document is its wire view.
 4. **Entity metadata.** Per entity: the label, the key (the model's), the display property, the
    aliases (the retired ids, then the legacy ids of the linked controller), `extendable`, the
-   unstored scalar paths as `notFilterable`, and the operations read off the linked controller.
+   unstored scalar paths as `notFilterable` (without the type members, which the engine filters),
+   the type members' paths as `notSortable`, and the operations read off the linked controller.
 5. **Item collections**, over the finished pool.
 6. **Validation.** Id grammar, property-name grammar and pointer integrity, over the finished
    pool.
@@ -1096,12 +1098,16 @@ Nothing below needs a line of code in the service.
   - **One row per organisation, entity id and path.** The collection has the unique index
     `organization_entity_path_unique` on `{ OrganizationId: 1, Entity: 1, Path: 1 }`, partial
     over `{ IsDeleted: false }`. The package creates it itself, when a process first writes a
-    definition; creating an index that exists is a no-op, so every replica asks once. If it
-    cannot be created (the service's account has no right to create an index, rows already break
-    it, an index of that name has other options) the host logs **one** warning for that
-    collection, goes on, and does not ask again at every write: the creation is asked for again an
-    hour later (`AddonDefinitionRepository.IndexRetryAfter`), by the first write after that, which
-    is how the index appears without a restart once the cause is gone. While it is missing,
+    definition; creating an index that exists is a no-op, so every replica asks once. If the
+    server refuses to create it (the service's account has no right to create an index, rows
+    already break it, an index of that name has other options) the host logs a warning for that
+    collection (one, by the write that met the refusal first; one each where several writes met
+    it at the same moment), goes on, and does not ask again at every write: the creation is asked
+    for again an hour later (`AddonDefinitionRepository.IndexRetryAfter`), by the first write
+    after that, which is how the index appears without a restart once the cause is gone. A
+    command that reached no server able to answer it (the connection lost, a primary stepping
+    down) is not such a refusal: nothing is concluded from it and the next write asks again.
+    While the index is missing,
     uniqueness rests on the API's own read before its write, and two requests that pass that check
     together can both store their row; two such rows keep the index from ever being built until
     one is removed. What a process knows is `AddonDefinitionRepository.IndexStates`

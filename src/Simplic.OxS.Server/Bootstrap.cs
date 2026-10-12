@@ -12,23 +12,24 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
-using MongoDB.Bson;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OxQL.AspNetCore;
 using OxQL.Core;
+using OxQL.Core.Engine;
+using OxQL.Model.Addon;
 using OxQL.Mongo;
 using OxQL.Studio;
 using Simplic.OxS.Data;
 using Simplic.OxS.InternalClient;
 using Simplic.OxS.MessageBroker;
-using Simplic.OxS.ModelDefinition.Extension;
 using Simplic.OxS.Server.Exceptions;
 using Simplic.OxS.Server.Exceptions.Handlers;
 using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.Filter;
 using Simplic.OxS.Server.Middleware;
 using Simplic.OxS.Server.OxQL;
+using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.Server.Services;
 using Simplic.OxS.Server.Settings;
@@ -130,6 +131,7 @@ namespace Simplic.OxS.Server
             services.AddScoped<IInternalClient, InternalClientBase>();
             services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
             services.AddScoped<IAddonFieldRepository, AddonFieldRepository>();
+            services.AddScoped<IAddonDefinitionRepository, AddonDefinitionRepository>();
             services.AddSingleton<ServiceDefinitionService>((x) =>
             {
                 var f = new ServiceDefinitionService(x, x.GetRequiredService<ILogger<ServiceDefinitionService>>())
@@ -143,12 +145,38 @@ namespace Simplic.OxS.Server
                 return f;
             });
 
-            // Register oxql
+            // ── OxQL core ───────────────────────────────────────────────────────────
+            // Every option of the engine comes from the host's `OxQL` section (compat mode,
+            // explain, limits, timeouts, representation tolerance, caches); /schema publishes
+            // this very options object, so there is nowhere for the two to drift apart. The
+            // cursor signing key is derived from the auth token unless the section names one.
             Console.WriteLine("Add OxQL core");
-            services.AddOxQLCore(options =>
+
+            // The engine reads an organisation's addon definitions per request through this
+            // source; registered before the core so the engine's empty default does not win.
+            services.AddSingleton<AddonDefinitionCache>();
+            services.AddScoped<IAddonDefinitionSource, AddonDefinitionSource>();
+
+            services.AddOxQLCore(Configuration.GetSection("OxQL"), options =>
             {
-                options.MaxPageSize = 500;
-                options.DefaultPageSize = 100;
+                options.Cursor.SigningKey ??= Configuration.GetSection("Auth").Get<OxS.Settings.AuthSettings>()?.Token;
+            });
+
+            // ── Ox schema ───────────────────────────────────────────────────────────
+            // Built while the host starts, held in memory, never written to disk.
+            var typeAssemblies = (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+
+            services.AddOxSchema(schema =>
+            {
+                schema.ServiceName = ServiceName;
+                schema.ApiName = ApiName;
+                schema.ApiVersion = ApiVersion;
+                schema.TypeAssemblies = typeAssemblies;
+                schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
+                schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
+                schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
+
+                ConfigureOxSchema(schema);
             });
 
             // ── OxQL MongoDB adapter ────────────────────────────────────────────────
@@ -164,33 +192,53 @@ namespace Simplic.OxS.Server
                     options.ConnectionString = mongodb.ConnectionString;
                     options.DatabaseName = mongodb.Database;
 
-                    var types = (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
-                    options.ScanAssemblies(types);
+                    // Engine faults carry their message only where a developer reads it.
+                    options.IncludeErrorDetails = CurrentEnvironment.IsDevelopment()
+                        || string.Equals(CurrentEnvironment.EnvironmentName, "local", StringComparison.OrdinalIgnoreCase);
+
+                    // The schema's startup filter hands the engine its model; this list is the
+                    // engine's own fallback for a host that never builds a schema.
+                    options.ScanAssemblies(typeAssemblies);
                 });
             }
 
             // ── OxQL ASP.NET Core controller ────────────────────────────────────────
+            // Routes: POST /oxql/query, POST /oxql/batch, GET /oxql/health, POST /oxql/explain
+            // (on unless OxQL:Explain:Enabled is false, then 404). Authenticated like every other
+            // controller. Their internal twins (internal/oxql/batch, internal/oxql/explain) are
+            // OxQLInternalController's, admitted by the internal api key.
+            // Whether its remote reference check stops the host under continuous integration
+            // is the schema's decision (AddOxSchema), so both checks fail fast on one value.
             Console.WriteLine("Add OxQL ASP.NET Core");
-            services.AddOxQLAspNetCore<BsonDocument>(options =>
+            services.AddOxQLAspNetCore(options =>
             {
-                options.RoutePrefix = "oxql";
-                options.IncludeErrorDetails = true; // CurrentEnvironment.IsDevelopment();
-
                 options.RequireAuthorization = true;
             });
 
-            // ── Multi-tenant query injection (example) ────────────────────────────── 
-            // Forces an OrganizationId filter onto every OxQL query using a root-level
-            services.AddOxQLQueryFilter<OxQLOrganizationFilter>();
+            // ── The organisation scope ──────────────────────────────────────────────
+            // The engine applies `organizationId eq <request context>` at every entry into an
+            // entity and refuses to start without a provider; this one reads the request
+            // context, filled from the bearer token or, on an internal call, from the headers.
+            services.AddOxQLScope<OxQLScopeProvider>();
 
-            // OxQL Studio
-            Console.WriteLine("Add OxQL Studio");
-            services.AddOxQLStudio(options =>
+            // ── Remote resolve ──────────────────────────────────────────────────────
+            // Resolves and semi-joins into an entity another service owns go to that owner's
+            // internal batch route (InternalHosts / InternalApiVersions), one message per call;
+            // explain checks the parts continued there at the owner's internal explain route,
+            // which counts its places in flight by the service name this client sends.
+            services.AddHttpClient(RemoteQueryClient.HttpClientName);
+            services.AddSingleton<IRemoteQueryClient>(provider =>
             {
-                options.RoutePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}/oxql";
-                options.ApiBasePath = "/oxql";  // full browser-visible path (includes path base)
-                options.Title = "OxQL Studio";
+                var client = ActivatorUtilities.CreateInstance<RemoteQueryClient>(provider);
+
+                client.Caller = ServiceName;
+
+                return client;
             });
+
+            // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
+            if (OxQLStudioEnabled(Configuration, CurrentEnvironment))
+                services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
 
             // Register web-api controller. Must be executed before creating swagger configuration
             MvcBuilder(services.AddControllers(o =>
@@ -234,7 +282,7 @@ namespace Simplic.OxS.Server
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             // Allow paths like /<service-name>-api/v1
-            var basePath = $"/{ServiceName.ToLower()}-api/{ApiVersion}";
+            var basePath = $"/{ApiName}/{ApiVersion}";
             app.UsePathBase(basePath);
 
             if (env.IsDevelopment() || env.IsStaging() || env.EnvironmentName.ToLower() == "local")
@@ -269,10 +317,6 @@ namespace Simplic.OxS.Server
                 c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
             });
 
-            var modelDefinitionBuilderConfig = ConfigureModelDefinitions();
-            if (modelDefinitionBuilderConfig.Count != 0)
-                app.AddControllerDefinitions(env, basePath, modelDefinitionBuilderConfig);
-
             app.UseHttpsRedirection();
 
             app.UseRouting();
@@ -297,8 +341,9 @@ namespace Simplic.OxS.Server
                 // Map gRPC endpoints
                 MapGrpcEndpoints(endpoints);
 
-                // Map OxQL Studio UI
-                endpoints.MapOxQLStudio();
+                // Map OxQL Studio UI (off in Production unless OxQL:Studio:Enabled says otherwise)
+                if (OxQLStudioEnabled(Configuration, env))
+                    endpoints.MapOxQLStudio();
             });
         }
 
@@ -396,6 +441,12 @@ namespace Simplic.OxS.Server
         protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
 
         /// <summary>
+        /// Adjusts the inputs of the schema document beyond what the host already declares, for
+        /// example to publish the ids an entity retired when it was renamed.
+        /// </summary>
+        protected virtual void ConfigureOxSchema(OxSchemaOptionsBuilder schema) { }
+
+        /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.
         /// </summary>
         /// <returns>List of assemblies containing OxQL types</returns>
@@ -406,6 +457,31 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <returns>Settings configuration action or null</returns>
         protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
+
+        /// <summary>
+        /// Whether the OxQL Studio console is served: <c>OxQL:Studio:Enabled</c>, which defaults to on
+        /// in every environment but Production. The console is an anonymous developer page on the
+        /// API's origin that loads its editor from a CDN and keeps a pasted bearer in the browser, so
+        /// a production host serves it only when configured to.
+        /// </summary>
+        internal static bool OxQLStudioEnabled(IConfiguration configuration, IHostEnvironment environment) =>
+            configuration.GetValue("OxQL:Studio:Enabled", !environment.IsProduction());
+
+        /// <summary>
+        /// The OxQL Studio console's options. Every path is relative to the path base
+        /// (<c>/{ApiName}/{ApiVersion}</c>), which the console prefixes itself: the console at
+        /// <c>{pathBase}/oxql</c>, beside the API it calls (<c>{pathBase}/oxql/query</c>, …) and the
+        /// schema it reads (<c>{pathBase}/schema</c>). Its Explain button follows the engine's
+        /// <c>OxQL:Explain:Enabled</c>, which is on unless configured off.
+        /// </summary>
+        internal static void ConfigureOxQLStudio(OxQLStudioOptions options, IConfiguration configuration)
+        {
+            options.RoutePath = "/oxql";
+            options.ApiBasePath = "/oxql";
+            options.SchemaBasePath = "/schema";
+            options.Title = "OxQL Studio";
+            options.EnableExplain = configuration.GetValue("OxQL:Explain:Enabled", true);
+        }
 
         /// <summary>
         /// Will be called for registering custom services.
@@ -422,6 +498,16 @@ namespace Simplic.OxS.Server
         /// Gets the actual service version. Default is v1.
         /// </summary>
         protected virtual string ApiVersion { get; } = "v1";
+
+        /// <summary>
+        /// Gets the first segment of the service's base path, e.g. <c>vehicle-api</c>.
+        /// </summary>
+        /// <remarks>
+        /// One definition of the convention, because two places need it: the path base and the
+        /// <c>api</c> member of the schema document, which is a published claim about where this
+        /// service answers.
+        /// </remarks>
+        protected string ApiName => $"{ServiceName.ToLowerInvariant()}-api";
 
         /// <summary>
         /// Gets the current configuration service.

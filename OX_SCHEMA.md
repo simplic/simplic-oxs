@@ -1502,8 +1502,11 @@ security requirement; a test of the package compares it).
 - **The models of the schema document** (`OxSchemaDocument`, `OxSchemaType`, `OxSchemaProperty`
   and the types they use) join the document's `components.schemas`. A service that has a model
   of one of those names gets no document until the two differ (the generator names both types):
-  it renames its own class, or gives it another schema id in `RegisterServices` and leaves
-  every other id to the selector in place:
+  it renames its own class, or gives it another schema id. The package's own attribute does
+  that, `[SwaggerSchemaId("StockProperty")]` (namespace `Simplic.OxS.Server`) on the model, once
+  the service has switched it on with `services.UseCustomSwaggerId();` in `RegisterServices`. A
+  service that cannot annotate the model sets the id in `RegisterServices` and leaves every
+  other id to the selector in place:
 
   ```csharp
   services.Configure<SwaggerGenOptions>(options =>

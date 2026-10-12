@@ -188,6 +188,22 @@ namespace Simplic.OxS.Server.Hosting.Test
         }
 
         [Fact]
+        public async Task AServiceWithAModelNamedLikeOneOfTheSchemaDocument_NamesItsOwnWithThePackagesAttribute()
+        {
+            using var host = await BootstrapHost.StartAsync<ShelfStartup>();
+
+            var document = await DocumentAsync(host, "shelf-api");
+            var schemas = document["components"]!["schemas"]!;
+
+            Reference(document["paths"]!["/Shelf/types"]!["get"]!["responses"]!["200"]!["content"]!["application/json"]!["schema"]!["items"]).Should().Be("ShelfType");
+            Keys(schemas["ShelfType"]!["properties"]).Should().Equal("label", "levels");
+
+            // Every model without the attribute keeps its id, the schema document's and the query routes' included.
+            Keys(schemas[nameof(OxSchemaType)]!["properties"]).Should().Contain("kind");
+            Keys(schemas).Should().Contain([nameof(OxSchemaDocument), nameof(OxSchemaProperty), "OxQLQueryBody", "ProblemDetails"]);
+        }
+
+        [Fact]
         public async Task TheRoutesBetweenServices_AreNotInTheDocument()
         {
             using var host = await BootstrapHost.StartAsync<ParcelStartup>(environment: "Development");

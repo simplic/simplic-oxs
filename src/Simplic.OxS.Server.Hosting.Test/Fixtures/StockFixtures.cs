@@ -20,6 +20,44 @@ namespace Simplic.OxS.Server.Hosting.Test.Fixtures
         }
     }
 
+    /// <summary>Models of the shelf service, one of them named like a model of the schema document and given an id of its own.</summary>
+    public static class Shelf
+    {
+        /// <summary>A kind of shelf, as the shelf service answers it.</summary>
+        [SwaggerSchemaId("ShelfType")]
+        public class OxSchemaType
+        {
+            public string Label { get; set; } = "";
+
+            public int Levels { get; set; }
+        }
+    }
+
+    /// <summary>A controller that answers the service's own model.</summary>
+    [ApiController]
+    [Route("[controller]")]
+    public class ShelfController : OxSController
+    {
+        /// <summary>The kinds of shelf.</summary>
+        [HttpGet("types")]
+        public ActionResult<IReadOnlyList<Shelf.OxSchemaType>> Types(CancellationToken ct) => Ok(Array.Empty<Shelf.OxSchemaType>());
+    }
+
+    /// <summary>
+    /// A service with a model named like one of the schema document, which names its own model
+    /// with the package's attribute and switches the attribute on.
+    /// </summary>
+    public class ShelfStartup(IConfiguration configuration, IWebHostEnvironment environment) : HostingStartup(configuration, environment)
+    {
+        protected override string ServiceName => "Shelf";
+
+        protected override Type[] EntityTypes => [];
+
+        protected override Type[] Controllers => [typeof(ShelfController), typeof(OxQLController), typeof(SchemaController)];
+
+        protected override void RegisterServices(IServiceCollection services) => services.UseCustomSwaggerId();
+    }
+
     /// <summary>A controller that answers the service's own model.</summary>
     [ApiController]
     [Route("[controller]")]

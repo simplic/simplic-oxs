@@ -102,7 +102,6 @@ namespace Simplic.OxS.Server.Test.OxSchema
 
             model.Entities["probe.widget"].Extendable.Should().BeTrue();
             model.Entities["probe.thing"].Extendable.Should().BeFalse();
-            typeof(WidgetModel).Should().NotBeNull();
         }
     }
 }

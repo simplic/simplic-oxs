@@ -1049,6 +1049,7 @@ include the page sizes this package used to set in code (`MaxPageSize` 500, `Def
 | `OxQL:Compat:Enabled` | Whether a request without the contract header is answered as contract 1. | `true` |
 | `OxQL:Compat:Legacy:Enabled` | Whether a contract 1 request is answered by the engine's legacy pipeline. Off: the contract 2 engine answers it in contract 1 spelling and refuses what that cannot express. | `true` |
 | `OxQL:Compat:Legacy:Always` | Whether every contract 1 request runs on the legacy pipeline, or only one the contract 1 spelling cannot express. | `true` |
+| `OxQL:Compat:Legacy:OrganisationPath` | The stored member that holds a document's organisation. Every contract 1 read is filtered by it, in the queried collection and in every collection a `lookup` reads; a document without it is never read, so a `lookup` into a collection that lacks the member joins nothing. | `OrganizationId` |
 | `OxQL:Compat:Legacy:AllowedLookupSources` | The collections a contract 1 `lookup` may read, by name. Empty: any collection of the service's database, read for the caller's organisation only. | empty |
 | `OxQL:Compat:Legacy:MaxTimeMs` | The time a contract 1 request may take in the database; `OxQL:Execution:MaxTimeMs` does not apply to it. | 600000 |
 | `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` and `POST internal/oxql/explain` answer, and whether the OxQL Studio console offers explain; 404 otherwise. Explain binds and compiles a request and never executes it. | `true` |
@@ -1062,8 +1063,10 @@ with nothing; a host whose `Auth` section names no token signs with a random val
 Every replica of a service needs the same secret, or a cursor issued by one is refused by the
 next.
 
-A request without the `X-OxQL-Contract` header is a contract 1 request. With the defaults the
-engine's legacy pipeline answers it, unchanged for existing callers and with the caller's
+A request without the `X-OxQL-Contract` header is a contract 1 request. The header takes `1` or
+`2`; while `OxQL:Compat:Enabled` is on, any other value is answered 400
+(`UNKNOWN_REQUEST_MEMBER`, `params.reason: "contract"`) on query, batch and explain. With the
+defaults the engine's legacy pipeline answers a contract 1 request, unchanged for existing callers and with the caller's
 organisation matched before any stage; each such request is logged under `OxQL.Compat.Legacy`.
 The pipeline is temporary: the engine's `LEGACY.md` describes it and when it is removed.
 

@@ -1171,10 +1171,11 @@ the one the engine scoped the parent query with.
   noted by explain. The read is conditional on what the client read last (`If-None-Match`), so
   an unchanged document is answered 304 without a body; what was read answers again without a
   call for the health probe's time to live (`OxQL:Cache:HealthProbeTtlSeconds`), a failed read
-  included. It is bounded by two seconds and never throws. An owner that does not answer,
-  answers 404 (it has no schema route, or `InternalApiVersions` names the wrong version) or 401
-  (it sets `OxSchema:RequireAuthorization`), or serves a body that is no schema document leaves
-  its references **not validated** (`reason: "unavailable"`), never wrong: nothing about the
+  included. Callers that ask for an owner while a read of it is under way share that one read.
+  It is bounded by two seconds and by 16 MiB of body, and never throws. An owner that does not
+  answer, answers 404 (it has no schema route, or `InternalApiVersions` names the wrong version)
+  or 401 (it sets `OxSchema:RequireAuthorization`), or serves a body that is no schema document
+  or a larger one leaves its references **not validated** (`reason: "unavailable"`), never wrong: nothing about the
   start or about a query depends on the check, and what was validated before an owner stopped
   answering stays.
 - The engine's model provider carries the revision of the published schema document. An explain

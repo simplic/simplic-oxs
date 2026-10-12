@@ -254,6 +254,149 @@ namespace Simplic.OxS.Server.Test.OxQL
             owner.Sent.Should().HaveCount(2);
         }
 
+        /// <summary>An owner whose every answer waits until the test gives it.</summary>
+        private static (OwnerHandler Owner, TaskCompletionSource<HttpResponseMessage> Answer) HeldOwner()
+        {
+            var answer = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            return (new OwnerHandler((_, token) => answer.Task.WaitAsync(token)), answer);
+        }
+
+        [Fact]
+        public async Task CallersThatAskWhileAReadIsUnderWay_ShareIt()
+        {
+            var answer = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var held = false;
+            var owner = new OwnerHandler((_, token) => held ? answer.Task.WaitAsync(token) : Task.FromResult(Served()));
+            var (client, time) = Client(owner);
+
+            await client.SchemaEntitiesAsync("depot", null, CancellationToken.None);
+
+            held = true;
+            time.Advance(TimeSpan.FromSeconds(11));
+
+            var callers = Enumerable.Range(0, 8).Select(caller => client.SchemaEntitiesAsync("depot", caller % 2 == 0 ? null : Revision, CancellationToken.None)).ToArray();
+
+            callers.Should().OnlyContain(caller => !caller.IsCompleted);
+            answer.SetResult(new HttpResponseMessage(HttpStatusCode.NotModified));
+
+            var read = await Task.WhenAll(callers).WaitAsync(TimeSpan.FromSeconds(30));
+
+            // One conditional read for the eight, and each is told what it asked: the entities, or that its revision is current.
+            owner.Sent.Should().HaveCount(2);
+            owner.Sent[1].Headers["If-None-Match"].Should().Be(ETag);
+            read.Where((_, caller) => caller % 2 == 0).Select(entities => entities?.EntityIds?.Count).Should().OnlyContain(count => count == 3);
+            read.Where((_, caller) => caller % 2 == 1).Should().OnlyContain(entities => entities == RemoteSchemaEntities.NotModified(Revision));
+
+            // The read is over: the next one after the time to live asks the owner again.
+            held = false;
+            time.Advance(TimeSpan.FromSeconds(11));
+            await client.SchemaEntitiesAsync("depot", null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(30));
+            owner.Sent.Should().HaveCount(3);
+        }
+
+        [Fact]
+        public async Task CallersOfAClientThatHoldsNothing_ShareTheReadOfTheRevisionTheyHold_AndNoOther()
+        {
+            const string other = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
+            var (owner, answer) = HeldOwner();
+            var (client, _) = Client(owner);
+
+            var holders = Enumerable.Range(0, 3).Select(_ => client.SchemaEntitiesAsync("depot", Revision, CancellationToken.None)).ToArray();
+            var stranger = client.SchemaEntitiesAsync("depot", other, CancellationToken.None);
+
+            // The validator of such a read is the caller's own revision, so a caller that holds another one is not answered by it.
+            owner.Sent.Should().HaveCount(2);
+            owner.Sent.Select(sent => sent.Headers["If-None-Match"]).Should().Equal(ETag, "\"1111111111111111111111111111111111111111111111111111111111111111\"");
+
+            answer.SetResult(new HttpResponseMessage(HttpStatusCode.NotModified));
+
+            (await Task.WhenAll(holders).WaitAsync(TimeSpan.FromSeconds(30))).Should().OnlyContain(entities => entities == RemoteSchemaEntities.NotModified(Revision));
+            (await stranger.WaitAsync(TimeSpan.FromSeconds(30))).Should().Be(RemoteSchemaEntities.NotModified(other));
+        }
+
+        [Fact]
+        public async Task ACallerThatGivesUp_DoesNotEndTheReadForTheOthers()
+        {
+            using var given = new CancellationTokenSource();
+            var (owner, answer) = HeldOwner();
+            var (client, _) = Client(owner);
+
+            var impatient = client.SchemaEntitiesAsync("depot", null, given.Token);
+            var patient = client.SchemaEntitiesAsync("depot", null, CancellationToken.None);
+
+            given.Cancel();
+
+            (await impatient.WaitAsync(TimeSpan.FromSeconds(30))).Should().BeNull();
+            patient.IsCompleted.Should().BeFalse("the read goes on for the caller that waits");
+
+            answer.SetResult(Served());
+
+            (await patient.WaitAsync(TimeSpan.FromSeconds(30)))!.EntityIds.Should().HaveCount(3);
+            owner.Sent.Should().ContainSingle();
+        }
+
+        [Fact]
+        public async Task ADocumentLargerThanTheClientReads_IsNotKnown_AndIsNotAskedForAgainWithinTheTimeToLive()
+        {
+            var owner = new OwnerHandler((_, _) => Task.FromResult(Served()));
+            var (client, time) = Client(owner);
+
+            client.SchemaBodyLimit = Encoding.UTF8.GetByteCount(Document) - 1;
+
+            (await client.SchemaEntitiesAsync("depot", null, CancellationToken.None)).Should().BeNull();
+            (await client.SchemaEntitiesAsync("depot", null, CancellationToken.None)).Should().BeNull();
+            owner.Sent.Should().ContainSingle();
+
+            // A document of exactly the bound is read.
+            client.SchemaBodyLimit = Encoding.UTF8.GetByteCount(Document);
+            time.Advance(TimeSpan.FromSeconds(11));
+
+            (await client.SchemaEntitiesAsync("depot", null, CancellationToken.None))!.EntityIds.Should().HaveCount(3);
+        }
+
+        /// <summary>A body without a length, which counts how much of it was read.</summary>
+        private sealed class EndlessBody : HttpContent
+        {
+            public long Read { get; private set; }
+
+            protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromResult<Stream>(new Endless(this));
+
+            protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => throw new NotSupportedException("The body is read as a stream.");
+
+            protected override bool TryComputeLength(out long length)
+            {
+                length = 0;
+
+                return false;
+            }
+
+            private sealed class Endless(EndlessBody owner) : MemoryStream
+            {
+                public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+                {
+                    buffer.Span.Fill((byte)' ');
+                    owner.Read += buffer.Length;
+
+                    return ValueTask.FromResult(buffer.Length);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task ABodyWithoutALength_IsReadNoFurtherThanTheBound()
+        {
+            var body = new EndlessBody();
+            var owner = new OwnerHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = body }));
+            var (client, _) = Client(owner);
+
+            client.SchemaBodyLimit = 200_000;
+
+            (await client.SchemaEntitiesAsync("depot", null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(30))).Should().BeNull();
+            body.Read.Should().BeInRange(200_000, 400_000, "the read stops with the buffer that crosses the bound");
+        }
+
         [Theory]
         [InlineData("this is not json")]
         [InlineData("[]")]

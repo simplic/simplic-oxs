@@ -741,7 +741,7 @@ Controllers/  AddonDefinitionController (the /AddonDefinition operations)
   not from reflection's own order, and the projection keeps the order it is given.
 - Every map is ordinally sorted; every list is in generator order.
 - The canonical serializer options, escaper included, are inside the revision.
-- The legacy document is serialised with CRLF line endings on every platform.
+- The legacy document is serialised with LF line endings on every platform.
 
 ### 3.3 How the build fails
 
@@ -1047,6 +1047,10 @@ include the page sizes this package used to set in code (`MaxPageSize` 500, `Def
 | `OxQL:Limits:*` | Every cap a request is checked against (`MaxPageSize`, `DefaultPageSize`, `MaxOffset`, `MaxBatchQueries`, …). | the engine's |
 | `OxQL:Execution:MaxTimeMs`, `OxQL:Execution:ResolveTimeoutMs`, `OxQL:Execution:ChainTimeoutMs` | The time ceiling of one query, the budget of one call to another service, and the budget of a chain of calls that continue across services. | 10000, 2000, 6000 |
 | `OxQL:Compat:Enabled` | Whether a request without the contract header is answered as contract 1. | `true` |
+| `OxQL:Compat:Legacy:Enabled` | Whether a contract 1 request is answered by the engine's legacy pipeline. Off: the contract 2 engine answers it in contract 1 spelling and refuses what that cannot express. | `true` |
+| `OxQL:Compat:Legacy:Always` | Whether every contract 1 request runs on the legacy pipeline, or only one the contract 1 spelling cannot express. | `true` |
+| `OxQL:Compat:Legacy:AllowedLookupSources` | The collections a contract 1 `lookup` may read, by name. Empty: any collection of the service's database, read for the caller's organisation only. | empty |
+| `OxQL:Compat:Legacy:MaxTimeMs` | The time a contract 1 request may take in the database; `OxQL:Execution:MaxTimeMs` does not apply to it. | 600000 |
 | `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` and `POST internal/oxql/explain` answer, and whether the OxQL Studio console offers explain; 404 otherwise. Explain binds and compiles a request and never executes it. | `true` |
 | `OxQL:Cursor:SigningKey` | The secret paging cursors are signed with. | `Auth:Token` |
 
@@ -1057,6 +1061,11 @@ starts, and answers the first OxQL request with an error, because the engine ref
 with nothing; a host whose `Auth` section names no token signs with a random value per process.
 Every replica of a service needs the same secret, or a cursor issued by one is refused by the
 next.
+
+A request without the `X-OxQL-Contract` header is a contract 1 request. With the defaults the
+engine's legacy pipeline answers it, unchanged for existing callers and with the caller's
+organisation matched before any stage; each such request is logged under `OxQL.Compat.Legacy`.
+The pipeline is temporary: the engine's `LEGACY.md` describes it and when it is removed.
 
 Engine faults carry their message in `Development` and `local` only.
 
@@ -1081,8 +1090,9 @@ Nothing below needs a line of code in the service.
   request without an organisation is refused with 403), `POST /OxQL/batch`, resolves and keyed
   fetches into other services, `POST /OxQL/explain` on by default and never executing, and
   `POST internal/oxql/batch` and `POST internal/oxql/explain` for the services calling into this
-  one (hidden from the API explorer, section 4.2). Callers written against contract 1 keep working
-  at runtime while `OxQL:Compat:Enabled` is on, which is the default.
+  one (hidden from the API explorer, section 4.2). Callers written against contract 1 are answered
+  by the engine's legacy pipeline while `OxQL:Compat:Enabled` is on, which is the default
+  (section 4.3).
 - `/AddonDefinition`: `GET {entity}`, `GET by-id/{id}`, `POST`, `PUT {id}`, `DELETE {id}`, for an
   organisation's typed addon keys. The definitions survive a retired entity id (section 2.1) and
   are stored in the database the service is configured with, in a collection of the service's
@@ -1123,6 +1133,10 @@ Nothing below needs a line of code in the service.
     revives that row instead of storing a second one, and another kind is `409`. Only rows
     marked `IsDeleted` are outside the index, and no route of the API sets that; such a row is
     outside every read as well, so it never blocks its path.
+  - **Limits.** A path has at most 256 characters in at most 8 segments; a display name, a
+    value and a value's label 256 characters each; a description 2 000; a value list 500 values;
+    and an organisation holds at most 500 definitions that are not retired on one entity. A
+    request over a limit is answered `400` (`AddonDefinitionRules`).
   - **Nothing to migrate.** No released package version ever stored definitions; the earlier
     name `model_definition.addon_definition` (without the service) existed on unreleased
     branches only. A development database that holds such a collection keeps it unread: create
@@ -1177,7 +1191,7 @@ Nothing below needs a line of code in the service.
   which is a build break under `TreatWarningsAsErrors`; delete the call.
 - **`OxQLOrganizationFilter` is removed.** `Bootstrap` registers the scope provider
   (`AddOxQLScope<OxQLScopeProvider>()`) in its place, and the engine applies the organisation at
-  every entry into an entity rather than once at the root. A service that registered the filter
+  every entry into an entity. A service that registered the filter
   itself no longer compiles; delete the registration.
 - **`ModelDefinitionController` is sealed**, derives from `OxSController` and takes the
   `OxSchemaRegistry` alone. A service that subclassed or constructed it has to stop.
@@ -1188,6 +1202,10 @@ Nothing below needs a line of code in the service.
 - **A renamed entity id** needs `ConfigureOxSchema` (section 2.1), so configurations that
   persisted the old id keep resolving.
 - **Resolving into another service** needs the keys of section 4.2 on the calling service.
+- **Decide two defaults per service.** `GET /schema` is anonymous unless
+  `OxSchema:RequireAuthorization` is true (section 4.1), and a contract 1 `lookup` reads any
+  collection of the service's database for the caller's organisation unless
+  `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3).
 - **A service that references an `OxQL.*` package itself** has to move that reference to the
   version this package references.
 
@@ -1207,8 +1225,8 @@ The internal routes (`internal/oxql/batch`, `internal/oxql/explain`) are hidden 
 explorer and never appear.
 
 A generated client changes shape only when it is regenerated. Until then a caller built on the
-contract 1 shapes keeps working at runtime, through the engine's compatibility binder
-(`OxQL:Compat:Enabled`).
+contract 1 shapes is answered by the engine's legacy pipeline while `OxQL:Compat:Enabled` is on
+(section 4.3).
 
 ---
 

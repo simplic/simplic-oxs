@@ -1451,9 +1451,30 @@ security requirement; a test of the package compares it).
 
 | route | what the document says of it |
 |---|---|
+| `POST /OxQL/query` | The engine's summary and description, which name the address of the OxQL documentation and `GET /OxQL/health` for the limits. `X-OxQL-Contract` (`1` or `2`, optional: absent is contract 1) and `X-OxQL-Timing` as header parameters. The body `OxQLQueryBody` as `application/json`, with an example. 200 `OxQLQueryAnswer` with an example; 400, 403, 413, 422, 500 and 504 with the refusal envelope `OxQLError` (an example on 400); 401 as `application/problem+json`. |
+| `POST /OxQL/batch` | The same headers; `OxQLBatchBody`; 200 `OxQLBatchAnswer`, whose example shows a page and a refusal in their places; 400, 413, 500 with `OxQLError`; 401. |
+| `POST /OxQL/explain` | `X-OxQL-Contract` and `If-None-Match`; `OxQLExplainBody`; 200 `OxQLExplainAnswer` with the `ETag` header; 304; 400, 403, 413, 429 (with `Retry-After`) and 500 with `OxQLError`; 401 and 404 (explain switched off) as `application/problem+json`. |
+| `GET /OxQL/health` | `shallow` as a query parameter and `X-OxQL-Contract`; 200 `OxQLHealthAnswer` with an example. No security requirement (`security: [{}]`) and no other status. |
 | `GET /schema` | Summary and description with the address of this file. `If-None-Match` as an optional header parameter; 200 with the `OxSchemaDocument` model, the `ETag` header and an example; 304 without a body. No security requirement (`security: [{}]`) and no 401 or 403, unless the host sets `OxSchema:RequireAuthorization`: then the route needs what every route needs and lists both statuses. |
 | `GET /schema/addons` | The same headers; 200 with an object of property descriptor lists keyed by entity id and an example; 304; 401 and 403 as `application/problem+json`. |
 
+- **The models are the ones of the wire.** The engine binds a request with readers of its own, so
+  the document describes the bodies by the engine's documentation models (`OxQLQueryBody`,
+  `OxQLStage`, `OxQLPageStage` with `count`, `OxQLQueryAnswer`, `OxQLPageInfo` with `count`,
+  `OxQLError`, …) and carries none of the types the engine binds into. A member only the routes
+  between services take (`keyedBy`) is in no model.
+- **The query language is not in the document.** The descriptions name where it is documented
+  and that `GET /OxQL/health` publishes the limits of the host; a model names the members of a
+  body and their JSON kinds, and leaves what a condition or a stage means to that documentation.
+- **Contract 1 is named, not offered.** The operations describe contract 2, so a client
+  generated from the document is a contract 2 client: it has to send `X-OxQL-Contract: 2` with
+  the bodies it is typed for, since a request without the header is read as contract 1. The
+  contract 1 body and answer of the query route are in `components.schemas` as
+  `OxQLContract1QueryBody` and `OxQLContract1QueryAnswer`, marked `deprecated`, and the route's
+  description names them; no operation offers them as an alternative (`oneOf`), which a
+  generated client would have to tell apart on every answer.
+- **Security.** The authenticated query routes carry no requirement of their own: the
+  document's requirement applies to them as to every controller of the service.
 - **Only the statuses a route answers.** The package adds the standard `problem+json` errors
   (400, 401, 403, 404, 409, 422, 500) to every operation that does not declare them, and still
   does so for every controller of a service. Its own described routes declare each status they
@@ -1470,8 +1491,13 @@ security requirement; a test of the package compares it).
 - **The routes between services** (`internal/oxql/batch`, `internal/oxql/explain`) stay out of
   the document in every environment. Only other services call them, with the internal key, and
   a client generated from the document must not offer them.
-- **A client generated from the document** gains one operation per schema route on its next
-  regeneration.
+- **A client generated from the document** changes on its next regeneration: one operation per
+  schema route is added; the query operations take the two headers as optional parameters (the
+  contract as `'1' | '2'`), `If-None-Match` on explain and the schema routes, and one JSON body;
+  the page stage has `count`, the page info has `count` with its state, and the errors of the
+  query routes are typed as `OxQLError`. A query route lists
+  the statuses it answers and no other: neither 404 nor 409 on query and batch, 200 alone on
+  health.
 
 ### 5.4 Packages a service references directly
 

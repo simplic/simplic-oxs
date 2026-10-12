@@ -202,6 +202,71 @@ namespace Simplic.OxS.Server.Hosting.Test
             schemas["OxQLPageStage"]!["properties"]!["count"]!["description"]!.GetValue<string>().Should().NotBeNullOrWhiteSpace();
         }
 
+        /// <summary>
+        /// The names a client generated from the document of the release before had for the
+        /// query routes, each with what a regenerated client has in its place: the table of
+        /// OX_SCHEMA.md section 5.3.
+        /// </summary>
+        public static TheoryData<string, string[]> RenamedComponents => new()
+        {
+            { "QueryRequest", ["OxQLQueryBody"] },
+            { "QueryResult", ["OxQLQueryAnswer"] },
+            { "PageInfo", ["OxQLPageInfo", "OxQLContract1PageInfo"] },
+            { "CountInfo", ["OxQLCount"] },
+            { "BatchRequest", ["OxQLBatchBody"] },
+            { "BatchResponse", ["OxQLBatchAnswer"] },
+            { "ExplainRequest", ["OxQLExplainBody", "OxQLExplainShape"] },
+            { "ExplainResult", ["OxQLExplainAnswer"] },
+            { "Refusal", ["OxQLError"] },
+            { "QueryValidationError", ["OxQLErrorDetail"] },
+            { "Diagnostic", ["OxQLDiagnostic"] },
+            { "PipelineStage", ["OxQLStage"] },
+            { "PageStage", ["OxQLPageStage"] },
+            { "LookupStage", ["OxQLLookupStage"] },
+            { "ResolveStage", ["OxQLResolveStage"] },
+            { "UnwindStage", ["OxQLUnwindStage"] },
+            { "GroupStage", ["OxQLGroupStage"] },
+            { "ValuesStage", ["OxQLValuesStage"] },
+            { "GroupByField", ["OxQLGroupKey"] },
+            { "DateTruncExpression", ["OxQLDateTrunc"] },
+            { "FilterCondition", ["OxQLFilterEntry"] },
+        };
+
+        [Theory]
+        [MemberData(nameof(RenamedComponents))]
+        public async Task ANameOfTheQueryRoutesAClientHadBefore_IsReplacedByTheNamesTheUpgradeNotesGive(string before, string[] after)
+        {
+            var schemas = (await DocumentAsync())["components"]!["schemas"]!.AsObject();
+
+            Keys(schemas).Should().NotContain(before).And.Contain(after);
+        }
+
+        [Fact]
+        public async Task TheNamesWithoutASuccessor_AreInNoModel_AndTheSchemaDocumentsPropertyRefersToItself()
+        {
+            var schemas = (await DocumentAsync())["components"]!["schemas"]!.AsObject();
+
+            Keys(schemas).Should().NotContain(
+            [
+                "ExplainBudget", "ExplainCache", "ExplainColumn", "ExplainEngine", "ExplainEntry", "ExplainFilter", "ExplainFilterPlacement",
+                "ExplainPlacement", "ExplainPlan", "ExplainRevision", "ExplainShape", "ExplainShapeResult", "ExplainStage", "ExplainUnknownValue",
+                "MatchStage", "ProjectStage", "SortField", "FilterConditionOptions", "AggregationExpression", "QueryExpression", "QueryVariables",
+                "ResolveBranch", "KeyedByMember", "JsonNode", "JsonNodeOptions",
+            ]);
+
+            Keys(schemas).Where(name => name.StartsWith("OxSchema", StringComparison.Ordinal)).Should().BeEquivalentTo(
+            [
+                "OxSchemaDocument", "OxSchemaApi", "OxSchemaLimits", "OxSchemaDiagnostic", "OxSchemaType", "OxSchemaProperty", "OxSchemaEntityItem",
+                "OxSchemaOperation", "OxSchemaEnumValue", "OxSchemaValue", "OxSchemaConstraints", "OxSchemaDeprecation", "OxSchemaDiscriminator",
+                "OxSchemaVariant", "OxSchemaRelation", "OxSchemaReference", "OxSchemaReferenceCase", "OxSchemaReferenceCondition", "OxSchemaReferenceTarget",
+            ]);
+
+            var property = schemas["OxSchemaProperty"]!["properties"]!;
+
+            Reference(property["of"]).Should().Be("OxSchemaProperty", "the element of a list is a property descriptor again");
+            Reference(property["value"]).Should().Be("OxSchemaProperty", "the value of a map is a property descriptor again");
+        }
+
         [Fact]
         public async Task Contract1_IsNamedAndNotOffered()
         {

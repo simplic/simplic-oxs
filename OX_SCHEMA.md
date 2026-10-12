@@ -1512,6 +1512,48 @@ security requirement; a test of the package compares it).
   the statuses it answers and no other: neither 404 nor 409 on query and batch, 200 alone on
   health.
 
+#### The type names of a regenerated client
+
+The component names of the query routes are the ones below from this release on, so the types
+of a client generated from the document carry new names once it is regenerated. The new types
+describe contract 2: code that moves to them sends `X-OxQL-Contract: 2` with every request,
+since a request without the header is read as contract 1 (section 4.3).
+
+| name in a client generated before | name after regeneration |
+|---|---|
+| `QueryRequest` | `OxQLQueryBody` |
+| `QueryResult` | `OxQLQueryAnswer` |
+| `PageInfo`, `CountInfo` | `OxQLPageInfo` (`hasNextPage`, `nextCursor`, `count`) and `OxQLCount`; `totalCount` and `totalCountCapped` are members of the deprecated `OxQLContract1PageInfo` only |
+| `BatchRequest`, `BatchResponse` | `OxQLBatchBody`, `OxQLBatchAnswer` |
+| `ExplainRequest` | `OxQLExplainBody` (`query`, `include`, `shape`, `remote`, `catalog`), with `OxQLExplainShape` |
+| `ExplainResult` | `OxQLExplainAnswer` |
+| `ExplainBudget`, `ExplainCache`, `ExplainColumn`, `ExplainEngine`, `ExplainEntry`, `ExplainFilter`, `ExplainFilterPlacement`, `ExplainPlacement`, `ExplainPlan`, `ExplainRevision`, `ExplainShape`, `ExplainShapeResult`, `ExplainStage`, `ExplainUnknownValue` | none: the parts of `OxQLExplainAnswer` are objects without a component of their own, described by the explain model of the OxQL documentation |
+| `Refusal`, `QueryValidationError` | `OxQLError`, `OxQLErrorDetail` |
+| `Diagnostic` | `OxQLDiagnostic` |
+| `PipelineStage` | `OxQLStage` |
+| `PageStage` | `OxQLPageStage` (`limit`, `cursor`, `count`) |
+| `LookupStage`, `ResolveStage`, `UnwindStage`, `GroupStage`, `ValuesStage` | `OxQLLookupStage`, `OxQLResolveStage`, `OxQLUnwindStage`, `OxQLGroupStage`, `OxQLValuesStage` |
+| `GroupByField`, `DateTruncExpression` | `OxQLGroupKey`, `OxQLDateTrunc` |
+| `MatchStage`, `ProjectStage`, `SortField`, `FilterCondition`, `FilterConditionOptions`, `AggregationExpression`, `QueryExpression`, `QueryVariables`, `ResolveBranch` | none: `match`, `project`, `sort`, a filter, the fields of a group, `variables` and `byTarget` are objects and arrays whose members the OxQL documentation describes; a filter entry of the request is `OxQLFilterEntry` |
+| `KeyedByMember`, `JsonNode`, `JsonNodeOptions` | none |
+
+New with the regeneration:
+
+- **Two operations**, `GET /schema` and `GET /schema/addons`, and the types of the schema
+  document: `OxSchemaDocument`, `OxSchemaApi`, `OxSchemaLimits`, `OxSchemaDiagnostic`,
+  `OxSchemaType`, `OxSchemaProperty`, `OxSchemaEntityItem`, `OxSchemaOperation`,
+  `OxSchemaEnumValue`, `OxSchemaValue`, `OxSchemaConstraints`, `OxSchemaDeprecation`,
+  `OxSchemaDiscriminator`, `OxSchemaVariant`, `OxSchemaRelation`, `OxSchemaReference`,
+  `OxSchemaReferenceCase`, `OxSchemaReferenceCondition` and `OxSchemaReferenceTarget`.
+  `OxSchemaProperty` refers to itself (`of`, the element of a list, and `value`, the value of a
+  map), so a generator has to emit a recursive type for it.
+- **The answer of `GET /OxQL/health`** is typed: `OxQLHealthAnswer` with `OxQLHealthEngine`,
+  `OxQLHealthService` and `OxQLHealthModel`.
+- **The contract 1 shapes** `OxQLContract1QueryBody`, `OxQLContract1QueryAnswer` and
+  `OxQLContract1PageInfo`, deprecated and used by no operation.
+- **One media type per body.** A request body and an answer of the query routes is
+  `application/json`; 401 and the 404 of explain are `application/problem+json`.
+
 ### 5.4 Packages a service references directly
 
 `Simplic.OxS.Server` depends on its sibling packages and on the five `OxQL.*` packages at the

@@ -988,6 +988,14 @@ itself. What the service's own code throws reaches the test as it is, and what t
 profiles threw reaches every later check of the process again, without a second run. A host
 that starts beside a check waits for it: the profiles run for one of them at a time.
 
+The check registers serializers and class maps for the whole test process, and freezes the class
+map of every type the schema reaches. Where other tests of the assembly register class maps or
+serializers of their own, the check belongs in a test collection of its own that does not run
+beside them (xunit: `[CollectionDefinition("…", DisableParallelization = true)]`), or in a test
+assembly of its own. A startup that registers serializers in `RegisterServices` without a guard
+bears one call with `RunRegisterServices` per process: call the check once, in a fixture the
+tests share, and assert on that result.
+
 ---
 
 ## 4 · Configuration

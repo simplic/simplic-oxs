@@ -133,6 +133,42 @@ namespace Simplic.OxS.Server.Hosting.Test
         }
 
         [Fact]
+        public void Build_WhenTheMapperProfilesThrow_ThrowsThatOnEveryCall_AndRunsTheProfilesOnce()
+        {
+            var build = () => OxSchemaCheck.Build<BrokenProfilesStartup>();
+
+            var first = build.Should().Throw<InvalidOperationException>().WithMessage(BrokenProfilesStartup.Fault).Which;
+            var second = build.Should().Throw<InvalidOperationException>().WithMessage(BrokenProfilesStartup.Fault).Which;
+
+            second.Should().BeSameAs(first, "a later build reports what the profiles threw when they ran");
+            BrokenProfilesStartup.ProfileRuns.Should().Be(1);
+        }
+
+        [Fact]
+        public async Task Build_BesideAHostOfTheSameStartupThatIsStarting_DoesNotRunTheProfilesWhileTheHostRunsThem()
+        {
+            var check = Task.Run(() => OxSchemaCheck.Build<GatedProfilesStartup>());
+
+            GatedProfilesStartup.Entered.Wait(TimeSpan.FromSeconds(30)).Should().BeTrue("the check runs the profiles");
+
+            // The host needs a mapper of its own and so runs the profiles too, after the check has left them.
+            var start = Task.Run(() => BootstrapHost.StartAsync<GatedProfilesStartup>());
+            var early = await Task.WhenAny(start, Task.Delay(TimeSpan.FromMilliseconds(500)));
+
+            early.Should().NotBeSameAs(start, "the host waits for the run that is inside the profiles");
+            GatedProfilesStartup.ProfileRuns.Should().Be(1);
+
+            GatedProfilesStartup.Gate.Set();
+
+            await check;
+
+            using var host = await start;
+
+            GatedProfilesStartup.ProfileRuns.Should().Be(2);
+            GatedProfilesStartup.MostAtOnce.Should().Be(1);
+        }
+
+        [Fact]
         public void Build_OfATypeThatIsNoStartup_IsACallerError()
         {
             var notAStartup = () => OxSchemaCheck.Build(typeof(string));

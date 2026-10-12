@@ -497,21 +497,39 @@ namespace Simplic.OxS.Server
         /// <summary>The startup types whose hook ran in this process, each with what the hook threw, if it did.</summary>
         private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ClassMapsRegistered = [];
 
-        /// <summary>Creates the mapper from <see cref="RegisterMapperProfiles"/>.</summary>
+        /// <summary>
+        /// Creates the mapper from <see cref="RegisterMapperProfiles"/>, for a host: every host
+        /// gets a mapper of its own, so the profiles run for each. One run at a time in a
+        /// process, whoever starts it, a host or <see cref="EnsureMapperProfiles"/>: what a
+        /// service registers beside its profiles is the process's.
+        /// </summary>
         internal IMapper CreateMapper()
         {
-            var mapper = new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
-
             lock (MapperProfilesRegistered)
-                MapperProfilesRegistered.Add(GetType());
+            {
+                try
+                {
+                    var mapper = new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
 
-            return mapper;
+                    MapperProfilesRegistered[GetType()] = null;
+
+                    return mapper;
+                }
+                catch (Exception exception)
+                {
+                    MapperProfilesRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+
+                    throw;
+                }
+            }
         }
 
         /// <summary>
         /// Runs <see cref="RegisterMapperProfiles"/> unless this process already ran it for this
         /// startup type, in a host or here: what <see cref="OxSchemaCheck"/> needs of the mapper
         /// is the class maps a service registers beside its profiles, which are the process's.
+        /// Profiles that threw are not run a second time over registrations they already made:
+        /// every later call for the type throws what they threw.
         /// </summary>
         internal void EnsureMapperProfiles()
         {
@@ -519,12 +537,19 @@ namespace Simplic.OxS.Server
             // registrations instead of building its schema beside them.
             lock (MapperProfilesRegistered)
             {
-                if (!MapperProfilesRegistered.Contains(GetType()))
-                    CreateMapper();
+                if (MapperProfilesRegistered.TryGetValue(GetType(), out var thrown))
+                {
+                    thrown?.Throw();
+
+                    return;
+                }
+
+                CreateMapper();
             }
         }
 
-        private static readonly HashSet<Type> MapperProfilesRegistered = [];
+        /// <summary>The startup types whose mapper profiles ran in this process, each with what the last run threw, if it did.</summary>
+        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> MapperProfilesRegistered = [];
 
         /// <summary>
         /// Fills the schema's inputs from what the service declares and lets

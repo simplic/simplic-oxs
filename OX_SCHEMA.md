@@ -984,7 +984,9 @@ connection.
 MongoDB registrations are the process's. The hook and the mapper profiles of a startup type run
 once per process, however often the check is called and whether a host of that type was built
 before; a registration in `RegisterServices` or `ConfigureOxSchema` has to bear a second call
-itself. What the service's own code throws reaches the test as it is.
+itself. What the service's own code throws reaches the test as it is, and what the hook or the
+profiles threw reaches every later check of the process again, without a second run. A host
+that starts beside a check waits for it: the profiles run for one of them at a time.
 
 ---
 

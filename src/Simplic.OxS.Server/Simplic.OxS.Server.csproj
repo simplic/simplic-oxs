@@ -15,6 +15,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Imported by every project that references the package, directly (build) or through another project or package (buildTransitive). -->
+    <None Include="build\Simplic.OxS.Server.targets" Pack="true" PackagePath="build\;buildTransitive\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.33.1" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
     <PackageReference Include="HotChocolate" Version="15.1.11" />

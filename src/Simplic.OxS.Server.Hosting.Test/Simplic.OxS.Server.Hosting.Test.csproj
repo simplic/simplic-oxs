@@ -27,4 +27,11 @@
     <ProjectReference Include="..\Simplic.OxS.Server\Simplic.OxS.Server.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures/parcel-openapi.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- What a service gets from the package: a project reference does not import a package's build targets. -->
+  <Import Project="..\Simplic.OxS.Server\build\Simplic.OxS.Server.targets" />
+
 </Project>

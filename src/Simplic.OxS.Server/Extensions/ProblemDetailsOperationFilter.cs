@@ -8,7 +8,8 @@ namespace Simplic.OxS.Server.Extensions
     /// Declares the standard error responses (RFC 9457 <c>application/problem+json</c>) on every
     /// operation in the OpenAPI document, so generated clients (e.g. Orval) get a typed error contract
     /// instead of <c>unknown</c>. Controllers can still override any status with an explicit
-    /// <c>[ProducesResponseType]</c> — existing entries are left untouched.
+    /// <c>[ProducesResponseType]</c> — existing entries are left untouched. A route of this package
+    /// that declares every status it answers (<see cref="DescribedRoute"/>) gets none added.
     /// </summary>
     internal sealed class ProblemDetailsOperationFilter : IOperationFilter
     {
@@ -26,6 +27,9 @@ namespace Simplic.OxS.Server.Extensions
         /// <inheritdoc/>
         public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
+            if (DescribedRoute.Of(context.ApiDescription) is not null)
+                return;
+
             var schema = context.SchemaGenerator.GenerateSchema(typeof(ProblemDetails), context.SchemaRepository);
 
             foreach (var (code, description) in ErrorResponses)

@@ -30,7 +30,10 @@ namespace Simplic.OxS.Server.Extensions
 
                 // Declare the standard problem+json error responses on every operation.
                 c.OperationFilter<ProblemDetailsOperationFilter>();
-                
+
+                // The query and schema routes of this package: what their attributes cannot say.
+                c.OperationFilter<DescribedRouteOperationFilter>();
+
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\"",
@@ -86,6 +89,13 @@ namespace Simplic.OxS.Server.Extensions
                 {
                     Console.WriteLine($"No xml documentation file found under `{xmlPath}`. https://docs.microsoft.com/en-us/samples/aspnet/aspnetcore.docs/getstarted-swashbuckle-aspnetcore/?tabs=visual-studio");
                 }
+
+                // The comments of the query engine's assemblies describe the parameters of the
+                // OxQL routes and the members of their bodies. The package's build targets put
+                // the files beside the service's assemblies; a host without them describes the
+                // routes without those sentences.
+                foreach (var comments in Directory.EnumerateFiles(AppContext.BaseDirectory, "OxQL.*.xml").Order(StringComparer.Ordinal))
+                    c.IncludeXmlComments(comments);
 
                 // Add global security requirements using the newer API
                 c.AddSecurityRequirement(document => new OpenApiSecurityRequirement

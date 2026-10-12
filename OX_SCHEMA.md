@@ -545,7 +545,9 @@ defined key is typed and filterable; an undefined one stays opaque.
 ## 2 · What a service declares
 
 An entity is a class carrying the query engine's `[OxQLType("<service>.<entity>", "<collection>")]`.
-The id is the entity's stable identifier and must be `<service>.<entity>` in lower-case segments.
+The id is the entity's stable identifier and must be `<service>.<entity>` in lower-case segments,
+`<service>` being the service's own name in lower case (`vehicle.vehicle` in the service `Vehicle`):
+other services route a reference by that prefix (sections 3.3 and 4.2).
 Everything reachable from an entity through public instance properties is pooled automatically;
 nothing else is declared.
 
@@ -758,7 +760,7 @@ independent costs:
 | `dangling-type-pointer` | yes | yes |
 | `entity-scan-failed` | no | yes |
 | `entity-assemblies-missing` | no | yes |
-| `entity-id-off-grammar`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
+| `entity-id-off-grammar`, `entity-id-foreign-service`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
 | `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared` | no | no |
 | `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `variant-constant-unresolved`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
 
@@ -797,6 +799,25 @@ per kind, after the findings, that counts them and says what to do:
 | finding | the line |
 |---|---|
 | `polymorphic-subtype-unregistered` | `Ox schema: N stored subtypes have no MongoDB class map and are missing from the schema (…)`, then: register them in `RegisterBsonClassMaps()` or list them in `[BsonKnownTypes]` |
+| `entity-id-off-grammar`, `entity-id-foreign-service` | `Ox schema: N entity ids are not <service>.<entity> with this service's name as the prefix (…)`, then: rename each id and paste the `RetireEntityId` line of its finding |
+
+**Entity ids.** `entity-id-off-grammar` marks an id that is not `<service>.<entity>` in
+`[a-z][a-z0-9_]*` segments (`booking`), `entity-id-foreign-service` an id on grammar whose
+first segment is not the host's service name in lower case (`archive.page` in the service
+`Register`). Either way no other service can reference the entity, because a reference is routed
+by the id's prefix (section 4.2). The finding names the entity, the id it should have and the
+line that keeps the present id working, ready to paste into `ConfigureOxSchema`:
+
+```
+Ox schema finding: entity-id-off-grammar booking - Not <service>.<entity> with [a-z][a-z0-9_]* segments, so no other
+service can reference this entity. Declare the id 'ledger.booking' in [OxQLType], and keep this one resolving with
+schema.RetireEntityId("ledger.booking", "booking"); in ConfigureOxSchema. (refuses=False published=False)
+```
+
+Neither code refuses a start, in any environment and under continuous integration: a service
+whose ids predate the rule starts after a package bump as it did before, and its entities stay
+queryable under the ids they have. Where the service name itself is no id segment (it holds a
+hyphen) the finding names the form `<service>.<entity>` instead of an id.
 
 ### 3.4 How addon definitions reach a request
 

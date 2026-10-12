@@ -21,14 +21,38 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>Whether an id is <c>&lt;service&gt;.&lt;entity&gt;</c> with lower-case segments.</summary>
         public static bool IsEntityId(string id) => EntityId().IsMatch(id);
 
+        /// <summary>The first segment of an entity id: the service that owns the entity.</summary>
+        private static string Prefix(string id) => id.Split('.')[0];
+
+        /// <summary><c>&lt;service&gt;.&lt;rest&gt;</c> where that is an entity id; null where the service name or the rest cannot form one.</summary>
+        private static string? Prefixed(string? service, string rest) =>
+            service is not null && IsEntityId($"{service}.{rest}") ? $"{service}.{rest}" : null;
+
+        /// <summary>
+        /// What to do about an id that has to change: the id to declare, where one can be
+        /// derived, and the line that keeps the present id resolving.
+        /// </summary>
+        private static string Rename(string id, string? renamed) => renamed is null
+            ? $"Declare an id <service>.<entity> with this service's name as the prefix in [OxQLType], and keep this one resolving with schema.RetireEntityId(\"<service>.<entity>\", \"{id}\"); in ConfigureOxSchema."
+            : $"Declare the id '{renamed}' in [OxQLType], and keep this one resolving with schema.RetireEntityId(\"{renamed}\", \"{id}\"); in ConfigureOxSchema.";
+
         /// <summary>Whether a name is one camelCase path segment.</summary>
         public static bool IsPathSegment(string name) => PathSegment().IsMatch(name);
 
         /// <summary>Whether an id is <c>t_</c> plus one camelCase segment.</summary>
         public static bool IsStructuralId(string id) => StructuralId().IsMatch(id);
 
-        /// <summary>Records every grammar and integrity finding of the pool.</summary>
-        public static void Inspect(IReadOnlyDictionary<string, OxSchemaType> pool, FindingCollector findings)
+        /// <summary>
+        /// Records every grammar and integrity finding of the pool.
+        /// </summary>
+        /// <param name="pool">The finished pool.</param>
+        /// <param name="findings">Where the findings go.</param>
+        /// <param name="service">
+        /// The host's service name in lower case: the prefix every entity id of the host has to
+        /// carry, because another service routes a reference by it. Null leaves the prefix
+        /// unchecked.
+        /// </param>
+        public static void Inspect(IReadOnlyDictionary<string, OxSchemaType> pool, FindingCollector findings, string? service = null)
         {
             foreach (var (id, entry) in pool)
             {
@@ -38,7 +62,15 @@ namespace Simplic.OxS.Server.OxSchema
                         findings.Add(
                             OxSchemaCodes.EntityIdOffGrammar,
                             id,
-                            "Not <service>.<entity> with [a-z][a-z0-9_]* segments. Still resolves; rename the declared id and retire this one.");
+                            "Not <service>.<entity> with [a-z][a-z0-9_]* segments, so no other service can reference this entity. "
+                            + Rename(id, id.Contains('.', StringComparison.Ordinal) ? null : Prefixed(service, id)));
+                    else if (service is not null && Prefix(id) != service)
+                        findings.Add(
+                            OxSchemaCodes.EntityIdForeignService,
+                            id,
+                            $"The prefix '{Prefix(id)}' is not this service's name ('{service}'). Another service routes a reference by the prefix, "
+                            + $"to InternalHosts:{Prefix(id)}, and does not reach this entity. "
+                            + Rename(id, Prefixed(service, id[(Prefix(id).Length + 1)..])));
                 }
                 else if (!IsStructuralId(id))
                 {

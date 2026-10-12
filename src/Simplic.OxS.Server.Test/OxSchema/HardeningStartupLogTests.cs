@@ -62,11 +62,28 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
-        public void AModelWithEveryClassMap_GetsNoSuchLine()
+        public void EntityIdsAnotherServiceCannotReference_AreLoggedAsErrorsWithOneLineThatSaysWhatToDo()
+        {
+            var log = LogOf(SchemaBuild.Options("Production"));
+
+            log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith($"Ox schema finding: {OxSchemaCodes.EntityIdOffGrammar} badid ", StringComparison.Ordinal))
+                .Which.Level.Should().Be(LogLevel.Error);
+            log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith($"Ox schema finding: {OxSchemaCodes.EntityIdForeignService} spare.gadget ", StringComparison.Ordinal))
+                .Which.Level.Should().Be(LogLevel.Error);
+
+            var summary = log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith("Ox schema: 2 entity ids are not <service>.<entity>", StringComparison.Ordinal)).Subject;
+
+            summary.Level.Should().Be(LogLevel.Error);
+            summary.Message.Should().Contain("(spare.gadget, badid)").And.Contain("RetireEntityId").And.Contain("The host starts as before.");
+        }
+
+        [Fact]
+        public void AModelWithNothingToActOn_GetsNoSuchLine()
         {
             var log = LogOf(SchemaBuild.OptionsWithoutAssemblies("Production"));
 
-            log.Entries.Should().NotContain(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal));
+            log.Entries.Should().NotContain(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal)
+                || entry.Message.Contains("RetireEntityId", StringComparison.Ordinal));
         }
 
         [Fact]

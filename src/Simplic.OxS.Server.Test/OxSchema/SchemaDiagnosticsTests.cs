@@ -40,6 +40,77 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
+        public void Build_OffGrammarEntityId_NamesTheIdToDeclareAndTheLineThatRetiresThisOne()
+        {
+            var finding = SchemaBuild.Degraded.Findings.Single(
+                candidate => candidate.Code == OxSchemaCodes.EntityIdOffGrammar);
+
+            finding.Detail.Should().Contain("Declare the id 'probe.badid' in [OxQLType]")
+                .And.Contain("schema.RetireEntityId(\"probe.badid\", \"badid\");");
+        }
+
+        [Fact]
+        public void Build_OffGrammarEntityId_OfAServiceWhoseNameIsNoIdSegment_NamesTheFormOnly()
+        {
+            var finding = SchemaBuild.Build(SchemaBuild.Options() with { ServiceName = "probe-two" }).Findings.Single(
+                candidate => candidate.Code == OxSchemaCodes.EntityIdOffGrammar);
+
+            finding.Detail.Should().Contain("schema.RetireEntityId(\"<service>.<entity>\", \"badid\");")
+                .And.NotContain("probe-two.");
+        }
+
+        [Fact]
+        public void Build_EntityIdWithAnotherServicesPrefix_IsReportedWithTheLineThatRetiresIt()
+        {
+            var finding = SchemaBuild.Degraded.Findings.Single(
+                candidate => candidate.Code == OxSchemaCodes.EntityIdForeignService);
+
+            finding.Target.Should().Be("spare.gadget");
+            finding.Refuses.Should().BeFalse();
+            finding.Published.Should().BeFalse();
+            finding.Detail.Should().Contain("The prefix 'spare' is not this service's name ('probe')")
+                .And.Contain("InternalHosts:spare")
+                .And.Contain("schema.RetireEntityId(\"probe.gadget\", \"spare.gadget\");");
+        }
+
+        [Fact]
+        public void Build_EntityIdWithAnotherServicesPrefix_KeepsItsFullyDescribedPoolEntry()
+        {
+            SchemaBuild.Degraded.Document.Entry("spare.gadget").Entity.Should().BeTrue();
+        }
+
+        [Fact]
+        public void Build_EntityIdsOfThisService_AreNotReported()
+        {
+            SchemaBuild.Degraded.Findings.Where(finding => finding.Code is OxSchemaCodes.EntityIdForeignService or OxSchemaCodes.EntityIdOffGrammar)
+                .Select(finding => finding.Target).Should().Equal("spare.gadget", "badid");
+        }
+
+        [Theory]
+        [InlineData("Development")]
+        [InlineData("Local")]
+        [InlineData("Production")]
+        public void Build_EntityIdFindingsAlone_NeverStopAHost(string environment)
+        {
+            // The fixture assembly holds refusing findings of its own; the two id codes are not among them.
+            OxSchemaCodes.Refuses(OxSchemaCodes.EntityIdOffGrammar).Should().BeFalse();
+            OxSchemaCodes.Refuses(OxSchemaCodes.EntityIdForeignService).Should().BeFalse();
+
+            var build = () => SchemaBuild.Build(new OxSchemaBuildOptions
+            {
+                ServiceName = "other",
+                ApiName = "other-api",
+                ApiVersion = "v1",
+                EnvironmentName = environment,
+                ContinuousIntegration = true,
+                TypeAssemblies = [new TypeList(typeof(BadId), typeof(SpareGadget))],
+            });
+
+            build.Should().NotThrow().Which.Findings.Select(finding => finding.Code)
+                .Should().Equal(OxSchemaCodes.EntityIdForeignService, OxSchemaCodes.EntityIdOffGrammar);
+        }
+
+        [Fact]
         public void Build_OffGrammarEntityId_KeepsItsFullyDescribedPoolEntry()
         {
             var document = SchemaBuild.Degraded.Document;
@@ -58,6 +129,9 @@ namespace Simplic.OxS.Server.Test.OxSchema
                     OxSchemaCodes.DuplicateEntityId,
                     OxSchemaCodes.CollectionUntyped,
                     OxSchemaCodes.ControllerLinkAmbiguous,
+
+                    // spare.gadget is declared by the probe service.
+                    OxSchemaCodes.EntityIdForeignService,
                     OxSchemaCodes.EntityIdOffGrammar,
                     OxSchemaCodes.EntityTypeShared,
 

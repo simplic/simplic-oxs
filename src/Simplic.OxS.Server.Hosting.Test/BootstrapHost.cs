@@ -16,7 +16,7 @@ namespace Simplic.OxS.Server.Hosting.Test
     internal static class BootstrapHost
     {
         /// <summary>Builds the host of <typeparamref name="TStartup"/> without starting it.</summary>
-        internal static IHost Build<TStartup>(CapturedLog? log = null, params (string Key, string Value)[] settings)
+        internal static IHost Build<TStartup>(CapturedLog? log = null, string environment = "Production", params (string Key, string Value)[] settings)
             where TStartup : Bootstrap
         {
             var configuration = new Dictionary<string, string?>
@@ -32,21 +32,26 @@ namespace Simplic.OxS.Server.Hosting.Test
                 .ConfigureAppConfiguration(builder => builder.AddInMemoryCollection(configuration))
                 .ConfigureWebHost(web => web
                     .UseTestServer()
-                    .UseEnvironment("Production")
+                    .UseEnvironment(environment)
                     .UseStartup<TStartup>()
                     .ConfigureServices(services =>
                     {
                         if (log is not null)
                             services.AddLogging(logging => logging.AddProvider(log));
                     }))
+
+                // Without MongoDB and Redis the query service and the api key validator cannot
+                // be constructed; no test here calls them, so a Development host does not
+                // construct every service up front either.
+                .UseDefaultServiceProvider(options => options.ValidateOnBuild = false)
                 .Build();
         }
 
         /// <summary>Builds and starts the host of <typeparamref name="TStartup"/>.</summary>
-        internal static async Task<IHost> StartAsync<TStartup>(CapturedLog? log = null, params (string Key, string Value)[] settings)
+        internal static async Task<IHost> StartAsync<TStartup>(CapturedLog? log = null, string environment = "Production", params (string Key, string Value)[] settings)
             where TStartup : Bootstrap
         {
-            var host = Build<TStartup>(log, settings);
+            var host = Build<TStartup>(log, environment, settings);
 
             await host.StartAsync();
 

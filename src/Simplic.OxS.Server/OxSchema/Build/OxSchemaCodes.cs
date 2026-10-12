@@ -26,6 +26,12 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>An entity id is not <c>&lt;service&gt;.&lt;entity&gt;</c> in lower-case segments.</summary>
         public const string EntityIdOffGrammar = "entity-id-off-grammar";
 
+        /// <summary>
+        /// An entity id is on grammar and its prefix is not the host's service name: another
+        /// service routes a reference by the prefix and does not reach the entity.
+        /// </summary>
+        public const string EntityIdForeignService = "entity-id-foreign-service";
+
         /// <summary>A structural id is not <c>t_</c> plus a camelCase segment.</summary>
         public const string StructuralIdOffGrammar = "structural-id-off-grammar";
 
@@ -55,7 +61,10 @@ namespace Simplic.OxS.Server.OxSchema
         /// The codes that neither refuse nor are published and still ask the service for a
         /// change: the startup log writes them as errors and says what to do.
         /// </summary>
-        private static readonly string[] Actionable = [global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered];
+        private static readonly string[] Actionable =
+        [
+            global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered, EntityIdOffGrammar, EntityIdForeignService,
+        ];
 
         /// <summary>Whether the startup log writes this code as an error although it neither refuses nor is published.</summary>
         internal static bool IsActionable(string code) => Actionable.Contains(code, StringComparer.Ordinal);

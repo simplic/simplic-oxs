@@ -75,6 +75,16 @@ namespace Simplic.OxS.Server.OxSchema
                     + "a class map registered after the schema is built throws or is not applied.",
                     subtypes.Count,
                     Listed(subtypes.Select(finding => finding.ClrDetail ?? finding.Target)));
+
+            var ids = findings.Where(finding => finding.Code is OxSchemaCodes.EntityIdOffGrammar or OxSchemaCodes.EntityIdForeignService).ToList();
+
+            if (ids.Count > 0)
+                logger.LogError(
+                    "Ox schema: {Count} entity ids are not <service>.<entity> with this service's name as the prefix ({Ids}), so another service cannot reference them. "
+                    + "Rename each id in its [OxQLType] and paste the RetireEntityId line of its finding into ConfigureOxSchema: the old id keeps resolving. "
+                    + "The host starts as before.",
+                    ids.Count,
+                    Listed(ids.Select(finding => finding.Target)));
         }
 
         /// <summary>The first names of a list, and how many more there are.</summary>

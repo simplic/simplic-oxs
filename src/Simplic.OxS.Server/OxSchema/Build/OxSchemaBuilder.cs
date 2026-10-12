@@ -105,7 +105,7 @@ namespace Simplic.OxS.Server.OxSchema
 
             var types = ImmutableSortedDictionary.CreateRange(StringComparer.Ordinal, pool);
 
-            DocumentValidator.Inspect(types, findings);
+            DocumentValidator.Inspect(types, findings, service);
 
             var sorted = findings.Sorted();
             var refusing = sorted.Where(finding => finding.Refuses).ToList();

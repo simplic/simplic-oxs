@@ -219,7 +219,7 @@ namespace Simplic.OxS.Server
             // internal batch route (InternalHosts / InternalApiVersions), one message per call;
             // explain checks the parts continued there at the owner's internal explain route,
             // which counts its places in flight by the service name this client sends.
-            services.AddHttpClient(RemoteQueryClient.HttpClientName);
+            RemoteQueryClient.AddHttpClient(services);
             services.AddSingleton<IRemoteQueryClient>(provider =>
             {
                 var client = ActivatorUtilities.CreateInstance<RemoteQueryClient>(provider);
@@ -228,6 +228,9 @@ namespace Simplic.OxS.Server
 
                 return client;
             });
+
+            // One line per referenced owner at start: the route its calls take.
+            services.AddTransient<IStartupFilter, RemoteOwnerRouteLog>();
 
             // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
             if (OxQLStudioEnabled(Configuration, CurrentEnvironment))

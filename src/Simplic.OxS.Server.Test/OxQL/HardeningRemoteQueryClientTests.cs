@@ -216,6 +216,56 @@ namespace Simplic.OxS.Server.Test.OxQL
             handler.Calls.Should().Be(0);
         }
 
+        /// <summary>
+        /// An owner nobody listens at: what the connection pool ends a call with when its connect
+        /// timeout elapses, a cancellation that wraps a <see cref="TimeoutException"/> while the
+        /// call's own token is not cancelled.
+        /// </summary>
+        private sealed class NoConnectionHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+                throw new TaskCanceledException("The operation was canceled.", new TimeoutException("A connection could not be established within the configured ConnectTimeout."));
+        }
+
+        [Fact]
+        public async Task Batch_ToAnOwnerThatAcceptsNoConnection_FailsAsAnUnreachableOwner_WhileTheCallStillHasBudget()
+        {
+            var client = Client(new NoConnectionHandler(), "localhost:8080");
+
+            var call = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(30), CancellationToken.None);
+
+            var thrown = (await call.Should().ThrowAsync<HttpRequestException>()).Which;
+
+            thrown.StatusCode.Should().BeNull("no owner answered");
+            thrown.Message.Should().Be("The owner of 'vehicle' accepted no connection for the internal batch in time.");
+            thrown.InnerException.Should().BeOfType<TaskCanceledException>();
+        }
+
+        [Fact]
+        public async Task Explain_ToAnOwnerThatAcceptsNoConnection_FailsAsAnUnreachableOwner()
+        {
+            var client = Client(new NoConnectionHandler(), "localhost:8080");
+
+            var call = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(30), CancellationToken.None);
+
+            (await call.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task IsReachable_ForAnOwnerThatAcceptsNoConnection_IsFalse()
+        {
+            (await Client(new NoConnectionHandler(), "localhost:8080").IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
+        }
+
+        [Fact]
+        public void TheApiVersionSource_IsTheConfigurationKey_OrTheDefault()
+        {
+            Client(new SilentHandler(), "localhost:8080", "v2").ApiVersionSourceOf("vehicle").Should().Be("InternalApiVersions:vehicle");
+            Client(new SilentHandler(), "localhost:8080").ApiVersionSourceOf("vehicle").Should().Be("default");
+            Client(new SilentHandler(), "localhost:8080", " ").ApiVersionSourceOf("vehicle").Should().Be("default", "a blank entry is no entry");
+            Client(new SilentHandler(), "localhost:8080").ApiVersionSourceOf("hr").Should().BeNull("the host does not know the service");
+        }
+
         [Theory]
         [InlineData("vehicle:not-a-port")]
         [InlineData("[::1")]

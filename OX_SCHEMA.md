@@ -944,8 +944,17 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
   on every *calling* service (`InternalApiVersions__vehicle=v2`). Without it the call goes to
   `/vehicle-api/v1/…`, the owner answers 404, and the caller sees an unreachable owner: the
   resolved members are null on the page with a `RESOLVE_UNREACHABLE` diagnostic, and a condition
-  on the referenced entity is refused with `RESOLVE_UNAVAILABLE`. No startup check covers this
-  key. `GET /OxQL/health` lists each remotely referenced service with its reachability.
+  on the referenced entity is refused with `RESOLVE_UNAVAILABLE`. Nothing is called at startup,
+  so no check can tell a wrong version from a right one; instead the host logs, once at start
+  and for every referenced service that has an `InternalHosts` entry, the route its calls take
+  and where the version comes from:
+
+  ```
+  OxQL owner vehicle: http://vehicle-host/vehicle-api/v2/internal/oxql/batch (api version v2 from InternalApiVersions:vehicle)
+  OxQL owner hr: http://hr-host/hr-api/v1/internal/oxql/batch (api version v1, the default: no InternalApiVersions:hr entry)
+  ```
+
+  `GET /OxQL/health` lists each remotely referenced service with its reachability.
 - **The internal api key.** Both internal routes are `OxQLInternalController`'s, admitted by
   the key alone like every `OxSInternalController`, and scoped by the forwarded user and
   organisation headers. Caller and owner must be configured with the same key. A key that is not
@@ -989,6 +998,12 @@ the one the engine scoped the parent query with.
   value a tenth (at most 250 ms) below the time it waits, so the owner stops before the caller
   does, and the client adds no second margin. A call without a positive budget is bounded by
   10 seconds; none waits on the HTTP client's timeout.
+- The named client gives an owner one second to accept a connection
+  (`RemoteQueryClient.ConnectTimeout`). An owner that accepts none fails the call then, as an
+  unreachable owner (`HttpRequestException` without a status, like a refused connection), and
+  does not use up the call's budget. A call on an established connection is bounded by its
+  budget alone, as before: the budget elapsing is still a cancellation, which the engine reports
+  as a timeout.
 - `ExplainBatchAsync` posts what one round of an explain asks the owner as one request,
   `{ "checks": [ explain envelope, … ], "budget": { "ms", "calls" } }`, and returns the answers in
   the order of the checks (`{ "answers": [ … ] }`; an entry is null where the owner left a check
@@ -1051,7 +1066,7 @@ Only the sending code is separate: `RemoteQueryClient` does not derive from
 | need | `InternalClientBase` | `RemoteQueryClient` |
 |---|---|---|
 | Owner calls of one request run in parallel. | Writes the identity into the default headers of its one `HttpClient` before each call; concurrent calls would overwrite each other's. | One `HttpRequestMessage` per call, over `IHttpClientFactory`. |
-| A query is cancellable and every owner call has a time budget. | No cancellation token; the `HttpClient` default of 100 s. | The engine's token plus the call's budget (10 s without one, 2 s for health). |
+| A query is cancellable and every owner call has a time budget. | No cancellation token; the `HttpClient` default of 100 s. | The engine's token plus the call's budget (10 s without one, 2 s for health), and 1 s to connect. |
 | The engine turns an owner's 401, 404 or 429 into a diagnostic. | Any answer but 2xx is an `InternalClientException` without the status. | `HttpRequestException` with the status and the owner's refusal code. |
 | Owner facts (engine version, caps) are cached and probes shared. | Scoped, one instance per request. | Singleton; it reads the request's identity through `IHttpContextAccessor`. |
 

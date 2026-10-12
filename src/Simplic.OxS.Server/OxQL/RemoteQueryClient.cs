@@ -54,6 +54,21 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
     private const string DefaultApiVersion = "v1";
 
     /// <summary>
+    /// How long the named client waits for an owner to accept a connection. An owner that
+    /// accepts none within it fails the call as an unreachable owner, without waiting for the
+    /// call's budget; a call on an established connection is bounded by its budget alone.
+    /// </summary>
+    public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Registers the named client every owner call goes through, with <see cref="ConnectTimeout"/>
+    /// on its connections. The client's own timeout stays the default: every call brings its
+    /// budget as a token, and none waits on the client's.
+    /// </summary>
+    internal static IHttpClientBuilder AddHttpClient(IServiceCollection services) =>
+        services.AddHttpClient(HttpClientName).UseSocketsHttpHandler((handler, _) => handler.ConnectTimeout = ConnectTimeout);
+
+    /// <summary>
     /// The bound of a call whose caller names no positive budget: the query engine's default
     /// ceiling for one request. No outbound call waits on the HTTP client's own timeout.
     /// </summary>
@@ -129,6 +144,19 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
             return null;
 
         return versions.TryGetValue(serviceKey, out var configured) && !string.IsNullOrWhiteSpace(configured) ? configured : DefaultApiVersion;
+    }
+
+    /// <summary>
+    /// Where <see cref="ApiVersionOf"/> has the version of a service key from: the configuration
+    /// key <c>InternalApiVersions:{service}</c> when the host has a non-blank entry, else
+    /// <c>default</c>; null when the host does not know the service.
+    /// </summary>
+    public string? ApiVersionSourceOf(string serviceKey)
+    {
+        if (serviceKey is null || !hosts.ContainsKey(serviceKey))
+            return null;
+
+        return versions.TryGetValue(serviceKey, out var configured) && !string.IsNullOrWhiteSpace(configured) ? $"{ApiVersionsSection}:{serviceKey}" : "default";
     }
 
     /// <summary>
@@ -384,7 +412,21 @@ public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 
         await ForwardAsync(message, cancellationToken);
 
-        var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded);
+        HttpResponseMessage response;
+
+        try
+        {
+            response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded);
+        }
+        catch (OperationCanceledException exception) when (exception.InnerException is TimeoutException && !bounded.IsCancellationRequested)
+        {
+            // The handler gave up connecting (ConnectTimeout) while the call still had budget:
+            // nobody accepted the connection, which is an owner that cannot be reached and not a
+            // call that ran out of time.
+            logger.LogWarning("OxQL remote {Route} to {Service} was not sent: the owner accepted no connection within {ConnectTimeoutMs} ms", route, serviceKey, (int)ConnectTimeout.TotalMilliseconds);
+
+            throw new HttpRequestException($"The owner of '{serviceKey}' accepted no connection for the internal {route} in time.", exception);
+        }
 
         if (response.IsSuccessStatusCode)
             return response;

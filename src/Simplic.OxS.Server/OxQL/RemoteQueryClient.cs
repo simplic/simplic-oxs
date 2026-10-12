@@ -34,7 +34,7 @@ namespace Simplic.OxS.Server.OxQL;
 /// older than that are unknown again. The engine sizes its batches by them.
 /// </para>
 /// </summary>
-public sealed class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
+public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 {
     /// <summary>The named client every call goes through.</summary>
     public const string HttpClientName = "OxQL.Remote";

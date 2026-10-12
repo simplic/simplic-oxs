@@ -46,6 +46,18 @@ namespace Simplic.OxS.Server.Hosting.Test
         }
 
         [Fact]
+        public async Task TheOwnerClient_IsWhatTheQueryEnginesReferenceCheckReadsTheOwnersSchemaDocumentsThrough()
+        {
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: Owners);
+
+            var client = host.Services.GetRequiredService<global::OxQL.Core.Engine.IRemoteQueryClient>();
+
+            client.Should().BeAssignableTo<global::OxQL.Core.Engine.IRemoteSchemaSource>();
+            host.Services.GetService<global::OxQL.Core.Engine.RemoteReferenceValidator>().Should().NotBeNull("the engine registers the check the client is read by");
+            ((RemoteQueryClient)client).SchemaUrl("carpool").Should().Be("http://carpool-host:8080/carpool-api/v2/schema");
+        }
+
+        [Fact]
         public async Task TheOwnerClient_GivesUpConnectingAfterASecond_AndKeepsTheDefaultOverallTimeout()
         {
             using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: Owners);

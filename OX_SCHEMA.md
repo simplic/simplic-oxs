@@ -697,8 +697,11 @@ service `vehicle`; a reference that names it is sent to `InternalHosts:vehicle`,
 2. **Then other services declare the reference**, to the new id and with the field, which a
    target in another service always needs:
    `[OxQLReference("vehicle.vehicle", "id")]`, or `DeclareReference` (section 2.2). This host
-   cannot look into the owner: compare the id and the field with the owner's `GET /schema`. A
-   declaration without the field is dropped (`reference-target-field-unknown`).
+   cannot look into the owner when it builds its model: compare the id and the field with the
+   owner's `GET /schema`. A declaration without the field is dropped
+   (`reference-target-field-unknown`). Once the host runs, it checks the target ids itself
+   against each owner's schema document and names the ones the owner does not publish
+   (section 4.2, *The check of the declared targets*).
 3. **Every service a reference points into needs configuration on the calling service**, in
    every environment it runs in (the appsettings files and the cluster):
 
@@ -1145,6 +1148,24 @@ the one the engine scoped the parent query with.
   owner's cap and its key chunks by the owner's page from these facts, and refuses nothing by an
   owner's version: every owner an origin reaches runs this package, since only it has the internal
   routes. The client sends a batch as it is given.
+- **The check of the declared targets.** The client reads which entities an owner publishes
+  (`IRemoteSchemaSource`): `GET {route}/schema` of the owner, over the same route as every other
+  owner call (`SchemaUrl(service)`), without a key or an identity, since the document is
+  anonymous. The query engine's reference check asks for it in the background, after the host
+  has started and then every few minutes (every half minute while an owner is not validated),
+  and compares the target id of every declared reference with the ids the owner answers a query
+  under: its entity ids and the ids they retired. A target the owner does not publish is one
+  warning in the log per owner and schema revision, is listed on `GET /OxQL/health` under the
+  service's `references` (`declared`, `validated`, `revision`, `unknownTargets`, `reason`) and is
+  noted by explain. The read is conditional on what the client read last (`If-None-Match`), so
+  an unchanged document is answered 304 without a body; what was read answers again without a
+  call for the health probe's time to live (`OxQL:Cache:HealthProbeTtlSeconds`), a failed read
+  included. It is bounded by two seconds and never throws. An owner that does not answer,
+  answers 404 (it has no schema route, or `InternalApiVersions` names the wrong version) or 401
+  (it sets `OxSchema:RequireAuthorization`), or serves a body that is no schema document leaves
+  its references **not validated** (`reason: "unavailable"`), never wrong: nothing about the
+  start or about a query depends on the check, and what was validated before an owner stopped
+  answering stays.
 - The engine's model provider carries the revision of the published schema document. An explain
   answer names its types by reference to the documents (entity, service, `schemaRevision`) and lists
   the revision of every service it names in `revision.schema`, so a consumer that holds another

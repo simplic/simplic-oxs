@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using OxQL.AspNetCore;
 using OxQL.AspNetCore.Batch;
+using OxQL.AspNetCore.Binding;
 using OxQL.AspNetCore.Models;
 using OxQL.Core.Engine;
 using OxQL.Core.Models;
@@ -27,11 +28,19 @@ namespace Simplic.OxS.Server.OxQL;
 /// and the owner calls it has left ride in the body (<c>budget</c>), for all its checks together, so
 /// a chain of owners never does more than the origin's explain may.
 /// </para>
+/// <para>
+/// A body the host cannot bind is answered in the engine's refusal envelope, as on the public
+/// routes (<see cref="OxQLRequestBodyAttribute"/>): 400 with a code and <c>params</c>, and in a
+/// batch whose entries can be told apart only the entry that does not read is refused, in its
+/// place of <c>results</c>, while the others run. The internal key is checked first, so a call
+/// without it is 401 whatever its body holds.
+/// </para>
 /// </summary>
 [ApiController]
 [Route("internal/oxql")]
 [ApiExplorerSettings(IgnoreApi = true)]
 [TypeFilter(typeof(RequestSizeFilter))]
+[OxQLRequestBody]
 public sealed class OxQLInternalController(IOxQLQueryService queryService, OxQLOptions options, ILogger<OxQLInternalController> logger) : OxSInternalController
 {
     /// <summary>Executes several queries in order under one time ceiling; always 200 with one outcome per entry.</summary>

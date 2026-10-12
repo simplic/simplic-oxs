@@ -1066,6 +1066,15 @@ request carry the keyed fetch's `keyedBy` member; the public `POST /oxql/query` 
 404 while the owner's explain is switched off (`OxQL:Explain:Enabled`), as the public route does;
 the origin then reports those parts as unchecked.
 
+**A body the owner cannot bind** is answered in the engine's refusal envelope on the internal
+routes as on the public ones (the engine's `[OxQLRequestBody]` on both controllers): 400
+`validation_error` with `INVALID_REQUEST_BODY`, or the stage's own code, and `params`. In a
+batch whose entries can be told apart only the entry that does not read is refused, in its place
+of `results` with `params.entry`, and the other entries run, so one wrong query of a caller does
+not take the others of its batch with it. The internal key is checked first: a call without it is
+401 whatever its body holds. A request under contract 1 is not touched by any of this: the host
+answers a body it cannot bind with its own `problem+json`, as it always has.
+
 **The internal explain is bounded twice.** It admits at most
 `OxQL:Explain:MaxConcurrentPerCaller` (4) explains in flight per calling service, named by the
 `X-OxQL-Caller` header; calls that name no service share one set of places. One more is 429 with

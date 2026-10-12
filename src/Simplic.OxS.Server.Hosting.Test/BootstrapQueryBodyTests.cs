@@ -70,5 +70,111 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             engine.Executed.Should().BeEmpty();
         }
+
+        private static HttpRequestMessage AsService(HttpRequestMessage message)
+        {
+            message.Headers.TryAddWithoutValidation("Authorization", $"i-api-key {BootstrapHost.InternalApiKey}");
+            message.Headers.Add("OrganizationId", Callers.Organisation.ToString());
+            message.Headers.Add("UserId", Callers.User.ToString());
+
+            return message;
+        }
+
+        [Fact]
+        public async Task AnEntryOfAnInternalBatchTheHostCannotBind_IsRefusedInItsPlaceAndTheOthersRun()
+        {
+            var engine = new AnsweringEngine();
+
+            using var host = await StartAsync(engine);
+            using var client = host.GetTestClient();
+
+            var batch = """{"queries":[{"entityType":"parcel.parcel","pipeline":[]},""" + Unbindable + """,{"entityType":"parcel.parcel","pipeline":[{"page":{"limit":1}}]}],"maxTimeMs":2000}""";
+
+            using var answer = await client.SendAsync(AsService(Post("/parcel-api/v1/internal/oxql/batch", batch, contract: 2)));
+
+            var text = await answer.Content.ReadAsStringAsync();
+
+            answer.StatusCode.Should().Be(HttpStatusCode.OK, text);
+
+            var results = JsonNode.Parse(text)!["results"]!.AsArray();
+
+            results.Should().HaveCount(3);
+            results[0]!["items"]!.AsArray().Should().ContainSingle();
+            results[2]!["items"]!.AsArray().Should().ContainSingle();
+
+            var refused = results[1]!.AsObject();
+
+            refused.ContainsKey("items").Should().BeFalse();
+            refused["type"]!.GetValue<string>().Should().Be("validation_error");
+
+            var error = refused["errors"]!.AsArray().Should().ContainSingle().Subject!;
+
+            error["code"]!.GetValue<string>().Should().Be("INVALID_REQUEST_BODY");
+            error["params"]!["path"]!.GetValue<string>().Should().Be("$.pipeline");
+            error["params"]!["entry"]!.GetValue<int>().Should().Be(1);
+            error["message"]!.GetValue<string>().Should().NotContain("System.", "the refusal is said in the terms of the wire");
+
+            engine.Executed.Should().HaveCount(2);
+        }
+
+        [Theory]
+        [InlineData("""{"queries":{}}""")]
+        [InlineData("""{"queries":[""")]
+        public async Task AnInternalBatchTheHostCannotBindAtAll_IsRefusedInTheEnvelope(string batch)
+        {
+            var engine = new AnsweringEngine();
+
+            using var host = await StartAsync(engine);
+            using var client = host.GetTestClient();
+            using var answer = await client.SendAsync(AsService(Post("/parcel-api/v1/internal/oxql/batch", batch, contract: 2)));
+
+            var text = await answer.Content.ReadAsStringAsync();
+
+            answer.StatusCode.Should().Be(HttpStatusCode.BadRequest, text);
+            answer.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+
+            var body = JsonNode.Parse(text)!;
+
+            body["type"]!.GetValue<string>().Should().Be("validation_error");
+            body["errors"]![0]!["code"]!.GetValue<string>().Should().Be("INVALID_REQUEST_BODY");
+            body["errors"]![0]!["params"]!["reason"]!.GetValue<string>().Should().NotBeNullOrEmpty();
+            text.Should().NotContain("System.");
+            engine.Executed.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task AnInternalBatchWithoutTheKey_IsRefusedBeforeItsBodyIsLookedAt()
+        {
+            var engine = new AnsweringEngine();
+
+            using var host = await StartAsync(engine);
+            using var client = host.GetTestClient();
+            using var answer = await client.SendAsync(Post("/parcel-api/v1/internal/oxql/batch", """{"queries":{}}""", contract: 2));
+
+            answer.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            (await answer.Content.ReadAsStringAsync()).Should().NotContain("INVALID_REQUEST_BODY");
+            engine.Executed.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task AContract2BodyThePublicRouteCannotBind_IsRefusedInTheEnvelope()
+        {
+            var engine = new AnsweringEngine();
+
+            using var host = await StartAsync(engine);
+            using var client = host.GetTestClient();
+            using var answer = await client.SendAsync(AsUser(Post("/parcel-api/v1/OxQL/query", Unbindable, contract: 2)));
+
+            var text = await answer.Content.ReadAsStringAsync();
+
+            answer.StatusCode.Should().Be(HttpStatusCode.BadRequest, text);
+
+            var body = JsonNode.Parse(text)!;
+
+            body["type"]!.GetValue<string>().Should().Be("validation_error");
+            body["errors"]![0]!["code"]!.GetValue<string>().Should().Be("INVALID_REQUEST_BODY");
+            body["errors"]![0]!["params"]!["path"]!.GetValue<string>().Should().Be("$.pipeline");
+            engine.Executed.Should().BeEmpty();
+        }
     }
 }

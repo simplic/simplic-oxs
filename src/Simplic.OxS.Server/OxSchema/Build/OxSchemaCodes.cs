@@ -51,6 +51,15 @@ namespace Simplic.OxS.Server.OxSchema
             DuplicateEntityId, DanglingTypePointer, EntityScanFailed, EntityAssembliesMissing,
         ];
 
+        /// <summary>
+        /// The codes that neither refuse nor are published and still ask the service for a
+        /// change: the startup log writes them as errors and says what to do.
+        /// </summary>
+        private static readonly string[] Actionable = [global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered];
+
+        /// <summary>Whether the startup log writes this code as an error although it neither refuses nor is published.</summary>
+        internal static bool IsActionable(string code) => Actionable.Contains(code, StringComparer.Ordinal);
+
         /// <summary>Whether a fail-fast host refuses to start on this code.</summary>
         public static bool Refuses(string code) => Refusing.Contains(code, StringComparer.Ordinal);
 

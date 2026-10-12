@@ -62,4 +62,10 @@
     <Change type="enhancement">The OxQL Studio console is served at {pathBase}/oxql (it answered only under a doubled path before) and only while OxQL:Studio:Enabled is true, which defaults to true in every environment but Production.</Change>
     <Change type="enhancement">AuthorizeInternalApiKey runs before every other action filter, so a call without the key is answered 401 whatever its body holds.</Change>
   </ChangeSet>
+  <ChangeSet>
+    <Change type="feature">Add Bootstrap.RegisterBsonClassMaps, the place for a service's MongoDB class maps and serializers. Bootstrap calls it once per process for a startup type, during ConfigureServices, before RegisterServices, the mapper and the Ox schema build, which freezes the class map of every type it reaches.</Change>
+    <Change type="enhancement">The AutoMapper instance is created while the host starts, right before the Ox schema is built, not on the first request that needs one. Class maps and serializers a service registers in RegisterMapperProfiles are therefore in place for the schema and are registered once per host; an exception thrown in RegisterMapperProfiles stops the start in every environment, with the original exception.</Change>
+    <Change type="enhancement">The startup log writes polymorphic-subtype-unregistered as an error and adds one line that counts the stored subtypes without a class map and names RegisterBsonClassMaps.</Change>
+    <Change type="enhancement">The guid serializer Bootstrap registers is left in place when the process already holds it, so a second host of one process starts (integration tests).</Change>
+  </ChangeSet>
 </ReleaseNotes>

@@ -8,6 +8,8 @@ namespace Simplic.OxS.Server.Test.OxSchema
     [Collection(SchemaCollection.Name)]
     public sealed class HardeningStartupLogTests
     {
+        private const string SubtypeUnregistered = global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered;
+
         private static HardeningCapturedLog LogOf(OxSchemaBuildOptions options)
         {
             var log = new HardeningCapturedLog();
@@ -39,6 +41,32 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var log = LogOf(SchemaBuild.OptionsWithUnloadableAssembly("Production"));
 
             log.Entries.Should().Contain(entry => entry.Level == LogLevel.Error && entry.Message.Contains(OxSchemaCodes.EntityScanFailed));
+        }
+
+        [Fact]
+        public void ASubtypeWithoutAClassMap_IsLoggedAsAnErrorWithOneLineThatSaysWhatToDo()
+        {
+            var options = SchemaBuild.Options("Production");
+            var missing = OxSchemaRegistry.Build(options).Findings.Count(finding => finding.Code == SubtypeUnregistered);
+            var log = LogOf(options);
+
+            missing.Should().BePositive("the fixtures hold subtypes without a class map");
+            log.Entries.Where(entry => entry.Message.StartsWith($"Ox schema finding: {SubtypeUnregistered} ", StringComparison.Ordinal))
+                .Should().HaveCount(missing).And.OnlyContain(entry => entry.Level == LogLevel.Error);
+
+            var summary = log.Entries.Should().ContainSingle(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal)).Subject;
+
+            summary.Level.Should().Be(LogLevel.Error);
+            summary.Message.Should().StartWith($"Ox schema: {missing} stored subtypes have no MongoDB class map")
+                .And.Contain(typeof(Fixtures.SharedLeaf).FullName);
+        }
+
+        [Fact]
+        public void AModelWithEveryClassMap_GetsNoSuchLine()
+        {
+            var log = LogOf(SchemaBuild.OptionsWithoutAssemblies("Production"));
+
+            log.Entries.Should().NotContain(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal));
         }
 
         [Fact]

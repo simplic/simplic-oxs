@@ -559,7 +559,7 @@ nothing else is declared.
 | a foreign key whose target depends on a sibling or on the stored variant | one `[OxQLReferenceWhen("<sibling>", "<value>", "<target>", …)]` per case (below) |
 | a foreign key on a member the service cannot annotate | a host-side declaration in `ConfigureOxSchema` (section 2.2) |
 | descriptions, deprecations, constraints | doc comments or attributes (section 2.3) |
-| variants of a polymorphic type | register each subclass's class map, or list it in `[BsonKnownTypes]` (section 5.2) |
+| variants of a polymorphic type | register each subclass's class map in `RegisterBsonClassMaps()`, or list it in `[BsonKnownTypes]` (section 5.2) |
 | a retired id, after renaming an entity's id | override `ConfigureOxSchema` in `Startup` (section 2.1) |
 | a key on an embedded item type | implement `IItemId` |
 
@@ -670,8 +670,11 @@ three is part of the query engine's model fingerprint; all are inside the docume
 
 `AddOxSchema` (called by `Bootstrap`) registers `OxSchemaRegistry` as a singleton, hands the
 registry's entity model to the query engine as its `IEntityModelProvider`, and installs a
-startup filter that resolves the registry before the first request. The build runs once, on the
-startup thread, and is one pass in `OxSchemaBuilder`:
+startup filter that resolves the registry before the first request. `Bootstrap` has called
+`RegisterBsonClassMaps()` by then, and it creates the AutoMapper instance (and so runs
+`RegisterMapperProfiles`) right before the build, whoever resolves the registry first: a class
+map a service registers in either place is there when the build looks its type up (section 5.2).
+The build runs once, on the startup thread, and is one pass in `OxSchemaBuilder`:
 
 1. **Legacy document.** `/ModelDefinition` is generated from the declared controllers by the
    same generator as before and held beside the schema; the schema reads its published model
@@ -785,7 +788,15 @@ is logged at startup and never reaches the wire: publishing it would make consum
 document that is complete. Both sets are closed and keyed on the code.
 
 The startup log carries one summary line, one line per finding, and one line per controller the
-legacy generator could not describe.
+legacy generator could not describe. A refusing or published finding is logged as an error
+(`entity-assemblies-missing` as a warning: a service without entities names no assemblies on
+purpose), and so is a finding the service has to act on although the document stays readable;
+every other finding is a warning. The findings a service has to act on get one more error line
+per kind, after the findings, that counts them and says what to do:
+
+| finding | the line |
+|---|---|
+| `polymorphic-subtype-unregistered` | `Ox schema: N stored subtypes have no MongoDB class map and are missing from the schema (…)`, then: register them in `RegisterBsonClassMaps()` or list them in `[BsonKnownTypes]` |
 
 ### 3.4 How addon definitions reach a request
 
@@ -1159,18 +1170,45 @@ Nothing below needs a line of code in the service.
 
 ### 5.2 What a service has to do
 
-- **Register MongoDB class maps and serializers while services are registered.** The schema
+- **Register MongoDB class maps and serializers in `RegisterBsonClassMaps()`.** The schema
   build looks up the serializer of every entity and of every type reachable from one, when the
-  host starts. The first lookup of a type creates its class map and freezes it. A class map
-  registered in `RegisterServices` is in place by then. One registered later (in a repository's
-  static constructor, a hosted service, on first use) meets a frozen map: `RegisterClassMap`
-  throws, and a registration guarded by `IsClassMapRegistered` is silently skipped, which loses
-  the customisation (`SetIgnoreExtraElements`, discriminators, member maps) and surfaces as a
-  deserialisation error later. Move such registrations into `RegisterServices`.
+  host starts. The first lookup of a type creates its class map and freezes it.
+
+  ```csharp
+  protected override void RegisterBsonClassMaps()
+  {
+      BsonClassMap.RegisterClassMap<YardSlot>();
+      BsonClassMap.RegisterClassMap<CoveredSlot>();
+      BsonSerializer.RegisterSerializer(new DiscriminatedInterfaceSerializer<IParcelEvent>());
+  }
+  ```
+
+  `Bootstrap` calls the hook once per process for a startup type, however many hosts the
+  process builds from it (a test run, say), so the registrations need no guard. It runs during
+  `ConfigureServices`, after the base registered its guid serializer and before
+  `RegisterServices`, the mapper and the schema build.
+
+  | where a service registers | in place for the build |
+  |---|---|
+  | `RegisterBsonClassMaps()` | yes; the place for it |
+  | `RegisterServices`, `ConfigureOxSchema` | yes; a second host of the same process calls them again, so the registration needs a guard of its own |
+  | `RegisterMapperProfiles` | yes: the mapper is created while the host starts, right before the schema is built, not on the first request that needs one. An exception thrown there stops the start in every environment |
+  | a repository's static constructor, a hosted service, first use | no |
+
+  A registration that comes after the build meets a frozen map: `RegisterClassMap` throws
+  `ArgumentException: An item with the same key has already been added. Key: <type>`,
+  `RegisterSerializer` throws `There is already a serializer registered for type <type>`, and a
+  registration guarded by `IsClassMapRegistered` or made with `TryRegisterClassMap` is silently
+  skipped, which loses the customisation (`SetIgnoreExtraElements`, discriminators, member maps)
+  and surfaces as a deserialisation error later. A fault while the class maps or the mapper
+  profiles are registered stops the start, in every environment, with the original exception.
+  The order above keeps what a service registers in its profiles ahead of the build; the hook is
+  the place that does not depend on it.
 - **Register every stored subclass of a polymorphic type the same way**, or list it in
   `[BsonKnownTypes]` on the base. Only those are described as variants; a concrete subclass with no
   registered class map is left out of `variants`, its members are not merged, and the build logs
-  `polymorphic-subtype-unregistered`.
+  `polymorphic-subtype-unregistered` as an error, with one line that counts the subtypes and
+  names the hook (section 3.3).
 - **Set `<GenerateDocumentationFile>true</GenerateDocumentationFile>`** in the project that holds
   the entity classes if their doc comments are to become descriptions (section 2.3). Without the
   XML file beside the assembly only `[OxQLDescription]` and `[Description]` are read. The switch

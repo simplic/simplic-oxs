@@ -613,6 +613,24 @@ current id already holds a row of that path: then the row stays under its id, so
 holds two rows of one path. The query engine and `GET /schema/addons` read the same union. The
 row the union does not read stays in storage and is still answered by `GET by-id/{id}`.
 
+What a retired id keeps working, and what it does not:
+
+| caller of the retired id | answer |
+|---|---|
+| contract 2 `entityType` | The current entity, with the diagnostic `ENTITY_ID_RETIRED` (`params.currentId`). |
+| contract 2 `lookup.from` | The same; the diagnostic names the stage. |
+| a contract 1 request (no `X-OxQL-Contract` header, or `1`) | The current entity, as before the rename and without a diagnostic. |
+| another service's owner call that names it | The current entity, resolved at the owner like any request; this helps only for a retired id that carried the owner's prefix, see below. |
+| `/AddonDefinition`, `GET /schema/addons`, the engine's addon read | The definitions under the current id and every retired id (above). |
+| `GET /schema` | The entity under its current id, the retired ids first in `aliases`. |
+
+| a retired id does not | so |
+|---|---|
+| make an id without the owner's prefix reachable from another service | A reference is routed by the prefix of the id it names (section 2.4): other services declare the new id, after the owner runs it. |
+| resolve a reference declaration | `[OxQLReference("<retired id>")]` and the host-side declarations are looked up among the current ids only. Change the service's own declarations with the rename. |
+| publish the entity under the old id | A client keyed on the ids of `/schema` (a generated module) is regenerated; the old id is in `aliases`. |
+| exist in a package version before the schema | Rename an id in the same change as the upgrade to this package, or later. |
+
 ### 2.2 Declaring a reference on a member the service does not own
 
 An inherited `Id`, or a type from a shared package, cannot carry an attribute. The host declares
@@ -665,6 +683,34 @@ their text, `<para>` a blank line; whitespace is collapsed; the text is cut at a
 `deprecated` comes from `[Obsolete]` on a member, its message as `note`. `constraints` comes from
 `[MaxLength]` or `[StringLength]` (strings only), `[Range]` and `[RegularExpression]`. None of the
 three is part of the query engine's model fingerprint; all are inside the document's revision.
+
+### 2.4 References into another service
+
+**The owning service of an entity is the prefix of its id.** `vehicle.vehicle` belongs to the
+service `vehicle`; a reference that names it is sent to `InternalHosts:vehicle`, under
+`/vehicle-api/{version}/` (section 4.2). Nothing else says who owns an entity, so:
+
+1. **The owner goes first.** Its id has to be `<service>.<entity>` with its own service name. An
+   owner whose id has no prefix, or another one, renames it and retires the old id
+   (section 2.1), and is deployed. Its startup log names such ids and the line to paste
+   (section 3.3).
+2. **Then other services declare the reference**, to the new id and with the field, which a
+   target in another service always needs:
+   `[OxQLReference("vehicle.vehicle", "id")]`, or `DeclareReference` (section 2.2). This host
+   cannot look into the owner: compare the id and the field with the owner's `GET /schema`. A
+   declaration without the field is dropped (`reference-target-field-unknown`).
+3. **Every service a reference points into needs configuration on the calling service**, in
+   every environment it runs in (the appsettings files and the cluster):
+
+   | key | when |
+   |---|---|
+   | `InternalHosts:<service>` | always; without it the start logs an error, and stops in `Development`, `Local` and under continuous integration |
+   | `InternalApiVersions:<service>` | when the owner does not answer on `v1` |
+
+   The calling service logs the resulting route of each owner at start (section 4.2), and
+   `OxSchemaCheck` lists the references with their owning service for a unit test (section 3.5).
+4. **Owner and caller both run this package.** Only it has the internal routes; a reference into
+   an owner without them is answered as an unreachable owner.
 
 ---
 
@@ -1326,15 +1372,19 @@ Nothing below needs a line of code in the service.
   `OxSInternalController`.** On any other controller the call is answered with 400 and the action
   does not run. A host whose `Auth:InternalApiKey` is configured as blank admits no internal
   call at all.
+- **Give every entity id the service's own name as its prefix** (`<service>.<entity>`). An id
+  without it keeps working inside the service, and no other service can reference the entity;
+  the startup log names each such id as an error with the line that retires it (section 3.3).
 - **A renamed entity id** needs `ConfigureOxSchema` (section 2.1), so configurations that
   persisted the old id keep resolving.
-- **Resolving into another service** needs the keys of section 4.2 on the calling service.
+- **Resolving into another service** follows section 2.4: the owner's id carries its prefix
+  first, then the reference is declared, and the calling service gets the keys of section 4.2.
 - **Decide two defaults per service.** `GET /schema` is anonymous unless
   `OxSchema:RequireAuthorization` is true (section 4.1), and a contract 1 `lookup` reads any
   collection of the service's database for the caller's organisation unless
   `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3).
-- **A service that references an `OxQL.*` package itself** has to move that reference to the
-  version this package references.
+- **A service that references an `OxQL.*` package or a sibling package of this one itself**
+  has to raise that reference, or remove it (section 5.4).
 
 ### 5.3 What changes in the service's swagger
 
@@ -1354,6 +1404,53 @@ explorer and never appear.
 A generated client changes shape only when it is regenerated. Until then a caller built on the
 contract 1 shapes is answered by the engine's legacy pipeline while `OxQL:Compat:Enabled` is on
 (section 4.3).
+
+### 5.4 Packages a service references directly
+
+`Simplic.OxS.Server` depends on its sibling packages and on the five `OxQL.*` packages at the
+versions below or higher. A service that also references one of them directly, at a lower
+version, does not restore: NuGet reports the downgrade as `NU1605`.
+
+| package a service may reference directly | minimum beside this release of `Simplic.OxS.Server` |
+|---|---|
+| `Simplic.OxS.ModelDefinition.Service` | 3.0.1226.825 |
+| `Simplic.OxS.ModelDefinition.Extension` | 3.0.826.1012 |
+| `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
+| `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
+| `OxQL.AspNetCore`, `OxQL.Core`, `OxQL.Model`, `OxQL.Mongo`, `OxQL.Studio` | 2.1.126.1012, all of them the same version |
+
+- **Restore names one package per run.** Raise it, restore again, and repeat until the restore
+  passes; a service that references two of the rows needs two rounds.
+- **Or remove the direct reference.** `Simplic.OxS.Server` brings every package of the table, so
+  a project that references the server package (directly or through a project reference) needs
+  none of them listed. A project that does not, such as a domain project that only uses
+  `[OxQLType]`, keeps its `OxQL.Core` reference and raises it.
+- The other sibling packages (`Simplic.OxS`, `Simplic.OxS.Data`, `Simplic.OxS.Data.MongoDB`,
+  `Simplic.OxS.InternalClient`, `Simplic.OxS.Settings*`, `Simplic.OxS.Cache*`,
+  `Simplic.OxS.MessageBroker`, `Simplic.OxS.ModelDefinition`) did not change with the schema; a
+  service meets them here only if its reference was older than the server package it came from.
+
+### 5.5 Upgrading a service: the checklist
+
+1. **Bump** `Simplic.OxS.Server` in every project that references it.
+2. **Restore until it passes**: raise or remove what `NU1605` names, one package per round
+   (section 5.4).
+3. **Move the MongoDB class maps and serializers into `RegisterBsonClassMaps()`** (section 5.2).
+   Registrations in `RegisterServices` and `RegisterMapperProfiles` keep working; the hook is
+   the one place that runs once per process.
+4. **Entity ids**: every `[OxQLType]` id is `<service>.<entity>` with the service's own name.
+   Rename the others and retire the old id in `ConfigureOxSchema`; change the service's own
+   reference declarations to the new id (section 2.1).
+5. **References into other services**: the owner first, then the declaration with its field,
+   then `InternalHosts:<service>` and, where needed, `InternalApiVersions:<service>` in every
+   environment (section 2.4).
+6. **Add the schema check** to the service's unit tests (section 3.5), so a dropped reference,
+   a variant without a class map or an id off the rule fails the build of the service and not
+   its first start.
+7. **Start the service once and read its log**: the `Ox schema finding:` lines, the
+   `Ox schema:` lines that say what to do, and one `OxQL owner` line per referenced service.
+8. **Regenerate** the API clients and the OxQL modules that are generated from the service
+   (section 5.3); its schema revision changes with the package.
 
 ---
 

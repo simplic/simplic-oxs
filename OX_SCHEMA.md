@@ -1109,8 +1109,9 @@ the one the engine scoped the parent query with.
   value a tenth (at most 250 ms) below the time it waits, so the owner stops before the caller
   does, and the client adds no second margin. A call without a positive budget is bounded by
   10 seconds; none waits on the HTTP client's timeout.
-- The named client gives an owner one second to accept a connection
-  (`RemoteQueryClient.ConnectTimeout`). An owner that accepts none fails the call then, as an
+- The named client gives an owner two seconds to accept a connection, or what the host
+  configures as `OxQL:Remote:ConnectTimeoutMs` (section 4.3; zero or less: no connect
+  timeout of the client's own). An owner that accepts none fails the call then, as an
   unreachable owner (`HttpRequestException` without a status, like a refused connection), and
   does not use up the call's budget. A call on an established connection is bounded by its
   budget alone, as before: the budget elapsing is still a cancellation, which the engine reports
@@ -1195,7 +1196,7 @@ Only the sending code is separate: `RemoteQueryClient` does not derive from
 | need | `InternalClientBase` | `RemoteQueryClient` |
 |---|---|---|
 | Owner calls of one request run in parallel. | Writes the identity into the default headers of its one `HttpClient` before each call; concurrent calls would overwrite each other's. | One `HttpRequestMessage` per call, over `IHttpClientFactory`. |
-| A query is cancellable and every owner call has a time budget. | No cancellation token; the `HttpClient` default of 100 s. | The engine's token plus the call's budget (10 s without one, 2 s for health), and 1 s to connect. |
+| A query is cancellable and every owner call has a time budget. | No cancellation token; the `HttpClient` default of 100 s. | The engine's token plus the call's budget (10 s without one, 2 s for health), and 2 s to connect (`OxQL:Remote:ConnectTimeoutMs`). |
 | The engine turns an owner's 401, 404 or 429 into a diagnostic. | Any answer but 2xx is an `InternalClientException` without the status. | `HttpRequestException` with the status and the owner's refusal code. |
 | Owner facts (engine version, caps) are cached and probes shared. | Scoped, one instance per request. | Singleton; it reads the request's identity through `IHttpContextAccessor`. |
 
@@ -1230,6 +1231,7 @@ include the page sizes this package used to set in code (`MaxPageSize` 500, `Def
 | `OxQL:Compat:Legacy:MaxTimeMs` | The time a contract 1 request may take in the database; `OxQL:Execution:MaxTimeMs` does not apply to it. | 600000 |
 | `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` and `POST internal/oxql/explain` answer, and whether the OxQL Studio console offers explain; 404 otherwise. Explain binds and compiles a request and never executes it. | `true` |
 | `OxQL:Cursor:SigningKey` | The secret paging cursors are signed with. | `Auth:Token` |
+| `OxQL:Remote:ConnectTimeoutMs` | Read by this package, not by the engine: how long a call to another service waits for the owner to accept a connection, in milliseconds (section 4.2). Zero or less: no connect timeout of the client's own, so a call waits for a connection as long as its budget lasts. Read once, at start; a value that is no whole number stops the start. | 2000 |
 
 The cursor key is never used as it is: the engine derives the signing key from the secret with
 HKDF-SHA256 under its own label, so reusing the auth token does not expose it. When the section

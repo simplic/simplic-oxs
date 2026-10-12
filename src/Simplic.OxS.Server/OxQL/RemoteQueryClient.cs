@@ -54,19 +54,45 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     private const string DefaultApiVersion = "v1";
 
     /// <summary>
-    /// How long the named client waits for an owner to accept a connection. An owner that
-    /// accepts none within it fails the call as an unreachable owner, without waiting for the
-    /// call's budget; a call on an established connection is bounded by its budget alone.
+    /// The configuration key of the time the named client waits for an owner to accept a
+    /// connection, in milliseconds. Zero or less: the client sets no connect timeout of its own,
+    /// and a call waits for a connection as long as its budget lasts.
     /// </summary>
-    public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(1);
+    public const string ConnectTimeoutKey = "OxQL:Remote:ConnectTimeoutMs";
 
     /// <summary>
-    /// Registers the named client every owner call goes through, with <see cref="ConnectTimeout"/>
-    /// on its connections. The client's own timeout stays the default: every call brings its
-    /// budget as a token, and none waits on the client's.
+    /// How long the named client waits for an owner to accept a connection where the host
+    /// configures nothing under <see cref="ConnectTimeoutKey"/>. An owner that accepts none
+    /// within it fails the call as an unreachable owner, without waiting for the call's budget;
+    /// a call on an established connection is bounded by its budget alone.
     /// </summary>
-    internal static IHttpClientBuilder AddHttpClient(IServiceCollection services) =>
-        services.AddHttpClient(HttpClientName).UseSocketsHttpHandler((handler, _) => handler.ConnectTimeout = ConnectTimeout);
+    public static readonly TimeSpan DefaultConnectTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// The connect timeout a host configures: <see cref="ConnectTimeoutKey"/>, else
+    /// <see cref="DefaultConnectTimeout"/>; <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>
+    /// for a value of zero or less. A value that is no whole number throws, which stops the start.
+    /// </summary>
+    internal static TimeSpan ConnectTimeoutOf(IConfiguration configuration) =>
+        configuration.GetValue<int?>(ConnectTimeoutKey) switch
+        {
+            null => DefaultConnectTimeout,
+            <= 0 => System.Threading.Timeout.InfiniteTimeSpan,
+            var milliseconds => TimeSpan.FromMilliseconds(milliseconds.Value),
+        };
+
+    /// <summary>
+    /// Registers the named client every owner call goes through, with the host's connect
+    /// timeout (<see cref="ConnectTimeoutOf"/>, read here, once) on its connections. The client's
+    /// own timeout stays the default: every call brings its budget as a token, and none waits on
+    /// the client's.
+    /// </summary>
+    internal static IHttpClientBuilder AddHttpClient(IServiceCollection services, IConfiguration configuration)
+    {
+        var connectTimeout = ConnectTimeoutOf(configuration);
+
+        return services.AddHttpClient(HttpClientName).UseSocketsHttpHandler((handler, _) => handler.ConnectTimeout = connectTimeout);
+    }
 
     /// <summary>
     /// The bound of a call whose caller names no positive budget: the query engine's default
@@ -96,6 +122,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     private readonly string internalApiKey;
     private readonly IReadOnlyDictionary<string, string> hosts;
     private readonly IReadOnlyDictionary<string, string> versions;
+    private readonly TimeSpan connectTimeout;
     private readonly ConcurrentDictionary<string, OwnerFacts> owners = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, DateTimeOffset> probed = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, Lazy<Task>> probing = new(StringComparer.OrdinalIgnoreCase);
@@ -109,7 +136,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     /// </summary>
     /// <param name="clients">The factory of the named client every call goes through.</param>
     /// <param name="auth">The settings holding the internal api key.</param>
-    /// <param name="configuration">The host's configuration, for <see cref="HostsSection"/> and <see cref="ApiVersionsSection"/>.</param>
+    /// <param name="configuration">The host's configuration, for <see cref="HostsSection"/>, <see cref="ApiVersionsSection"/> and <see cref="ConnectTimeoutKey"/>.</param>
     /// <param name="httpContextAccessor">The current request, whose scope provider names the identity to forward.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="oxql">The query engine's options, for the health probe's time to live; the engine's default without them.</param>
@@ -130,6 +157,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
         internalApiKey = auth.Value.InternalApiKey;
         hosts = Map(configuration, HostsSection);
         versions = Map(configuration, ApiVersionsSection);
+        connectTimeout = ConnectTimeoutOf(configuration);
         FactsTtl = TimeSpan.FromSeconds(Math.Max(1, (oxql ?? new OxQLOptions()).Cache.HealthProbeTtlSeconds));
     }
 
@@ -420,10 +448,10 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
         }
         catch (OperationCanceledException exception) when (exception.InnerException is TimeoutException && !bounded.IsCancellationRequested)
         {
-            // The handler gave up connecting (ConnectTimeout) while the call still had budget:
+            // The handler gave up connecting (its connect timeout) while the call still had budget:
             // nobody accepted the connection, which is an owner that cannot be reached and not a
             // call that ran out of time.
-            logger.LogWarning("OxQL remote {Route} to {Service} was not sent: the owner accepted no connection within {ConnectTimeoutMs} ms", route, serviceKey, (int)ConnectTimeout.TotalMilliseconds);
+            logger.LogWarning("OxQL remote {Route} to {Service} was not sent: the owner accepted no connection within {ConnectTimeoutMs} ms", route, serviceKey, (int)connectTimeout.TotalMilliseconds);
 
             throw new HttpRequestException($"The owner of '{serviceKey}' accepted no connection for the internal {route} in time.", exception);
         }

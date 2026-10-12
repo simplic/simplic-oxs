@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Simplic.OxS.Server.Hosting.Test.Fixtures;
 using Simplic.OxS.Server.OxQL;
@@ -57,24 +58,48 @@ namespace Simplic.OxS.Server.Hosting.Test
             ((RemoteQueryClient)client).SchemaUrl("carpool").Should().Be("http://carpool-host:8080/carpool-api/v2/schema");
         }
 
-        [Fact]
-        public async Task TheOwnerClient_GivesUpConnectingAfterASecond_AndKeepsTheDefaultOverallTimeout()
+        /// <summary>The connect timeout of the handler the host gives the named client.</summary>
+        private static TimeSpan ConnectTimeoutOf(IHost host)
         {
-            using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: Owners);
-
-            RemoteQueryClient.ConnectTimeout.Should().Be(TimeSpan.FromSeconds(1));
-
             var handler = host.Services.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(RemoteQueryClient.HttpClientName);
 
             while (handler is DelegatingHandler delegating)
                 handler = delegating.InnerHandler!;
 
-            handler.Should().BeOfType<SocketsHttpHandler>().Which.ConnectTimeout.Should().Be(RemoteQueryClient.ConnectTimeout);
+            return handler.Should().BeOfType<SocketsHttpHandler>().Which.ConnectTimeout;
+        }
+
+        [Fact]
+        public async Task TheOwnerClient_GivesUpConnectingAfterTwoSeconds_AndKeepsTheDefaultOverallTimeout()
+        {
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: Owners);
+
+            RemoteQueryClient.DefaultConnectTimeout.Should().Be(TimeSpan.FromSeconds(2));
+            ConnectTimeoutOf(host).Should().Be(RemoteQueryClient.DefaultConnectTimeout);
 
             // Every owner call brings its own budget as a token; the client's timeout is not what bounds one.
             using var client = host.Services.GetRequiredService<IHttpClientFactory>().CreateClient(RemoteQueryClient.HttpClientName);
 
             client.Timeout.Should().Be(TimeSpan.FromSeconds(100));
+        }
+
+        [Fact]
+        public async Task TheOwnerClient_GivesUpConnectingAfterTheTimeTheHostConfigures()
+        {
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: [.. Owners, (RemoteQueryClient.ConnectTimeoutKey, "350")]);
+
+            RemoteQueryClient.ConnectTimeoutKey.Should().Be("OxQL:Remote:ConnectTimeoutMs");
+            ConnectTimeoutOf(host).Should().Be(TimeSpan.FromMilliseconds(350));
+        }
+
+        [Theory]
+        [InlineData("0")]
+        [InlineData("-1")]
+        public async Task TheOwnerClient_SetsNoConnectTimeoutOfItsOwn_WhereTheHostConfiguresZeroOrLess(string configured)
+        {
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: [.. Owners, (RemoteQueryClient.ConnectTimeoutKey, configured)]);
+
+            ConnectTimeoutOf(host).Should().Be(Timeout.InfiniteTimeSpan);
         }
     }
 }

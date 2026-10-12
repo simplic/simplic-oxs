@@ -216,10 +216,11 @@ namespace Simplic.OxS.Server
 
             // ── Remote resolve ──────────────────────────────────────────────────────
             // Resolves and semi-joins into an entity another service owns go to that owner's
-            // internal batch route (InternalHosts / InternalApiVersions), one message per call;
+            // internal batch route (InternalHosts / InternalApiVersions), one message per call,
+            // over a client that waits OxQL:Remote:ConnectTimeoutMs for a connection;
             // explain checks the parts continued there at the owner's internal explain route,
             // which counts its places in flight by the service name this client sends.
-            RemoteQueryClient.AddHttpClient(services);
+            RemoteQueryClient.AddHttpClient(services, Configuration);
             services.AddSingleton<IRemoteQueryClient>(provider =>
             {
                 var client = ActivatorUtilities.CreateInstance<RemoteQueryClient>(provider);

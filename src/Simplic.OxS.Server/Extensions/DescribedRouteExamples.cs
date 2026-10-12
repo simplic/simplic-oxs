@@ -122,7 +122,7 @@ namespace Simplic.OxS.Server.Extensions
                   "type": "validation_error",
                   "title": "The request could not be bound.",
                   "status": 400,
-                  "errors": [ { "code": "UNKNOWN_PATH", "message": "'wieghtKg' is not a member of parcel.parcel.", "stage": 0, "path": "wieghtKg" } ]
+                  "errors": [ { "code": "UNKNOWN_PATH", "message": "'wieghtKg' is not a path of 'parcel.parcel'.", "stage": 0, "path": "wieghtKg" } ]
                 }
               ]
             }
@@ -181,7 +181,7 @@ namespace Simplic.OxS.Server.Extensions
               "type": "validation_error",
               "title": "The request could not be bound.",
               "status": 400,
-              "errors": [ { "code": "UNKNOWN_PATH", "message": "'wieghtKg' is not a member of parcel.parcel.", "stage": 0, "path": "wieghtKg" } ]
+              "errors": [ { "code": "UNKNOWN_PATH", "message": "'wieghtKg' is not a path of 'parcel.parcel'.", "stage": 0, "path": "wieghtKg" } ]
             }
             """;
     }

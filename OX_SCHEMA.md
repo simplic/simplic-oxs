@@ -1516,7 +1516,8 @@ security requirement; a test of the package compares it).
 - **Comments of the query engine.** The package brings build targets
   (`build/Simplic.OxS.Server.targets`, also under `buildTransitive`) that copy
   `OxQL.AspNetCore.xml` beside the service's assemblies when it is built and when it is
-  published, and the document's setup includes every `OxQL.*.xml` it finds there. A project
+  published, and the document's setup includes every `OxQL.*.xml` it finds there; one it cannot
+  read is left out with a warning in the log, and the document is generated without it. A project
   reference to a project that references the package gets them too. A service edits nothing; one
   that wants the file left out sets `<SimplicOxSCopyQueryApiComments>false</SimplicOxSCopyQueryApiComments>`.
 - **The routes between services** (`internal/oxql/batch`, `internal/oxql/explain`) stay out of

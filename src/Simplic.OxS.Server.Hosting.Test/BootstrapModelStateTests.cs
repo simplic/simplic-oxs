@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OxQL.Core.Engine;
@@ -60,6 +63,56 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             // Said, not left open: an engine that is told nothing takes a model without entities for a degraded one.
             DegradedOf(host).Should().BeFalse();
+        }
+
+        /// <summary>The health answer a contract 2 caller reads, anonymously.</summary>
+        private static async Task<JsonNode> HealthAsync(IHost host, string api)
+        {
+            using var client = host.GetTestClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/{api}/v1/OxQL/health");
+
+            request.Headers.Add("X-OxQL-Contract", "2");
+
+            using var answer = await client.SendAsync(request);
+
+            var text = await answer.Content.ReadAsStringAsync();
+
+            answer.StatusCode.Should().Be(HttpStatusCode.OK, text);
+
+            return JsonNode.Parse(text)!;
+        }
+
+        [Fact]
+        public async Task Health_OfAHostWhoseSchemaBuildFailed_IsDegradedAndSaysTheModelIs()
+        {
+            using var host = await BootstrapHost.StartAsync<SalvageQueryStartup>(new AnsweringEngine().Register);
+
+            var health = await HealthAsync(host, "salvage-api");
+
+            health["status"]!.GetValue<string>().Should().Be("degraded");
+            health["model"]!.ToJsonString().Should().Be("""{"entities":0,"degraded":true,"reason":"build"}""");
+        }
+
+        [Fact]
+        public async Task Health_OfAServiceWithoutEntities_IsHealthy()
+        {
+            using var host = await BootstrapHost.StartAsync<NoticeQueryStartup>(new AnsweringEngine().Register);
+
+            var health = await HealthAsync(host, "notice-api");
+
+            health["status"]!.GetValue<string>().Should().Be("healthy");
+            health["model"]!.ToJsonString().Should().Be("""{"entities":0,"degraded":false}""");
+        }
+
+        [Fact]
+        public async Task Health_OfAHostWithItsEntities_CountsThem()
+        {
+            using var host = await BootstrapHost.StartAsync<ParcelStartup>(new AnsweringEngine().Register);
+
+            var health = await HealthAsync(host, "parcel-api");
+
+            health["status"]!.GetValue<string>().Should().Be("healthy");
+            health["model"]!.ToJsonString().Should().Be("""{"entities":1,"degraded":false}""");
         }
     }
 }

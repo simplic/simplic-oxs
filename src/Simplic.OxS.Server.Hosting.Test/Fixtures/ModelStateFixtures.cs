@@ -12,6 +12,18 @@ namespace Simplic.OxS.Server.Hosting.Test.Fixtures
         protected override Type[] EntityTypes => [];
     }
 
+    /// <summary><see cref="NoticeStartup"/> with the query routes mapped.</summary>
+    public class NoticeQueryStartup(IConfiguration configuration, IWebHostEnvironment environment) : NoticeStartup(configuration, environment)
+    {
+        protected override Type[] Controllers => [typeof(global::OxQL.AspNetCore.Controllers.OxQLController)];
+    }
+
+    /// <summary><see cref="SalvageStartup"/> with the query routes mapped.</summary>
+    public class SalvageQueryStartup(IConfiguration configuration, IWebHostEnvironment environment) : SalvageStartup(configuration, environment)
+    {
+        protected override Type[] Controllers => [typeof(global::OxQL.AspNetCore.Controllers.OxQLController)];
+    }
+
     /// <summary>A service whose entity assembly cannot be read, so its schema build fails.</summary>
     public class SalvageStartup(IConfiguration configuration, IWebHostEnvironment environment) : HostingStartup(configuration, environment)
     {

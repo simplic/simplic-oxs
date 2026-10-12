@@ -30,15 +30,12 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
-        public void Build_Document_IsIndentedJsonWithPinnedCrlfNewlines()
+        public void Build_Document_IsIndentedJsonWithPinnedLfNewlines()
         {
             var text = Encoding.UTF8.GetString(SchemaBuild.Degraded.ModelDefinition!.Body);
 
-            var crlf = text.Split("\r\n").Length - 1;
-            var bareLf = text.Replace("\r\n", "", StringComparison.Ordinal).Split('\n').Length - 1;
-
-            crlf.Should().BeGreaterThan(0);
-            bareLf.Should().Be(0);
+            text.Should().Contain("\n  ");
+            text.Should().NotContain("\r");
         }
 
         [Fact]

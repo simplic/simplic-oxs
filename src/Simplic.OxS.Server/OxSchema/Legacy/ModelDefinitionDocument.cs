@@ -11,14 +11,15 @@ namespace Simplic.OxS.Server.OxSchema
     public sealed class ModelDefinitionDocument
     {
         /// <summary>
-        /// The legacy serialisation: PascalCase, nulls omitted, indented, CRLF. All four are wire
-        /// facts; the newline is pinned so the bytes are the same on every platform.
+        /// The legacy serialisation: PascalCase, nulls omitted, indented, LF. The newline is pinned
+        /// so the bytes are the same on every platform: the document used to be written with the
+        /// platform's newline, which is LF in the Linux containers the services run in.
         /// </summary>
         internal static readonly JsonSerializerOptions Legacy = new()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = true,
-            NewLine = "\r\n",
+            NewLine = "\n",
         };
 
         private ModelDefinitionDocument(byte[] body, IReadOnlyList<ModelDefinition.ModelDefinition> models, IReadOnlyList<string> failures)

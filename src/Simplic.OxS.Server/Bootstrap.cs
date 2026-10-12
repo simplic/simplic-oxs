@@ -465,29 +465,70 @@ namespace Simplic.OxS.Server
 
         /// <summary>
         /// Calls <see cref="RegisterBsonClassMaps"/> unless this process already called it for
-        /// this startup type. The type is marked before the call, so a hook that throws is not
-        /// run a second time over registrations it already made.
+        /// this startup type. A hook that threw is not run a second time over registrations it
+        /// already made: every later call for the type throws what it threw.
         /// </summary>
         internal void EnsureBsonClassMaps()
         {
             lock (ClassMapsRegistered)
             {
-                if (!ClassMapsRegistered.Add(GetType()))
-                    return;
+                if (ClassMapsRegistered.TryGetValue(GetType(), out var thrown))
+                {
+                    thrown?.Throw();
 
-                RegisterBsonClassMaps();
+                    return;
+                }
+
+                try
+                {
+                    RegisterBsonClassMaps();
+                    ClassMapsRegistered[GetType()] = null;
+                }
+                catch (Exception exception)
+                {
+                    ClassMapsRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+
+                    throw;
+                }
             }
         }
 
-        private static readonly HashSet<Type> ClassMapsRegistered = [];
+        /// <summary>The startup types whose hook ran in this process, each with what the hook threw, if it did.</summary>
+        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ClassMapsRegistered = [];
 
         /// <summary>Creates the mapper from <see cref="RegisterMapperProfiles"/>.</summary>
-        internal IMapper CreateMapper() => new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
+        internal IMapper CreateMapper()
+        {
+            var mapper = new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
+
+            lock (MapperProfilesRegistered)
+                MapperProfilesRegistered.Add(GetType());
+
+            return mapper;
+        }
+
+        /// <summary>
+        /// Runs <see cref="RegisterMapperProfiles"/> unless this process already ran it for this
+        /// startup type, in a host or here: what <see cref="OxSchemaCheck"/> needs of the mapper
+        /// is the class maps a service registers beside its profiles, which are the process's.
+        /// </summary>
+        internal void EnsureMapperProfiles()
+        {
+            // Held while the profiles run, so a concurrent check of the same type waits for the
+            // registrations instead of building its schema beside them.
+            lock (MapperProfilesRegistered)
+            {
+                if (!MapperProfilesRegistered.Contains(GetType()))
+                    CreateMapper();
+            }
+        }
+
+        private static readonly HashSet<Type> MapperProfilesRegistered = [];
 
         /// <summary>
         /// Fills the schema's inputs from what the service declares and lets
         /// <see cref="ConfigureOxSchema"/> adjust them: the one definition of what a host hands
-        /// the schema build.
+        /// the schema build, for the host itself and for <see cref="OxSchemaCheck"/>.
         /// </summary>
         internal void FillOxSchema(OxSchemaOptionsBuilder schema, IReadOnlyList<Assembly> typeAssemblies)
         {

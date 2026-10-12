@@ -729,7 +729,7 @@ OxSchema/
               findings and their codes
   Legacy/     the frozen /ModelDefinition document
   Hosting/    the registry singleton, AddOxSchema, the options builder, the startup logger, the
-              authorization filter of GET /schema
+              authorization filter of GET /schema, the schema check for unit tests
 OxQL/         the host's side of the query engine: the organisation scope provider, the internal
               batch and explain routes, the remote query client, the addon definition rules,
               source and cache
@@ -883,6 +883,52 @@ The request's cancellation token does not reach the database: the repository's r
 token. A request cancelled before the read never starts it; the request that sent the read
 waits for it to end, as before; a request waiting for another request's read stops waiting at
 once.
+
+### 3.5 Checking the schema in a unit test
+
+The findings of section 3.3 are written when a host starts. `OxSchemaCheck` (namespace
+`Simplic.OxS.Server.OxSchema`, in the `Simplic.OxS.Server` package) builds the same schema in a
+unit test of the service, without a host, a database or a broker:
+
+```csharp
+[Fact]
+public void TheSchema_BuildsWithEveryVariantAndEveryReference()
+{
+    var result = OxSchemaCheck.Build<Startup>();
+
+    Assert.DoesNotContain(result.Findings, f => f.Refuses);
+    Assert.Empty(result.Findings.Where(f => f.Code.StartsWith("reference-")));
+    Assert.Empty(result.Findings.Where(f => f.Code is "polymorphic-subtype-unregistered" or "entity-id-off-grammar" or "entity-id-foreign-service"));
+    Assert.Contains(result.References, r => r.Path == "resources.vehicleId" && r.Target == "vehicle.vehicle" && r.Remote);
+}
+```
+
+The test project needs a reference to the service's server project (the one that holds
+`Startup`) and nothing else: the package comes with it.
+
+| member | holds |
+|---|---|
+| `result.Document`, `result.Json` | The document and the body `GET /schema` answers. |
+| `result.Findings` | Every finding, in the order of the startup log. `Refuses` marks the ones a `Development` host does not start on; the check itself never fails fast. |
+| `result.References` | Every reference the build kept: `Entity`, `Path`, `Target`, `Item`, `Field`, `Remote`, and `Service`, the owner by the target's prefix. A declaration missing here was dropped, and a `reference-…` finding says why. |
+| `result.Registry` | The registry a host would hold, with the entity model and the revision. |
+
+The check creates the startup through its `(IConfiguration, IWebHostEnvironment)` constructor and
+runs what a host runs before the build, in the host's order: the guid serializer of the base,
+`RegisterBsonClassMaps()`, the mapper profiles, `GetOxQLTypeAssemblies()`,
+`ConfigureModelDefinitions()` and `ConfigureOxSchema()`. It registers no service and opens no
+connection.
+
+| option | default | |
+|---|---|---|
+| `EnvironmentName` | `Production` | What the startup sees as its environment. |
+| `Configuration` | empty | What the startup is created with; its `OxQL` section sets the published limits. With the service's own configuration the revision is the one its host publishes. |
+| `RunRegisterServices` | `false` | Runs `RegisterServices` into a collection that is thrown away. For a service that registers class maps there; a service may also read configuration there that a test does not have, hence off. |
+
+MongoDB registrations are the process's. The hook and the mapper profiles of a startup type run
+once per process, however often the check is called and whether a host of that type was built
+before; a registration in `RegisterServices` or `ConfigureOxSchema` has to bear a second call
+itself. What the service's own code throws reaches the test as it is.
 
 ---
 

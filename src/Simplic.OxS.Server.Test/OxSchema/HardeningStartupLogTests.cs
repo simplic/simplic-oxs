@@ -78,6 +78,20 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
+        public void AServiceWhoseNameCanPrefixNoId_IsToldOnceAsAWarning_AndIsNotAskedToRenameItsIdsToIt()
+        {
+            var log = LogOf(SchemaBuild.Options("Production") with { ServiceName = "probe-two" });
+
+            var told = log.Entries.Should().ContainSingle(entry => entry.Message.Contains("cannot be referenced from another service", StringComparison.Ordinal)).Subject;
+
+            told.Level.Should().Be(LogLevel.Warning);
+            told.Message.Should().StartWith($"Ox schema finding: {OxSchemaCodes.ServiceNameNoIdPrefix} probe-two ");
+
+            log.Entries.Should().NotContain(entry => entry.Message.Contains(OxSchemaCodes.EntityIdForeignService, StringComparison.Ordinal)
+                || entry.Message.Contains("this service's name as the prefix", StringComparison.Ordinal));
+        }
+
+        [Fact]
         public void AModelWithNothingToActOn_GetsNoSuchLine()
         {
             var log = LogOf(SchemaBuild.OptionsWithoutAssemblies("Production"));

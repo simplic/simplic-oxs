@@ -809,7 +809,7 @@ independent costs:
 | `dangling-type-pointer` | yes | yes |
 | `entity-scan-failed` | no | yes |
 | `entity-assemblies-missing` | no | yes |
-| `entity-id-off-grammar`, `entity-id-foreign-service`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
+| `entity-id-off-grammar`, `entity-id-foreign-service`, `service-name-no-id-prefix`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
 | `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared` | no | no |
 | `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `variant-constant-unresolved`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
 
@@ -872,8 +872,15 @@ schema.RetireEntityId("ledger.booking", "booking"); in ConfigureOxSchema. (refus
 
 Neither code refuses a start, in any environment and under continuous integration: a service
 whose ids predate the rule starts after a package bump as it did before, and its entities stay
-queryable under the ids they have. Where the service name itself is no id segment (it holds a
-hyphen) the finding names the form `<service>.<entity>` instead of an id.
+queryable under the ids they have.
+
+**A service name that can prefix no id.** Where the service name itself is not one
+`[a-z][a-z0-9_]*` segment (it holds a hyphen), no id can carry it, and no rename makes an entity
+of the service reachable from another one. The build says so once, as the warning
+`service-name-no-id-prefix` with the service name as its target, when the service has entities;
+it reports no `entity-id-foreign-service` there and writes no line that asks for a rename to the
+service's name. An id off the grammar is still reported, with the form `<service>.<entity>` in
+place of an id.
 
 ### 3.4 How addon definitions reach a request
 

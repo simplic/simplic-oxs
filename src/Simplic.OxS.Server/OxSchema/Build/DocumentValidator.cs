@@ -18,6 +18,9 @@ namespace Simplic.OxS.Server.OxSchema
         [GeneratedRegex(@"^t_[a-z][a-zA-Z0-9_]*$", RegexOptions.CultureInvariant)]
         private static partial Regex StructuralId();
 
+        [GeneratedRegex(@"^[a-z][a-z0-9_]*$", RegexOptions.CultureInvariant)]
+        private static partial Regex IdSegment();
+
         /// <summary>Whether an id is <c>&lt;service&gt;.&lt;entity&gt;</c> with lower-case segments.</summary>
         public static bool IsEntityId(string id) => EntityId().IsMatch(id);
 
@@ -30,10 +33,11 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>
         /// What to do about an id that has to change: the id to declare, where one can be
-        /// derived, and the line that keeps the present id resolving.
+        /// derived, and the line that keeps the present id resolving. The service's own name is
+        /// asked for as the prefix only where it can be one (<paramref name="ownPrefix"/>).
         /// </summary>
-        private static string Rename(string id, string? renamed) => renamed is null
-            ? $"Declare an id <service>.<entity> with this service's name as the prefix in [OxQLType], and keep this one resolving with schema.RetireEntityId(\"<service>.<entity>\", \"{id}\"); in ConfigureOxSchema."
+        private static string Rename(string id, string? renamed, bool ownPrefix = true) => renamed is null
+            ? $"Declare an id <service>.<entity>{(ownPrefix ? " with this service's name as the prefix" : "")} in [OxQLType], and keep this one resolving with schema.RetireEntityId(\"<service>.<entity>\", \"{id}\"); in ConfigureOxSchema."
             : $"Declare the id '{renamed}' in [OxQLType], and keep this one resolving with schema.RetireEntityId(\"{renamed}\", \"{id}\"); in ConfigureOxSchema.";
 
         /// <summary>Whether a name is one camelCase path segment.</summary>
@@ -54,6 +58,17 @@ namespace Simplic.OxS.Server.OxSchema
         /// </param>
         public static void Inspect(IReadOnlyDictionary<string, OxSchemaType> pool, FindingCollector findings, string? service = null)
         {
+            // A service name that is no id segment can prefix no id. No id of such a service is
+            // held to the prefix, which no rename could give it; the service is told once.
+            var prefixes = service is null || IdSegment().IsMatch(service);
+
+            if (!prefixes && pool.Values.Any(entry => entry.Entity))
+                findings.Add(
+                    OxSchemaCodes.ServiceNameNoIdPrefix,
+                    service!,
+                    $"The service name '{service}' is not one [a-z][a-z0-9_]* segment, so no entity id can carry it as its prefix. "
+                    + "Another service routes a reference by the prefix of the id it names: the entities of this service cannot be referenced from another service.");
+
             foreach (var (id, entry) in pool)
             {
                 if (entry.Entity)
@@ -62,9 +77,9 @@ namespace Simplic.OxS.Server.OxSchema
                         findings.Add(
                             OxSchemaCodes.EntityIdOffGrammar,
                             id,
-                            "Not <service>.<entity> with [a-z][a-z0-9_]* segments, so no other service can reference this entity. "
-                            + Rename(id, id.Contains('.', StringComparison.Ordinal) ? null : Prefixed(service, id)));
-                    else if (service is not null && Prefix(id) != service)
+                            (prefixes ? "Not <service>.<entity> with [a-z][a-z0-9_]* segments, so no other service can reference this entity. " : "Not <service>.<entity> with [a-z][a-z0-9_]* segments. ")
+                            + Rename(id, id.Contains('.', StringComparison.Ordinal) ? null : Prefixed(service, id), prefixes));
+                    else if (prefixes && service is not null && Prefix(id) != service)
                         findings.Add(
                             OxSchemaCodes.EntityIdForeignService,
                             id,

@@ -32,6 +32,13 @@ namespace Simplic.OxS.Server.OxSchema
         /// </summary>
         public const string EntityIdForeignService = "entity-id-foreign-service";
 
+        /// <summary>
+        /// The host's service name is no id segment (it holds a hyphen, say), so no entity id can
+        /// carry it as its prefix and no other service can reference an entity of this service.
+        /// Said once per service, in place of <see cref="EntityIdForeignService"/> per id.
+        /// </summary>
+        public const string ServiceNameNoIdPrefix = "service-name-no-id-prefix";
+
         /// <summary>A structural id is not <c>t_</c> plus a camelCase segment.</summary>
         public const string StructuralIdOffGrammar = "structural-id-off-grammar";
 

@@ -78,7 +78,8 @@ namespace Simplic.OxS.Server.OxSchema
 
             var ids = findings.Where(finding => finding.Code is OxSchemaCodes.EntityIdOffGrammar or OxSchemaCodes.EntityIdForeignService).ToList();
 
-            if (ids.Count > 0)
+            // A service whose name can prefix no id is told so by a finding of its own, and no rename makes its entities reachable.
+            if (ids.Count > 0 && !findings.Any(finding => finding.Code == OxSchemaCodes.ServiceNameNoIdPrefix))
                 logger.LogError(
                     "Ox schema: {Count} entity ids are not <service>.<entity> with this service's name as the prefix ({Ids}), so another service cannot reference them. "
                     + "Rename each id in its [OxQLType] and paste the RetireEntityId line of its finding into ConfigureOxSchema: the old id keeps resolving. "

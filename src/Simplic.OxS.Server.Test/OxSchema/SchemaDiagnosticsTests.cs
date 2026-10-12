@@ -60,6 +60,32 @@ namespace Simplic.OxS.Server.Test.OxSchema
         }
 
         [Fact]
+        public void Build_OfAServiceWhoseNameIsNoIdSegment_SaysOnceThatItsEntitiesCannotBeReferenced_AndHoldsNoIdToThePrefix()
+        {
+            var findings = SchemaBuild.Build(SchemaBuild.Options() with { ServiceName = "probe-two" }).Findings;
+
+            // Every id on grammar has a prefix that is not 'probe-two', and none could have it.
+            findings.Should().NotContain(candidate => candidate.Code == OxSchemaCodes.EntityIdForeignService);
+            findings.Should().NotContain(candidate => candidate.Detail.Contains("this service's name as the prefix"), "no id can carry this service's name");
+
+            var finding = findings.Should().ContainSingle(candidate => candidate.Code == OxSchemaCodes.ServiceNameNoIdPrefix).Subject;
+
+            finding.Target.Should().Be("probe-two");
+            finding.Refuses.Should().BeFalse();
+            finding.Published.Should().BeFalse();
+            finding.Detail.Should().Be(
+                "The service name 'probe-two' is not one [a-z][a-z0-9_]* segment, so no entity id can carry it as its prefix. "
+                + "Another service routes a reference by the prefix of the id it names: the entities of this service cannot be referenced from another service.");
+        }
+
+        [Fact]
+        public void Build_OfAServiceWithoutEntitiesWhoseNameIsNoIdSegment_SaysNothingOfIt()
+        {
+            SchemaBuild.Build(SchemaBuild.OptionsWithoutAssemblies("Production") with { ServiceName = "probe-two" }).Findings
+                .Should().NotContain(candidate => candidate.Code == OxSchemaCodes.ServiceNameNoIdPrefix);
+        }
+
+        [Fact]
         public void Build_EntityIdWithAnotherServicesPrefix_IsReportedWithTheLineThatRetiresIt()
         {
             var finding = SchemaBuild.Degraded.Findings.Single(

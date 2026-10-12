@@ -15,14 +15,29 @@ namespace Simplic.OxS.Server.Hosting.Test
     /// </summary>
     internal static class BootstrapHost
     {
+        /// <summary>The secret the host validates a bearer token's signature with.</summary>
+        internal const string SigningSecret = "a-signing-secret-for-the-hosting-tests-0123456789";
+
+        /// <summary>The key the host admits a call between services by.</summary>
+        internal const string InternalApiKey = "an-internal-key-for-the-hosting-tests";
+
         /// <summary>Builds the host of <typeparamref name="TStartup"/> without starting it.</summary>
         internal static IHost Build<TStartup>(CapturedLog? log = null, string environment = "Production", params (string Key, string Value)[] settings)
+            where TStartup : Bootstrap =>
+            Build<TStartup>(log, environment, services: null, settings);
+
+        /// <summary>
+        /// Builds the host of <typeparamref name="TStartup"/> without starting it.
+        /// <paramref name="services"/> runs after the startup's own registrations, so what it
+        /// registers stands in for what the host cannot construct without a database.
+        /// </summary>
+        internal static IHost Build<TStartup>(CapturedLog? log, string environment, Action<IServiceCollection>? services, params (string Key, string Value)[] settings)
             where TStartup : Bootstrap
         {
             var configuration = new Dictionary<string, string?>
             {
-                ["Auth:Token"] = "a-signing-secret-for-the-hosting-tests-0123456789",
-                ["Auth:InternalApiKey"] = "an-internal-key-for-the-hosting-tests",
+                ["Auth:Token"] = SigningSecret,
+                ["Auth:InternalApiKey"] = InternalApiKey,
             };
 
             foreach (var (key, value) in settings)
@@ -34,10 +49,12 @@ namespace Simplic.OxS.Server.Hosting.Test
                     .UseTestServer()
                     .UseEnvironment(environment)
                     .UseStartup<TStartup>()
-                    .ConfigureServices(services =>
+                    .ConfigureServices(collection =>
                     {
                         if (log is not null)
-                            services.AddLogging(logging => logging.AddProvider(log));
+                            collection.AddLogging(logging => logging.AddProvider(log));
+
+                        services?.Invoke(collection);
                     }))
 
                 // Without MongoDB and Redis the query service and the api key validator cannot
@@ -52,6 +69,17 @@ namespace Simplic.OxS.Server.Hosting.Test
             where TStartup : Bootstrap
         {
             var host = Build<TStartup>(log, environment, settings);
+
+            await host.StartAsync();
+
+            return host;
+        }
+
+        /// <summary>Builds and starts the host of <typeparamref name="TStartup"/> with registrations of the test's own.</summary>
+        internal static async Task<IHost> StartAsync<TStartup>(Action<IServiceCollection> services, string environment = "Production", params (string Key, string Value)[] settings)
+            where TStartup : Bootstrap
+        {
+            var host = Build<TStartup>(log: null, environment, services, settings);
 
             await host.StartAsync();
 

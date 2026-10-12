@@ -80,7 +80,8 @@ public class AddonDefinitionController : OxSController
     /// <summary>
     /// Creates a definition for the current organisation. Refused for an unknown or
     /// non-extendable entity, a malformed path, an unknown kind, a value list the kind does
-    /// not allow, and a path that a defined scalar shadows or that would shadow one. A retired
+    /// not allow, a path that a defined scalar shadows or that would shadow one, and an input
+    /// over a size limit of <see cref="AddonDefinitionRules"/>. A retired
     /// definition of the same path and kind, also one stored under a retired entity id, is
     /// revived instead of duplicated. The definition is stored under the entity's current id.
     /// </summary>
@@ -113,6 +114,9 @@ public class AddonDefinitionController : OxSController
         if (AddonDefinitionRules.CheckValues(kind, values) is { } valuesError)
             return BadRequest(valuesError);
 
+        if (AddonDefinitionRules.CheckTexts(request.DisplayName, request.Description) is { } textError)
+            return BadRequest(textError);
+
         var existing = (await AddonDefinitionSource.ReadAsync(repository, schema.Model, entity, organisation: null, ct)).ToList();
         var same = existing.FirstOrDefault(definition => string.Equals(definition.Path, request.Path, StringComparison.Ordinal));
 
@@ -124,6 +128,9 @@ public class AddonDefinitionController : OxSController
 
         if (AddonDefinitionRules.CheckShadowing(request.Path, kind, existing) is { } shadowError)
             return BadRequest(shadowError);
+
+        if (AddonDefinitionRules.CheckCount(entity, existing) is { } countError)
+            return BadRequest(countError);
 
         AddonDefinitionDocument definition;
 
@@ -192,6 +199,9 @@ public class AddonDefinitionController : OxSController
 
         if (AddonDefinitionRules.CheckValues(kind, values) is { } valuesError)
             return BadRequest(valuesError);
+
+        if (AddonDefinitionRules.CheckTexts(request.DisplayName, request.Description) is { } textError)
+            return BadRequest(textError);
 
         var current = await MoveToCurrentAsync(definition, ct);
 

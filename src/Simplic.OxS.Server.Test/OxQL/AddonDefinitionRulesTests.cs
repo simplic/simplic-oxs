@@ -82,6 +82,53 @@ namespace Simplic.OxS.Server.Test.OxQL
             AddonDefinitionRules.CheckPath(path).Should().NotBeNull();
         }
 
+        [Fact]
+        public void CheckPath_BoundsTheLengthAndTheSegments()
+        {
+            AddonDefinitionRules.CheckPath(new string('a', AddonDefinitionRules.MaxPathLength)).Should().BeNull();
+            AddonDefinitionRules.CheckPath(new string('a', AddonDefinitionRules.MaxPathLength + 1)).Should().Contain("longer than");
+
+            AddonDefinitionRules.CheckPath(string.Join('.', Enumerable.Repeat("a", AddonDefinitionRules.MaxPathSegments))).Should().BeNull();
+            AddonDefinitionRules.CheckPath(string.Join('.', Enumerable.Repeat("a", AddonDefinitionRules.MaxPathSegments + 1))).Should().Contain("segments");
+        }
+
+        [Fact]
+        public void CheckValues_BoundsTheListAndItsTexts()
+        {
+            static List<AddonDefinitionValue> Values(int count) => [.. Enumerable.Range(0, count).Select(index => new AddonDefinitionValue { Value = index.ToString(System.Globalization.CultureInfo.InvariantCulture) })];
+
+            var longest = new string('a', AddonDefinitionRules.MaxLabelLength);
+
+            AddonDefinitionRules.CheckValues(AddonKind.Int, Values(AddonDefinitionRules.MaxValues)).Should().BeNull();
+            AddonDefinitionRules.CheckValues(AddonKind.Int, Values(AddonDefinitionRules.MaxValues + 1)).Should().Contain("at most");
+
+            AddonDefinitionRules.CheckValues(AddonKind.String, [new() { Value = longest, Label = longest }]).Should().BeNull();
+            AddonDefinitionRules.CheckValues(AddonKind.String, [new() { Value = longest + "a" }]).Should().Contain("characters");
+            AddonDefinitionRules.CheckValues(AddonKind.String, [new() { Value = "a", Label = longest + "a" }]).Should().Contain("characters");
+        }
+
+        [Fact]
+        public void CheckTexts_BoundsTheDisplayNameAndTheDescription()
+        {
+            var name = new string('a', AddonDefinitionRules.MaxLabelLength);
+            var description = new string('a', AddonDefinitionRules.MaxDescriptionLength);
+
+            AddonDefinitionRules.CheckTexts(null, null).Should().BeNull();
+            AddonDefinitionRules.CheckTexts(name, description).Should().BeNull();
+            AddonDefinitionRules.CheckTexts(name + "a", description).Should().Contain("display name");
+            AddonDefinitionRules.CheckTexts(name, description + "a").Should().Contain("description");
+        }
+
+        [Fact]
+        public void CheckCount_BoundsTheDefinitionsOfAnEntityThatAreNotRetired()
+        {
+            var full = Enumerable.Range(0, AddonDefinitionRules.MaxDefinitionsPerEntity).Select(index => Existing($"key{index}", "string")).ToList();
+
+            AddonDefinitionRules.CheckCount("probe.widget", full.Skip(1)).Should().BeNull();
+            AddonDefinitionRules.CheckCount("probe.widget", full.Skip(1).Append(Existing("old", "string", retired: true))).Should().BeNull();
+            AddonDefinitionRules.CheckCount("probe.widget", full).Should().Contain("retire one first");
+        }
+
         [Theory]
         [InlineData("string", AddonKind.String)]
         [InlineData("int", AddonKind.Int)]

@@ -8,12 +8,32 @@ namespace Simplic.OxS.Server.OxQL;
 /// <summary>
 /// What an addon definition must satisfy before it is stored: a registered, extendable entity;
 /// a path of plain segments under the bag; a known kind; a value list only where a set filter
-/// can use it; and no shadowing between a scalar and its descendants. Path and kind are
-/// immutable after creation, so every rule here is checked on creation and the value rule
-/// again on update. Each check answers the refusal's sentence, or null when the input passes.
+/// can use it; no shadowing between a scalar and its descendants; and the size limits below,
+/// since every definition of an entity is held in memory and handed to the query engine with
+/// each query of it. Path and kind are immutable after creation, so every rule here is checked
+/// on creation and the value and text rules again on update. Each check answers the refusal's
+/// sentence, or null when the input passes.
 /// </summary>
 public static class AddonDefinitionRules
 {
+    /// <summary>The longest path, in characters.</summary>
+    public const int MaxPathLength = 256;
+
+    /// <summary>The most segments a path has.</summary>
+    public const int MaxPathSegments = 8;
+
+    /// <summary>The longest display name, value and value label, in characters.</summary>
+    public const int MaxLabelLength = 256;
+
+    /// <summary>The longest description, in characters.</summary>
+    public const int MaxDescriptionLength = 2000;
+
+    /// <summary>The most values a closed value list holds.</summary>
+    public const int MaxValues = 500;
+
+    /// <summary>The most definitions that are not retired an organisation holds on one entity.</summary>
+    public const int MaxDefinitionsPerEntity = 500;
+
     /// <summary>The kinds in their wire spelling, the schema's, and the engine's kind for each.</summary>
     private static readonly Dictionary<string, AddonKind> KindsByName = new(StringComparer.Ordinal)
     {
@@ -82,14 +102,23 @@ public static class AddonDefinitionRules
     /// <summary>
     /// The path is the storage path under the bag, verbatim: dot-separated, every segment
     /// non-empty and not starting with <c>$</c>; a segment may contain spaces but neither
-    /// starts nor ends with one. A key containing a dot cannot be defined.
+    /// starts nor ends with one. A key containing a dot cannot be defined. At most
+    /// <see cref="MaxPathLength"/> characters in at most <see cref="MaxPathSegments"/> segments.
     /// </summary>
     public static string? CheckPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
             return "The path is required.";
 
-        foreach (var segment in path.Split('.'))
+        if (path.Length > MaxPathLength)
+            return $"The path is longer than {MaxPathLength} characters.";
+
+        var segments = path.Split('.');
+
+        if (segments.Length > MaxPathSegments)
+            return $"The path has more than {MaxPathSegments} segments.";
+
+        foreach (var segment in segments)
         {
             if (segment.Length == 0)
                 return $"'{path}' has an empty segment; a key containing a dot cannot be defined.";
@@ -108,7 +137,11 @@ public static class AddonDefinitionRules
     public static string? CheckKind(string? kind) =>
         ParseKind(kind) is null ? $"'{kind}' is not a kind; one of {string.Join(", ", KindNames)} is." : null;
 
-    /// <summary>A closed value list is allowed on string and int keys only, and every int value must be an integer.</summary>
+    /// <summary>
+    /// A closed value list is allowed on string and int keys only, and every int value must be an
+    /// integer. At most <see cref="MaxValues"/> values, each value and label at most
+    /// <see cref="MaxLabelLength"/> characters.
+    /// </summary>
     public static string? CheckValues(AddonKind kind, IReadOnlyList<AddonDefinitionValue>? values)
     {
         if (values is null || values.Count == 0)
@@ -117,10 +150,16 @@ public static class AddonDefinitionRules
         if (kind is not (AddonKind.String or AddonKind.Int))
             return $"A value list is only allowed on string and int keys, not on {KindName(kind)}.";
 
+        if (values.Count > MaxValues)
+            return $"A value list holds at most {MaxValues} values.";
+
         foreach (var value in values)
         {
             if (string.IsNullOrWhiteSpace(value.Value))
                 return "Every value of the list must be non-empty.";
+
+            if (value.Value.Length > MaxLabelLength || value.Label?.Length > MaxLabelLength)
+                return $"A value of the list and its label are at most {MaxLabelLength} characters each.";
 
             if (kind == AddonKind.Int && !long.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
                 return $"'{value.Value}' is not an integer, which an int key's values must be.";
@@ -128,6 +167,30 @@ public static class AddonDefinitionRules
 
         return null;
     }
+
+    /// <summary>
+    /// The display name is at most <see cref="MaxLabelLength"/> characters and the description at
+    /// most <see cref="MaxDescriptionLength"/>.
+    /// </summary>
+    public static string? CheckTexts(string? displayName, string? description)
+    {
+        if (displayName?.Length > MaxLabelLength)
+            return $"The display name is longer than {MaxLabelLength} characters.";
+
+        if (description?.Length > MaxDescriptionLength)
+            return $"The description is longer than {MaxDescriptionLength} characters.";
+
+        return null;
+    }
+
+    /// <summary>
+    /// An organisation holds at most <see cref="MaxDefinitionsPerEntity"/> definitions that are not
+    /// retired on one entity; <paramref name="existing"/> are the entity's rows before the write.
+    /// </summary>
+    public static string? CheckCount(string entity, IEnumerable<AddonDefinitionDocument> existing) =>
+        existing.Count(definition => !definition.Retired) >= MaxDefinitionsPerEntity
+            ? $"'{entity}' already holds {MaxDefinitionsPerEntity} definitions, the most an entity has; retire one first."
+            : null;
 
     /// <summary>
     /// A path defined with a scalar kind cannot have defined descendants, and a scalar cannot

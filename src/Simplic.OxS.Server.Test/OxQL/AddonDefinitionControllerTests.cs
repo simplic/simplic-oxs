@@ -211,6 +211,55 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Fact]
+        public async Task Create_RefusesAnInputOverASizeLimit()
+        {
+            var harness = new Harness();
+
+            var path = Create(new string('a', AddonDefinitionRules.MaxPathLength + 1));
+            var name = Create();
+            name.DisplayName = new string('a', AddonDefinitionRules.MaxLabelLength + 1);
+            var description = Create();
+            description.Description = new string('a', AddonDefinitionRules.MaxDescriptionLength + 1);
+            var values = Create("colour", "string");
+            values.Values = [.. Enumerable.Range(0, AddonDefinitionRules.MaxValues + 1).Select(index => new AddonDefinitionValueRequest { Value = $"v{index}" })];
+
+            foreach (var request in new[] { path, name, description, values })
+                (await harness.Controller.CreateAsync(request, CancellationToken.None)).Should().BeOfType<BadRequestObjectResult>();
+
+            harness.Stored.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task Create_RefusesOneDefinitionMoreThanAnEntityHoldsAndARevivalToo()
+        {
+            var full = Enumerable.Range(0, AddonDefinitionRules.MaxDefinitionsPerEntity).Select(index => Existing($"key{index}", "string")).ToList();
+            var harness = new Harness(null, [.. full, Existing("weight", "decimal", retired: true)]);
+
+            (await harness.Controller.CreateAsync(Create("colour", "string"), CancellationToken.None)).Should().BeOfType<BadRequestObjectResult>();
+            (await harness.Controller.CreateAsync(Create(), CancellationToken.None)).Should().BeOfType<BadRequestObjectResult>("a revived definition counts again");
+            harness.Stored.Should().HaveCount(AddonDefinitionRules.MaxDefinitionsPerEntity + 1);
+
+            // Retiring one makes room.
+            (await harness.Controller.DeleteAsync(full[0].Id, CancellationToken.None)).Should().BeOfType<NoContentResult>();
+            (await harness.Controller.CreateAsync(Create("colour", "string"), CancellationToken.None)).Should().BeOfType<CreatedAtActionResult>();
+        }
+
+        [Fact]
+        public async Task Update_RefusesATextOverItsLimit()
+        {
+            var existing = Existing("colour", "string");
+            var harness = new Harness(existing: existing);
+
+            var answer = await harness.Controller.UpdateAsync(existing.Id, new UpdateAddonDefinitionRequest
+            {
+                Description = new string('a', AddonDefinitionRules.MaxDescriptionLength + 1),
+            }, CancellationToken.None);
+
+            answer.Should().BeOfType<BadRequestObjectResult>();
+            existing.Description.Should().BeNull();
+        }
+
+        [Fact]
         public async Task Update_AndDelete_AnswerNotFoundForAnotherOrganisationsDefinition()
         {
             var foreign = Existing("weight", "decimal", organisation: Other);

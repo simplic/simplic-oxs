@@ -19,6 +19,12 @@ namespace Simplic.OxS.Server.Extensions;
 internal static class MonitoringExtension
 {
     /// <summary>
+    /// The name of the meter the query engine publishes its metrics under. A name only, so the
+    /// host exports those metrics with whichever engine version brings the meter.
+    /// </summary>
+    internal const string QueryEngineMeterName = "OxQL";
+
+    /// <summary>
     /// Add logging and metric/tracing to the service
     /// </summary>
     /// <param name="services">Service collection</param>
@@ -83,6 +89,7 @@ internal static class MonitoringExtension
                 meterProviderBuilder
                     .AddMeter(serviceName)
                     .AddMeter($"oxs-{serviceName}")
+                    .AddMeter(QueryEngineMeterName)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()

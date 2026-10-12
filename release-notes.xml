@@ -70,6 +70,7 @@
     <Change type="enhancement">The host logs, once at start, the batch route of every service a declared reference points into and that has an InternalHosts entry, and where the api version of the route comes from (InternalApiVersions:{service} or the default v1).</Change>
     <Change type="enhancement">The HTTP client of the owner calls (OxQL.Remote) waits one second for a connection (RemoteQueryClient.ConnectTimeout). An owner that accepts none fails the call as an unreachable owner without using up the call's budget; a call on an established connection is bounded by its budget as before.</Change>
     <Change type="feature">Add OxSchemaCheck (Simplic.OxS.Server.OxSchema): OxSchemaCheck.Build&lt;Startup&gt;() builds a service's Ox schema in a unit test, without a host, the way the host does (RegisterBsonClassMaps, the mapper profiles, GetOxQLTypeAssemblies, ConfigureModelDefinitions, ConfigureOxSchema), and returns the document, every finding and every declared reference. The test project needs a reference to the service's server project only. OX_SCHEMA.md section 3.5 has the example.</Change>
+    <Change type="enhancement">A host that configures OpenTelemetry metrics (the Monitoring section) exports the meter named OxQL beside the service's own meters.</Change>
     <Change type="enhancement">The guid serializer Bootstrap registers is left in place when the process already holds it, so a second host of one process starts (integration tests).</Change>
   </ChangeSet>
 </ReleaseNotes>

@@ -1165,6 +1165,10 @@ The pipeline is temporary: the engine's `LEGACY.md` describes it and when it is 
 
 Engine faults carry their message in `Development` and `local` only.
 
+A host with a `Monitoring` section exports the metrics of the meter named `OxQL`, beside the
+service's own meters (`{service}`, `oxs-{service}`): what an engine version publishes under that
+name reaches the collector without a change in the service.
+
 ---
 
 ## 5 · Upgrading a service to this package version

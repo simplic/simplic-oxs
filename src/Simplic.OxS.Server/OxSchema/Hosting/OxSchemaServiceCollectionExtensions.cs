@@ -115,13 +115,17 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>
         /// The engine's model provider over the registry: resolving it builds the registry when
         /// nothing else has yet. The revision is the published document's, which explain answers
-        /// carry as <c>schemaRevision</c>.
+        /// carry as <c>schemaRevision</c>. <see cref="Degraded"/> is always said, never left to the
+        /// engine's reading of the entity count: a service without entities is not degraded.
         /// </summary>
         private sealed class OxSchemaEntityModelProvider(OxSchemaRegistry registry) : IEntityModelProvider
         {
             public EntityModel Model { get; } = registry.Model;
 
             public string? SchemaRevision { get; } = registry.Revision;
+
+            /// <summary>Whether the model is what a failed build left (<see cref="OxSchemaRegistry.Degraded"/>).</summary>
+            public bool? Degraded { get; } = registry.Degraded;
         }
     }
 }

@@ -831,6 +831,13 @@ without types that carries `entity-scan-failed`; the query engine then knows no 
 legacy document is still served where it can be generated, and every other route of the service
 is unaffected.
 
+**What the host says of such a model.** `OxSchemaRegistry.Degraded` is true when the build threw
+or its entity scan failed (`entity-scan-failed`), and false for every model the service meant to
+build: one with other findings, and one without entities, as a service that declares none has.
+The host hands the value to the query engine with the model, and the engine publishes it on
+`GET /OxQL/health` under contract 2 as `model { entities, degraded, reason }` and answers
+`status: "degraded"` while it is true, so a failed build shows where an operator looks first.
+
 **Published** findings are the ones a client could not detect from absence. Every other finding
 is logged at startup and never reaches the wire: publishing it would make consumers refuse a
 document that is complete. Both sets are closed and keyed on the code.

@@ -127,6 +127,9 @@ namespace Simplic.OxS.Server.Test.OxQL
 
         private static OxQLOptions Options(int lifetimeSeconds = 30) => new() { Cache = { AddonDefinitionTtlSeconds = lifetimeSeconds } };
 
+        /// <summary>The answer of a lookup, or a failed test where it does not come: a test never blocks on one.</summary>
+        private static Task<AddonDefinitionLookup> Answered(ValueTask<AddonDefinitionLookup> lookup) => lookup.AsTask().WaitAsync(Patience);
+
         private static Func<CancellationToken, Task<IReadOnlyList<AddonDefinition>>> NoRead =>
             _ => throw new InvalidOperationException("The request must not read the repository.");
 
@@ -142,7 +145,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             cache.Set(Organisation, Widget, old);
             clock.Advance(TimeSpan.FromSeconds(29));
 
-            cache.GetAsync(Organisation, Widget, NoRead, request.Token).Result.Should().Be(new AddonDefinitionLookup(old, AddonDefinitionWait.None));
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, request.Token))).Should().Be(new AddonDefinitionLookup(old, AddonDefinitionWait.None));
             store.Reads.Should().Be(0, "a value within its lifetime is read from nowhere");
 
             clock.Advance(TimeSpan.FromSeconds(2));
@@ -151,13 +154,13 @@ namespace Simplic.OxS.Server.Test.OxQL
             var stale = cache.GetAsync(Organisation, Widget, NoRead, request.Token);
 
             stale.IsCompletedSuccessfully.Should().BeTrue("a request never waits for a value the cache holds");
-            stale.Result.Should().Be(new AddonDefinitionLookup(old, AddonDefinitionWait.None));
+            (await stale).Should().Be(new AddonDefinitionLookup(old, AddonDefinitionWait.None));
 
             await store.AskedAsync();
 
             // While that read is under way every request is answered the same way, and none starts another.
             for (var again = 0; again < 20; again++)
-                cache.GetAsync(Organisation, Widget, NoRead, request.Token).Result.Definitions.Should().BeSameAs(old);
+                (await Answered(cache.GetAsync(Organisation, Widget, NoRead, request.Token))).Definitions.Should().BeSameAs(old);
 
             store.Reads.Should().Be(1, "one read replaces the value, however many requests found it old");
             store.Tokens.Should().ContainSingle().Which.Should().NotBe(request.Token, "the read is not a request's: no request ends it");
@@ -168,13 +171,16 @@ namespace Simplic.OxS.Server.Test.OxQL
             var fresh = cache.GetAsync(Organisation, Widget, NoRead, request.Token);
 
             fresh.IsCompletedSuccessfully.Should().BeTrue();
-            fresh.Result.Waited.Should().Be(AddonDefinitionWait.None);
-            fresh.Result.Definitions.Select(definition => definition.Path).Should().Equal("weight", "colour");
+
+            var replaced = await fresh;
+
+            replaced.Waited.Should().Be(AddonDefinitionWait.None);
+            replaced.Definitions.Select(definition => definition.Path).Should().Equal("weight", "colour");
             store.Reads.Should().Be(1);
 
             // The new value has a lifetime of its own.
             clock.Advance(TimeSpan.FromSeconds(29));
-            cache.GetAsync(Organisation, Widget, NoRead, request.Token).Result.Definitions.Should().BeSameAs(fresh.Result.Definitions);
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, request.Token))).Definitions.Should().BeSameAs(replaced.Definitions);
             store.Reads.Should().Be(1);
         }
 
@@ -206,7 +212,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             answers[2].Definitions.Should().BeSameAs(answers[0].Definitions);
 
             // And the next call is answered from memory.
-            cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Should().Be(new AddonDefinitionLookup(answers[0].Definitions, AddonDefinitionWait.None));
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Should().Be(new AddonDefinitionLookup(answers[0].Definitions, AddonDefinitionWait.None));
         }
 
         [Fact]
@@ -284,11 +290,14 @@ namespace Simplic.OxS.Server.Test.OxQL
             store.Answer("written");
 
             (await before.WaitAsync(Patience)).Waited.Should().Be(AddonDefinitionWait.Read);
-            (await after.WaitAsync(Patience)).Waited.Should().Be(AddonDefinitionWait.Read);
+
+            var later = await after.WaitAsync(Patience);
+
+            later.Waited.Should().Be(AddonDefinitionWait.Read);
 
             // What the cache holds is the later read's answer, and a further invalidation drops it at once.
             cache.TryGet(Organisation, Widget, out var held).Should().BeTrue();
-            held.Should().BeSameAs(after.Result.Definitions);
+            held.Should().BeSameAs(later.Definitions);
 
             cache.Invalidate(Organisation, Widget);
             cache.TryGet(Organisation, Widget, out _).Should().BeFalse();
@@ -417,25 +426,25 @@ namespace Simplic.OxS.Server.Test.OxQL
             cache.Set(Organisation, Widget, old);
             clock.Advance(TimeSpan.FromSeconds(31));
 
-            cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Definitions.Should().BeSameAs(old);
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Definitions.Should().BeSameAs(old);
             await store.AskedAsync();
             store.Fail(new TimeoutException("the database did not answer"));
             await cache.RefreshedAsync(Organisation, Widget).WaitAsync(Patience);
 
             // The request is still answered, and the failed read is not repeated by every request that follows.
             for (var again = 0; again < 10; again++)
-                cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Definitions.Should().BeSameAs(old);
+                (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Definitions.Should().BeSameAs(old);
 
             store.Reads.Should().Be(1);
 
             clock.Advance(TimeSpan.FromSeconds(6));
-            cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Definitions.Should().BeSameAs(old);
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Definitions.Should().BeSameAs(old);
             await store.AskedAsync();
             store.Reads.Should().Be(2, "after a pause the read is tried again");
             store.Answer("colour");
             await cache.RefreshedAsync(Organisation, Widget).WaitAsync(Patience);
 
-            cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Definitions.Single().Path.Should().Be("colour");
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Definitions.Single().Path.Should().Be("colour");
         }
 
         [Fact]
@@ -457,7 +466,7 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Fact]
-        public void TheCache_KeysPerOrganisationAndEntity()
+        public async Task TheCache_KeysPerOrganisationAndEntity()
         {
             using var cache = new AddonDefinitionCache(Options());
             var other = Guid.NewGuid();
@@ -467,9 +476,9 @@ namespace Simplic.OxS.Server.Test.OxQL
             cache.Set(other, Widget, Held("colour"));
             cache.Set(Organisation, "probe.thing", []);
 
-            cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Definitions.Should().BeSameAs(mine);
-            cache.GetAsync(other, Widget, NoRead, CancellationToken.None).Result.Definitions.Single().Path.Should().Be("colour");
-            cache.GetAsync(Organisation, "probe.thing", NoRead, CancellationToken.None).Result.Definitions.Should().BeEmpty();
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Definitions.Should().BeSameAs(mine);
+            (await Answered(cache.GetAsync(other, Widget, NoRead, CancellationToken.None))).Definitions.Single().Path.Should().Be("colour");
+            (await Answered(cache.GetAsync(Organisation, "probe.thing", NoRead, CancellationToken.None))).Definitions.Should().BeEmpty();
 
             cache.Invalidate(Organisation, Widget);
 
@@ -502,7 +511,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             store.Answer("colour");
             await cache.RefreshedAsync(Organisation, Widget).WaitAsync(Patience);
 
-            cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None).Result.Definitions.Single().Path.Should().Be("colour");
+            (await Answered(cache.GetAsync(Organisation, Widget, NoRead, CancellationToken.None))).Definitions.Single().Path.Should().Be("colour");
         }
 
         [Fact]
@@ -526,7 +535,8 @@ namespace Simplic.OxS.Server.Test.OxQL
             var second = Source().ForEntityAsync(Widget, Organisation, joining, CancellationToken.None).AsTask();
 
             store.Answer("weight", "colour");
-            await Task.WhenAll(first, second).WaitAsync(Patience);
+
+            var answers = await Task.WhenAll(first, second).WaitAsync(Patience);
 
             var read = reading.Reads.Should().ContainSingle().Subject;
 
@@ -542,7 +552,7 @@ namespace Simplic.OxS.Server.Test.OxQL
             var third = Source().ForEntityAsync(Widget, Organisation, cached, CancellationToken.None);
 
             third.IsCompletedSuccessfully.Should().BeTrue();
-            third.Result.Should().BeSameAs(first.Result);
+            (await third).Should().BeSameAs(answers[0]);
             cached.Reads.Should().BeEmpty();
             store.Reads.Should().Be(1);
         }

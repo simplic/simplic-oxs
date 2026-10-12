@@ -172,6 +172,22 @@ namespace Simplic.OxS.Server.Hosting.Test
         }
 
         [Fact]
+        public async Task AServiceWithAModelNamedLikeOneOfTheSchemaDocument_GivesItsOwnAnotherSchemaId()
+        {
+            using var host = await BootstrapHost.StartAsync<StockStartup>();
+
+            var document = await DocumentAsync(host, "stock-api");
+            var schemas = document["components"]!["schemas"]!;
+
+            Reference(document["paths"]!["/Stock/{id}/properties"]!["get"]!["responses"]!["200"]!["content"]!["application/json"]!["schema"]!["items"]).Should().Be("StockProperty");
+            Keys(schemas["StockProperty"]!["properties"]).Should().Equal("name", "shelf");
+
+            // Every other id is the one the selector in place gives it, the schema document's model included.
+            Keys(schemas[nameof(OxSchemaProperty)]!["properties"]).Should().Contain("kind");
+            Keys(schemas).Should().Contain(nameof(OxSchemaDocument));
+        }
+
+        [Fact]
         public async Task TheRoutesBetweenServices_AreNotInTheDocument()
         {
             using var host = await BootstrapHost.StartAsync<ParcelStartup>(environment: "Development");

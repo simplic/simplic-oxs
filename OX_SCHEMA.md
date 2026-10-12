@@ -1483,7 +1483,18 @@ security requirement; a test of the package compares it).
   answer and get none added.
 - **The models of the schema document** (`OxSchemaDocument`, `OxSchemaType`, `OxSchemaProperty`
   and the types they use) join the document's `components.schemas`. A service that has a model
-  of one of those names renames its own (`[SwaggerSchemaId]`).
+  of one of those names gets no document until the two differ (the generator names both types):
+  it renames its own class, or gives it another schema id in `RegisterServices` and leaves
+  every other id to the selector in place:
+
+  ```csharp
+  services.Configure<SwaggerGenOptions>(options =>
+  {
+      var selector = options.SchemaGeneratorOptions.SchemaIdSelector;
+
+      options.CustomSchemaIds(type => type == typeof(Model.OxSchemaProperty) ? "StockProperty" : selector(type));
+  });
+  ```
 - **Comments of the query engine.** The package brings build targets
   (`build/Simplic.OxS.Server.targets`, also under `buildTransitive`) that copy
   `OxQL.AspNetCore.xml` beside the service's assemblies when it is built and when it is

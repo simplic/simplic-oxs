@@ -21,17 +21,21 @@ namespace Simplic.OxS.Server.Middleware
         }
 
         /// <summary>
-        /// Invoke actual middle ware and ensure a correlation id for request and response
+        /// Gives the answer a correlation id (<c>X-Correlation-ID</c>): the one the caller sent,
+        /// as the caller wrote it, where its first value is an id as the request context reads
+        /// one (<see cref="Filter.RequestContextActionFilter.GetFromHeader"/>); a new one
+        /// otherwise. A request without the header is given the new id as its header too.
         /// </summary>
         /// <param name="httpContext">Http context instance</param>
         public async Task Invoke(HttpContext httpContext)
         {
             string correlationId;
-            
+
             if (httpContext.Request.Headers.TryGetValue(Constants.HttpHeaderCorrelationIdKey, out StringValues correlationIds))
             {
-                correlationId = correlationIds.FirstOrDefault(k => k == Constants.HttpHeaderCorrelationIdKey) ??
-                                                Guid.NewGuid().ToString();
+                correlationId = Filter.RequestContextActionFilter.GetFromHeader(httpContext, Constants.HttpHeaderCorrelationIdKey) is null
+                    ? Guid.NewGuid().ToString()
+                    : correlationIds.First()!;
             }
             else
             {

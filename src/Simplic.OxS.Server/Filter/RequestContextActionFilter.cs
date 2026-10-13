@@ -60,12 +60,12 @@ namespace Simplic.OxS.Server.Filter
         public void OnActionExecuted(ActionExecutedContext context) { }
 
         /// <summary>
-        /// Get a value fro the http header by its key
+        /// Get a value from the http header by its key: the header's first value, where it is a guid
         /// </summary>
         /// <param name="httpContext"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        private Guid? GetFromHeader(HttpContext httpContext, string key)
+        internal static Guid? GetFromHeader(HttpContext httpContext, string key)
         {
             if (httpContext.Request.Headers.TryGetValue(key, out StringValues correlationIds))
             {

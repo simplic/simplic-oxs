@@ -1556,6 +1556,12 @@ Nothing below needs a line of code in the service.
   health; section 4.4 lists what else it answers.
 - **A service that references an `OxQL.*` package or a sibling package of this one itself**
   checks that reference (section 5.4).
+- **The SDK of the server project does not matter.** The host names the package's assembly as
+  an application part itself, so the package's routes (`/schema`, `/schema/addons`,
+  `/AddonDefinition`, `/ModelDefinition`, `/ServiceDefinition`, the internal query routes) are
+  served by a project of `Microsoft.NET.Sdk` as by one of `Microsoft.NET.Sdk.Web`; such a
+  service adds nothing. The build targets of the package and the OxQL Studio page do not
+  depend on the web SDK either.
 
 ### 5.3 What changes in the service's swagger
 

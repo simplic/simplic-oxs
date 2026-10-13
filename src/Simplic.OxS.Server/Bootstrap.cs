@@ -259,11 +259,14 @@ namespace Simplic.OxS.Server
                 services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
 
             // Register web-api controller. Must be executed before creating swagger configuration
-            MvcBuilder(services.AddControllers(o =>
+            var mvc = services.AddControllers(o =>
             {
                 o.Filters.Add<RequestContextActionFilter>();
                 o.Filters.Add<ValidationActionFilter>();
-            }));
+            });
+
+            AddPackageControllers(mvc);
+            MvcBuilder(mvc);
 
             // Global exception handling: a single problem+json contract for every error, built by an
             // ordered IExceptionHandler chain (OxSException -> known framework -> fallback) behind
@@ -370,6 +373,22 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="builder"><see cref="IMvcBuilder"/> instance</param>
         protected virtual void MvcBuilder(IMvcBuilder builder) { }
+
+        /// <summary>
+        /// Names this package's assembly as an application part, unless it is one already, so
+        /// its controllers (the schema, addon definition, model definition and service
+        /// definition routes, the internal query routes) are served. A host project of the web
+        /// SDK names the assemblies it references as parts by itself; a project of the plain
+        /// SDK names none, and the package's routes must not depend on that. Named twice, a
+        /// controller would be found twice and its routes would be ambiguous.
+        /// </summary>
+        internal static void AddPackageControllers(IMvcBuilder builder)
+        {
+            var package = typeof(Bootstrap).Assembly;
+
+            if (!builder.PartManager.ApplicationParts.OfType<Microsoft.AspNetCore.Mvc.ApplicationParts.AssemblyPart>().Any(part => part.Assembly == package))
+                builder.AddApplicationPart(package);
+        }
 
         /// <summary>
         /// Configures gRPC service endpoints on the specified endpoint route builder.

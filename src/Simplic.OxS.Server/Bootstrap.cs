@@ -177,7 +177,10 @@ namespace Simplic.OxS.Server
             // first: RegisterMapperProfiles is where services have always registered class maps,
             // and the build freezes the class map of every type it reaches. A fault in the
             // profiles therefore stops the start, in every environment, with the original exception.
-            services.AddOxSchema(
+            // The host's registration is the one that stands: a schema the service registered
+            // itself is merged into it or replaced, and the start says so (ConfigureOxSchema is
+            // the place for a service's schema options).
+            services.AddHostOxSchema(
                 schema => FillOxSchema(schema, typeAssemblies),
                 provider => provider.GetRequiredService<IMapper>());
 
@@ -592,7 +595,10 @@ namespace Simplic.OxS.Server
             schema.TypeAssemblies = typeAssemblies;
             schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
             schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
-            schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
+
+            // Whoever requires authorization for the document is heard: the configuration, or a
+            // registration of the service that came before the host's. ConfigureOxSchema decides last.
+            schema.RequireAuthorization |= Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
 
             SerializerRegistrationOrder.Explain(nameof(ConfigureOxSchema), () => ConfigureOxSchema(schema));
         }

@@ -719,12 +719,22 @@ service `vehicle`; a reference that names it is sent to `InternalHosts:vehicle`,
 
 ## 3 · How the document is built
 
-`AddOxSchema` (called by `Bootstrap`) registers `OxSchemaRegistry` as a singleton, hands the
-registry's entity model to the query engine as its `IEntityModelProvider`, and installs a
-startup filter that resolves the registry before the first request. `Bootstrap` has called
-`RegisterBsonClassMaps()` by then, and it creates the AutoMapper instance (and so runs
-`RegisterMapperProfiles`) right before the build, whoever resolves the registry first: a class
-map a service registers in either place is there when the build looks its type up (section 5.2).
+`Bootstrap` registers `OxSchemaRegistry` as a singleton, hands the registry's entity model to
+the query engine as its `IEntityModelProvider`, and installs a startup filter that resolves the
+registry before the first request. `Bootstrap` has called `RegisterBsonClassMaps()` by then, and
+it creates the AutoMapper instance (and so runs `RegisterMapperProfiles`) right before the
+build, whoever resolves the registry first: a class map a service registers in either place is
+there when the build looks its type up (section 5.2).
+
+A service registers nothing for the schema: its options go into `ConfigureOxSchema`. The public
+`AddOxSchema` is for a host that is not built on `Bootstrap`. Where a service built on
+`Bootstrap` calls it all the same, the host's registration stands, with its step before the
+build: a call before the host's is merged into it (the names, the api version and the
+environment are the host's; the type assemblies and controllers are the host's and then the
+call's; retired ids, reference declarations and a required authorization of the call are kept),
+a call after it changes nothing, and a registry the service registered by itself is replaced.
+The start logs each as one warning that names `ConfigureOxSchema`.
+
 The build runs once, on the startup thread, and is one pass in `OxSchemaBuilder`:
 
 1. **Legacy document.** `/ModelDefinition` is generated from the declared controllers by the
@@ -1468,7 +1478,9 @@ Nothing below needs a line of code in the service.
   not depend on anything that is set up later.
 - **`ModelDefinitionBuilder.AddControllerDefinitions` is `[Obsolete]`.** `Bootstrap` no longer
   calls it and nothing reads the file it writes. A service that calls it itself gets CS0618,
-  which is a build break under `TreatWarningsAsErrors`; delete the call.
+  which is a build break under `TreatWarningsAsErrors`; delete the call and put nothing in its
+  place: the host builds the document from the controllers `ConfigureModelDefinitions()`
+  returns. In particular a service does not call `AddOxSchema` (section 3).
 - **`OxQLOrganizationFilter` is removed.** `Bootstrap` registers the scope provider
   (`AddOxQLScope<OxQLScopeProvider>()`) in its place, and the engine applies the organisation at
   every entry into an entity. A service that registered the filter

@@ -21,6 +21,9 @@ namespace Simplic.OxS.Server.OxSchema
             var logger = provider.GetRequiredService<ILoggerFactory>().CreateLogger("Simplic.OxS.Server.OxSchema");
             var document = registry.Document;
 
+            if (provider.GetService<OxSchemaRegistration>()?.Warning() is { } registeredTwice)
+                logger.LogWarning("{Warning}", registeredTwice);
+
             logger.LogInformation(
                 "Ox schema built: service={Service} api={Api}/{Version} types={Types} revision={Revision} bytes={Bytes} "
                 + "findings={Findings} maxPageSize={MaxPageSize} defaultPageSize={DefaultPageSize}",

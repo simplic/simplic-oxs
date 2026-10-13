@@ -1362,10 +1362,18 @@ answer:
 | `GET /schema/addons` | 404 as `application/problem+json`, whose `detail` says that the service is configured with no database and holds no addon definitions; 401 and 403 as on every host. |
 | `POST /OxQL/query` | 500 in the engine's envelope (`internal_error`); the log names the missing section. |
 
-The `/AddonDefinition` routes need the database. The host's authentication needs its cache
-(the `Redis` section) on every route that authenticates a caller, and a host that validates its
-services when it is built (`Host.CreateDefaultBuilder` does in `Development`) does not start
-without that section.
+The `/AddonDefinition` routes need the database.
+
+The host's authentication needs its cache (the `Redis` section). Without the section:
+
+- a host that validates its services when it is built does not start (`AggregateException`,
+  "Some services are not able to be constructed", naming `IDistributedCache`). That is what
+  `Host.CreateDefaultBuilder` and `WebApplication.CreateBuilder` do in the environment
+  `Development`, and in no other;
+- every other host starts, in every environment. It answers the routes of controllers that
+  require no authorization (`GET /schema`), and 500 on every route of a controller that
+  requires authorization, an anonymous action of such a controller included: the caller is
+  authenticated before the action is looked at.
 
 ---
 
@@ -1591,18 +1599,24 @@ Nothing below needs a line of code in the service.
   deployment is used for: a deployment that runs production under another environment name
   sets `OxQL__Studio__Enabled=false`.
 - **A local run needs the `Redis` section, and the `MongoDB` section for everything that reads
-  data.** A host that validates its services when it is built, as `Host.CreateDefaultBuilder`
-  does in `Development`, does not start without the cache the host's authentication uses.
-  Without a `MongoDB` section the host starts and serves the schema document and the engine's
-  health; section 4.4 lists what else it answers.
+  data.** Without `Redis` a host in the environment `Development` does not start where its
+  builder validates the services (the default builders do), and a host that starts answers 500
+  on every route of a controller that requires authorization. Without a `MongoDB` section the
+  host starts and serves the schema document and the engine's health. Section 4.4 has both
+  in full.
 - **A service that references an `OxQL.*` package or a sibling package of this one itself**
   checks that reference (section 5.4).
 - **The SDK of the server project does not matter.** The host names the package's assembly as
-  an application part itself, so the package's routes (`/schema`, `/schema/addons`,
-  `/AddonDefinition`, `/ModelDefinition`, `/ServiceDefinition`, the internal query routes) are
-  served by a project of `Microsoft.NET.Sdk` as by one of `Microsoft.NET.Sdk.Web`; such a
-  service adds nothing. The build targets of the package and the OxQL Studio page do not
-  depend on the web SDK either.
+  an application part itself, so the package's routes are served by a project of
+  `Microsoft.NET.Sdk` as by one of `Microsoft.NET.Sdk.Web`; such a service adds nothing. A
+  service whose server project is of the plain SDK serves them from this upgrade on: `/schema`
+  and `/schema/addons`, `/AddonDefinition`, `/AddonField`, `/OrganizationSettings`,
+  `/ServiceContract`, `/ServiceDefinition`, `/ModelDefinition` and the internal query routes
+  (`internal/oxql/…`). Its OpenAPI document gains the first six groups (the tags `Schema`,
+  `AddonDefinition`, `AddonField`, `OrganizationSettings`, `ServiceContract` and
+  `ServiceDefinition`) with their models, and a client generated from it gains their
+  operations on its next regeneration; the internal routes stay out of the document. The
+  build targets of the package and the OxQL Studio page do not depend on the web SDK either.
 
 ### 5.3 What changes in the service's swagger
 

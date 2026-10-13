@@ -66,6 +66,38 @@ namespace Simplic.OxS.Server.Hosting.Test
             }
         }
 
+        /// <summary>
+        /// The targets of the package, imported by this project, at publish: each comment file
+        /// is in the output once, also where the project lists a file of that name itself (this
+        /// project's reference to the server project lists the package's own, as a package
+        /// restored with documentation files would). Two files of one name stop a publish, so
+        /// a publish that passes holds the replacement. What stays to a manual run is the same
+        /// from a restored package (a consumer project against a local feed).
+        /// </summary>
+        [Fact]
+        public void APublishOfAProjectThatImportsTheTargets_HoldsEachCommentFileOnce()
+        {
+            var output = Directory.CreateTempSubdirectory("simplic-oxs-publish-").FullName;
+
+            try
+            {
+                var project = Path.Combine(Path.GetDirectoryName(ServerProject())!, "..", "Simplic.OxS.Server.Hosting.Test", "Simplic.OxS.Server.Hosting.Test.csproj");
+
+                Run("publish", Path.GetFullPath(project), "--no-build", "--nologo", "-c", Configuration(), "-o", output);
+
+                foreach (var file in new[] { Comments, OwnComments })
+                {
+                    Directory.GetFiles(output, file, SearchOption.AllDirectories).Should().ContainSingle($"{file} is published once")
+                        .Which.Should().Be(Path.Combine(output, file));
+                    File.ReadAllBytes(Path.Combine(output, file)).Should().Equal(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, file)), $"{file} is the one of the build");
+                }
+            }
+            finally
+            {
+                Directory.Delete(output, recursive: true);
+            }
+        }
+
         private static byte[] Read(ZipArchive archive, string name)
         {
             using var stream = archive.GetEntry(name)!.Open();
@@ -77,7 +109,11 @@ namespace Simplic.OxS.Server.Hosting.Test
         }
 
         /// <summary>Packs the server project in the configuration of this test run, from what is built.</summary>
-        private static void Pack(string output)
+        private static void Pack(string output) =>
+            Run("pack", ServerProject(), "--no-build", "--nologo", "-c", Configuration(), "-o", output);
+
+        /// <summary>Runs <c>dotnet</c> with the arguments and expects it to succeed.</summary>
+        private static void Run(params string[] arguments)
         {
             var start = new ProcessStartInfo("dotnet")
             {
@@ -86,7 +122,7 @@ namespace Simplic.OxS.Server.Hosting.Test
                 UseShellExecute = false,
             };
 
-            foreach (var argument in new[] { "pack", ServerProject(), "--no-build", "--nologo", "-c", Configuration(), "-o", output })
+            foreach (var argument in arguments)
                 start.ArgumentList.Add(argument);
 
             // A test host started by the SDK hands its own MSBuild locations down; the pack resolves its own.
@@ -99,7 +135,7 @@ namespace Simplic.OxS.Server.Hosting.Test
             var text = process.StandardOutput.ReadToEnd();
 
             process.WaitForExit();
-            process.ExitCode.Should().Be(0, $"dotnet pack --no-build packs the server project:\n{text}\n{errors.Result}");
+            process.ExitCode.Should().Be(0, $"dotnet {arguments[0]} --no-build succeeds:\n{text}\n{errors.Result}");
         }
 
         private static string ServerProject()

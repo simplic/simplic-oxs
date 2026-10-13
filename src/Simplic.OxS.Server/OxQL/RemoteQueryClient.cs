@@ -65,13 +65,15 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     public const string HostEntryForm =
         "host or host:port, where host is a name of letters, digits, dots, hyphens and underscores, an IPv4 address or an IPv6 address in brackets, and port a number from 1 to 65535; no scheme, no user, no path, no query";
 
+    // A name may end in one dot: a fully qualified name, which a resolver does not complete with a search domain.
+
     /// <summary>
     /// What a configured host value has that a host with an optional port has not, or null for a
     /// value of the form (<see cref="HostEntryForm"/>). The answer never repeats the value, which
     /// may hold a credential.
     /// </summary>
     /// <param name="value">The trimmed configuration value.</param>
-    public static string? HostEntryDefect(string value)
+    internal static string? HostEntryDefect(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
 
@@ -104,7 +106,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
             : "it forms no address";
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex(@"^(?:[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_])?|\[[0-9A-Fa-f:.]+\])(?::(?<port>[0-9]*))?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(?:[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_])?\.?|\[[0-9A-Fa-f:.]+\])(?::(?<port>[0-9]*))?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
     private static partial System.Text.RegularExpressions.Regex HostEntry();
 
     /// <summary>
@@ -282,7 +284,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
 
     /// <summary>
     /// What the <see cref="HostsSection"/> entry of a service has that a host with an optional
-    /// port has not (<see cref="HostEntryDefect"/>), or null for a service whose entry is of the
+    /// port has not (one short clause, which never repeats the value), or null for a service whose entry is of the
     /// form or that has none. Such a service is not configured and never called.
     /// </summary>
     public string? RefusedHostOf(string serviceKey) =>

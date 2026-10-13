@@ -144,6 +144,59 @@ namespace Simplic.OxS.Server.Hosting.Test
             health.StatusCode.Should().Be(HttpStatusCode.OK);
         }
 
+        private static HostBuilder Validating(string environment, bool cache)
+        {
+            var configuration = new Dictionary<string, string?>
+            {
+                ["Auth:Token"] = BootstrapHost.SigningSecret,
+                ["Auth:InternalApiKey"] = BootstrapHost.InternalApiKey,
+            };
+
+            if (cache)
+                configuration["Redis:RedisCacheUrl"] = "127.0.0.1:1,abortConnect=false,connectTimeout=300";
+
+            var builder = new HostBuilder();
+
+            builder.ConfigureAppConfiguration(app => app.AddInMemoryCollection(configuration))
+                .ConfigureWebHost(web => web.UseTestServer().UseEnvironment(environment).UseStartup<ParcelStartup>())
+                .UseDefaultServiceProvider(options =>
+                {
+                    options.ValidateOnBuild = true;
+                    options.ValidateScopes = true;
+                });
+
+            return builder;
+        }
+
+        [Fact]
+        public void AHostWithoutACache_ThatValidatesItsServicesWhenItIsBuilt_DoesNotStart()
+        {
+            var build = () => Validating("Development", cache: false).Build();
+
+            build.Should().Throw<AggregateException>().Which.Message.Should().Contain("IDistributedCache");
+        }
+
+        [Theory]
+        [InlineData("Production")]
+        [InlineData("Staging")]
+        [InlineData("Development")]
+        public async Task AHostWithoutACache_ThatDoesNotValidate_Starts_AndAnswersOnlyTheRoutesOfControllersThatRequireNoAuthorization(string environment)
+        {
+            // The hosts of these tests validate nothing when they are built, as a host outside Development does not.
+            using var host = await BootstrapHost.StartAsync<ParcelStartup>(new CapturedLog(), environment);
+            using var client = host.GetTestClient();
+
+            using var schema = await client.GetAsync("/parcel-api/v1/schema");
+            using var open = await client.GetAsync("/parcel-api/v1/Parcel/open");
+            using var authorized = await client.SendAsync(AsUser(new HttpRequestMessage(HttpMethod.Get, "/parcel-api/v1/Parcel")));
+
+            schema.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            // A controller that requires authorization authenticates the caller of every action of its, the anonymous ones included, and that needs the cache.
+            open.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+            authorized.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        }
+
         [Fact]
         public async Task AQuery_IsAnsweredInTheEnginesEnvelope_AndTheLogNamesTheMissingSection()
         {

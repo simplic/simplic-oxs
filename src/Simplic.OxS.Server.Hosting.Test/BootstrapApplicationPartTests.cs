@@ -50,7 +50,7 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             PartsOfThePackage(host.Services).Should().Be(1);
 
-            // A controller found through two parts answers no request: its routes would be ambiguous.
+            // The routes of the package answer as they do where the host adds the part itself.
             using var answer = await client.GetAsync("/namedpart-api/v1/schema");
 
             answer.StatusCode.Should().Be(HttpStatusCode.OK, await answer.Content.ReadAsStringAsync());

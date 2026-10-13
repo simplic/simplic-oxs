@@ -143,6 +143,41 @@ namespace Simplic.OxS.Server.Test.Extensions
         }
 
         [Fact]
+        public void AFileOfAnotherShape_TakesNothingAndFailsNothing()
+        {
+            // Well-formed, and nothing of a comment file in it: no member is taken, and the document is generated.
+            File.WriteAllText(Path.Combine(directory, PackageComments.FileName), "<settings><members>text</members><member name=\"T:Simplic.OxS.Server.OxSchema.OxSchemaProperty\" /></settings>");
+
+            var options = new SwaggerGenOptions();
+            var log = new HardeningCapturedLog();
+            var include = () => PackageComments.Include(options, directory, log.CreateLogger("test"));
+
+            include.Should().NotThrow();
+            log.Entries.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void AFileAnotherProcessHolds_IsLeftOutWithAWarning()
+        {
+            var file = Path.Combine(directory, PackageComments.FileName);
+
+            File.Copy(Path.Combine(AppContext.BaseDirectory, PackageComments.FileName), file);
+
+            var options = new SwaggerGenOptions();
+            var log = new HardeningCapturedLog();
+
+            using (new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                var include = () => PackageComments.Include(options, directory, log.CreateLogger("test"));
+
+                include.Should().NotThrow();
+            }
+
+            options.SchemaFilterDescriptors.Should().BeEmpty();
+            log.Entries.Should().ContainSingle().Which.Level.Should().Be(LogLevel.Warning);
+        }
+
+        [Fact]
         public void AHostWithTheFile_IncludesIt_AndAHostWithoutIt_IncludesNothingAndSaysNothing()
         {
             var log = new HardeningCapturedLog();
@@ -162,10 +197,13 @@ namespace Simplic.OxS.Server.Test.Extensions
             log.Entries.Should().BeEmpty();
         }
 
-        [Fact]
-        public void AFileThatCannotBeRead_IsLeftOutWithAWarning()
+        [Theory]
+        [InlineData("<doc><members><member name=")]
+        [InlineData("not xml at all")]
+        [InlineData("")]
+        public void AFileThatCannotBeRead_IsLeftOutWithAWarning(string content)
         {
-            File.WriteAllText(Path.Combine(directory, PackageComments.FileName), "<doc><members><member name=");
+            File.WriteAllText(Path.Combine(directory, PackageComments.FileName), content);
 
             var options = new SwaggerGenOptions();
             var log = new HardeningCapturedLog();

@@ -379,8 +379,9 @@ namespace Simplic.OxS.Server
         /// its controllers (the schema, addon definition, model definition and service
         /// definition routes, the internal query routes) are served. A host project of the web
         /// SDK names the assemblies it references as parts by itself; a project of the plain
-        /// SDK names none, and the package's routes must not depend on that. Named twice, a
-        /// controller would be found twice and its routes would be ambiguous.
+        /// SDK names none, and the package's routes must not depend on that. The assembly is
+        /// named once: the host's list of parts is what a service reads and changes in
+        /// <see cref="MvcBuilder"/>, and it holds no entry twice.
         /// </summary>
         internal static void AddPackageControllers(IMvcBuilder builder)
         {

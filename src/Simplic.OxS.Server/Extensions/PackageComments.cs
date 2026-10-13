@@ -52,8 +52,9 @@ namespace Simplic.OxS.Server.Extensions
         /// <summary>
         /// Includes the described part of <paramref name="directory"/>'s
         /// <see cref="FileName"/> in the document's comments. A host without the file describes
-        /// the models without those sentences; a file that cannot be read is left out with a
-        /// warning, and the document is generated all the same.
+        /// the models without those sentences. Whatever fails while the file is read or its
+        /// comments are taken leaves the file out with one warning: a comment file never stands
+        /// between a service and its OpenAPI document.
         /// </summary>
         internal static void Include(SwaggerGenOptions options, string directory, ILogger logger)
         {
@@ -62,20 +63,18 @@ namespace Simplic.OxS.Server.Extensions
             if (!File.Exists(file))
                 return;
 
-            XDocument comments;
+            XPathDocument described;
 
             try
             {
-                comments = XDocument.Load(file, LoadOptions.PreserveWhitespace);
+                described = Published(XDocument.Load(file, LoadOptions.PreserveWhitespace));
             }
-            catch (Exception exception) when (exception is XmlException or IOException or UnauthorizedAccessException)
+            catch (Exception exception)
             {
                 logger.LogWarning(exception, "The OpenAPI document leaves out the comments of {File}: the file cannot be read", FileName);
 
                 return;
             }
-
-            var described = Published(comments);
 
             options.IncludeXmlComments(() => described);
         }

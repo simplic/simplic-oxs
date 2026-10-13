@@ -868,6 +868,11 @@ per kind, after the findings, that counts them and says what to do:
 | `polymorphic-subtype-unregistered` | `Ox schema: N stored subtypes have no MongoDB class map and are missing from the schema (…)`, then: register them in `RegisterBsonClassMaps()` or list them in `[BsonKnownTypes]` |
 | `entity-id-off-grammar`, `entity-id-foreign-service` | `Ox schema: N entity ids are not <service>.<entity> with this service's name as the prefix (…)`, then: rename each id and paste the `RetireEntityId` line of its finding |
 
+Each line speaks of one where there is one (`1 stored subtype has …`, `1 entity id is …`). The
+summary line names the entities beside the pool: `Ox schema built: service=… api=…
+entities=N types=M revision=… bytes=… findings=…`, `types` counting every pool entry, the
+entities among them.
+
 **A service without entities** returns an empty list from `GetOxQLTypeAssemblies()`. Its
 document has no types and no diagnostic, nothing is reported, and the start says so in one
 information line (`Ox schema: the service declares no OxQL entities: …`).

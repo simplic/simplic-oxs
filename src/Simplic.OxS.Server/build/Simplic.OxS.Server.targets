@@ -5,20 +5,28 @@
     that references this package, in its build output and in what it publishes. The OpenAPI
     document of a service takes the descriptions of the OxQL routes' parameters and of the members
     of their bodies from that file (SwaggerExtension includes every OxQL.*.xml it finds there).
-    NuGet copies a package's assembly and leaves the comments beside it in the package folder,
-    and a publish leaves out the comments of references unless told otherwise.
+
+    The file is the one packed beside these targets, taken from the engine version the package
+    was built against. It is in every restored package, also where the restore leaves
+    documentation files out (NUGET_XMLDOC_MODE=skip, the setting of the .NET SDK container
+    images), and it is the only source: a build on a developer's machine and one in a container
+    give the same document. Where a project also lists a file of that name for its output
+    (CopyDocumentationFilesFromPackages, PublishReferencesDocumentationFiles), this one takes its
+    place, so the output holds one.
 
     Only that one file is copied. A project that wants none sets SimplicOxSCopyQueryApiComments
     to false; its document then carries the routes without those sentences.
   -->
+  <PropertyGroup>
+    <!-- A project that imports these targets from the source tree names the file itself. -->
+    <_SimplicOxSQueryApiCommentsFile Condition="'$(_SimplicOxSQueryApiCommentsFile)' == ''">$(MSBuildThisFileDirectory)OxQL.AspNetCore.xml</_SimplicOxSQueryApiCommentsFile>
+  </PropertyGroup>
+
   <Target Name="SimplicOxSFindQueryApiComments"
-          DependsOnTargets="ResolveAssemblyReferences"
           Condition="'$(SimplicOxSCopyQueryApiComments)' != 'false'">
     <ItemGroup>
-      <_SimplicOxSQueryApiAssembly Include="@(ReferencePath)" Condition="'%(ReferencePath.Filename)%(ReferencePath.Extension)' == 'OxQL.AspNetCore.dll'" />
-      <_SimplicOxSQueryApiCommentsPath Include="@(_SimplicOxSQueryApiAssembly->'%(RootDir)%(Directory)%(Filename).xml')" />
-      <SimplicOxSQueryApiComments Include="@(_SimplicOxSQueryApiCommentsPath)"
-                                  Condition="Exists('%(_SimplicOxSQueryApiCommentsPath.FullPath)')"
+      <SimplicOxSQueryApiComments Include="$(_SimplicOxSQueryApiCommentsFile)"
+                                  Condition="Exists('$(_SimplicOxSQueryApiCommentsFile)')"
                                   Exclude="@(SimplicOxSQueryApiComments)" />
     </ItemGroup>
   </Target>
@@ -27,8 +35,9 @@
           AfterTargets="ResolveAssemblyReferences"
           DependsOnTargets="SimplicOxSFindQueryApiComments"
           Condition="'$(SimplicOxSCopyQueryApiComments)' != 'false'">
-    <ItemGroup>
-      <ReferenceCopyLocalPaths Include="@(SimplicOxSQueryApiComments)" Exclude="@(ReferenceCopyLocalPaths)" />
+    <ItemGroup Condition="'@(SimplicOxSQueryApiComments)' != ''">
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.DestinationSubDirectory)%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'OxQL.AspNetCore.xml'" />
+      <ReferenceCopyLocalPaths Include="@(SimplicOxSQueryApiComments)" />
     </ItemGroup>
   </Target>
 
@@ -36,13 +45,12 @@
           AfterTargets="ComputeResolvedFilesToPublishList"
           DependsOnTargets="SimplicOxSFindQueryApiComments"
           Condition="'$(SimplicOxSCopyQueryApiComments)' != 'false'">
-    <ItemGroup>
-      <_SimplicOxSPublishedQueryApiComments Include="@(SimplicOxSQueryApiComments)">
+    <ItemGroup Condition="'@(SimplicOxSQueryApiComments)' != ''">
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'OxQL.AspNetCore.xml'" />
+      <ResolvedFileToPublish Include="@(SimplicOxSQueryApiComments)">
         <RelativePath>%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </_SimplicOxSPublishedQueryApiComments>
-      <!-- A project that publishes the comments of every reference already lists the file. -->
-      <ResolvedFileToPublish Include="@(_SimplicOxSPublishedQueryApiComments)" Exclude="@(ResolvedFileToPublish)" />
+      </ResolvedFileToPublish>
     </ItemGroup>
   </Target>
 

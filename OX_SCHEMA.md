@@ -1521,7 +1521,10 @@ security requirement; a test of the package compares it).
   `OxQL.AspNetCore.xml` beside the service's assemblies when it is built and when it is
   published, and the document's setup includes every `OxQL.*.xml` it finds there; one it cannot
   read is left out with a warning in the log, and the document is generated without it. A project
-  reference to a project that references the package gets them too. A service edits nothing; one
+  reference to a project that references the package gets them too. The file is part of the
+  package, beside the targets, so the document is described alike in every build, also in one
+  that restores without documentation files (`NUGET_XMLDOC_MODE=skip`, the setting of the .NET
+  SDK container images). A service edits nothing; one
   that wants the file left out sets `<SimplicOxSCopyQueryApiComments>false</SimplicOxSCopyQueryApiComments>`.
 - **The routes between services** (`internal/oxql/batch`, `internal/oxql/explain`) stay out of
   the document in every environment. Only other services call them, with the internal key, and

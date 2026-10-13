@@ -827,9 +827,21 @@ independent costs:
 The last row are the model's format 1.1 codes. Each marks a member the document still describes
 (as `unknown`), a variant or a reference case it leaves out in a way its absence shows, so each is
 logged only. `reference-candidate-undeclared` is defined by the engine and not emitted yet. The
-same holds for every other code of the engine's model build that this table does not list, such
-as `reference-target-unknown`, `reference-target-field-unknown` and `retired-id-ambiguous`: a code
-the document does not share is never refusing and never published.
+same holds for every other code of the engine's model build: a code the document does not
+share is never refusing and never published. These are the codes of the model build that the
+table above does not list, each logged as a warning with its target:
+
+| code | what it marks |
+|---|---|
+| `retired-id-ambiguous` | A retired id is also a live entity id, or two current ids claim it; it is dropped. |
+| `entity-key-missing` | The entity has no member that is stored as `_id`. |
+| `member-serializer-opaque`, `member-serializer-unavailable` | A member's serializer is no document serializer, or could not be resolved; the member is `unknown`. |
+| `path-depth-exceeded` | A path goes deeper than the walk allows, or the entity has more paths than the index holds; what lies beyond is not indexed. |
+| `reference-target-unknown` | A reference names an entity id of this service that the model does not have; the reference is dropped. |
+| `reference-target-field-unknown` | A reference into another service names no field (this host cannot know the target's key), or names a field its target of this service does not have; the reference, or the case, is dropped. |
+| `reference-target-unprefixed` | A reference names a target id without a service prefix (`<service>.<entity>`) that is no entity of this host. Such an id names no owning service and is never a remote target; the reference, or the case, is dropped. |
+| `polymorphic-variant-name-conflict` | Two variants of one polymorphic type have the same name; neither is described as a variant. |
+| `document-version-unsupported` | Not a finding of a build: what a reader of a schema document reports for a format version it does not understand. |
 
 **Refusing** is for ambiguity, where no reading of the document is correct. A host **fails
 fast** on a refusing finding in the `Development` and `Local` environments and under continuous
@@ -1088,7 +1100,9 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
 - **`InternalHosts`.** A declared reference into a service without an entry is logged as an
   error when the host starts, and stops the start in `Development`, `Local` and under continuous
   integration, decided from the same value the schema build fails fast on (section 3.3: the `CI`
-  or the `TF_BUILD` variable, or what `ConfigureOxSchema` states). The check reads the
+  or the `TF_BUILD` variable, or what `ConfigureOxSchema` states), unless the host sets
+  `OxQL:Startup:StrictRemoteReferences` (section 4.3): `false` starts the host in every
+  environment with the error lines, `true` stops it in every environment. The check reads the
   configuration only; nothing is called at startup.
 
   A value is a host with an optional port and nothing else: `vehicle-host`, `vehicle-host:8080`,
@@ -1305,6 +1319,7 @@ include the page sizes this package used to set in code (`MaxPageSize` 500, `Def
 | `OxQL:Compat:Legacy:MaxTimeMs` | The time a contract 1 request may take in the database; `OxQL:Execution:MaxTimeMs` does not apply to it. | 600000 |
 | `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` and `POST internal/oxql/explain` answer, and whether the OxQL Studio console offers explain; 404 otherwise. Explain binds and compiles a request and never executes it. | `true` |
 | `OxQL:Cursor:SigningKey` | The secret paging cursors are signed with. | `Auth:Token` |
+| `OxQL:Startup:StrictRemoteReferences` | Whether a declared reference into a service this host is not configured for (no `InternalHosts` entry, or one that is no host, section 4.2) stops the start. Not set: it does in `Development`, `Local` and under continuous integration, and nowhere else. `true`: in every environment. `false`: in none; the start then logs the error lines and goes on, and each such reference resolves to nothing. The message of the refusal names this key. | not set |
 | `OxQL:Remote:ConnectTimeoutMs` | Read by this package, not by the engine: how long a call to another service waits for the owner to accept a connection, in milliseconds (section 4.2). Zero or less: no connect timeout of the client's own, so a call waits for a connection as long as its budget lasts. Read once, at start; a value that is no whole number stops the start. | 2000 |
 
 The cursor key is never used as it is: the engine derives the signing key from the secret with
@@ -1366,6 +1381,13 @@ Nothing below needs a line of code in the service.
   the same controller list; it is built once at startup, nothing writes
   `ModelDefinition/ModelDefinition.json` any more, and the route answers `GET` only. A
   controller the generator cannot describe is left out instead of replacing the whole document.
+  The member names of that document are camel case as JSON spells it, which is the spelling of
+  the OpenAPI document, from `Simplic.OxS.ModelDefinition.Service` 3.0.1226.825 on, the version
+  this package requires (section 5.4): a member written `QRCode` in C# is `qrCode` and `IBAN`
+  is `iban`. Earlier versions lower-cased the first letter only (`qRCode`, `iBAN`). A service
+  that comes from an earlier version gets the new names with the upgrade, for every member that
+  starts with more than one capital letter; whatever is keyed on the old names (a stored grid
+  or form configuration, a client) has to follow.
 - The document in format 1.1 (section 1.15): descriptions, deprecations and constraints where the
   code declares them, polymorphic types with their variants, typed and conditional references, and
   a relation name for every reference, derived by the engine (section 1.10): the service declares
@@ -1779,10 +1801,12 @@ server project references: there the higher version is taken without a word.
 
 ### 5.5 Upgrading a service: the checklist
 
-1. **Raise the versions and restore.** `Simplic.OxS.Server` in every project that references
-   it, and what a project references beside it (section 5.4): raise or remove what `NU1605`
-   names, one package per round, and set a model project's `OxQL.*` reference to the version of
-   the table.
+1. **Raise the versions and restore.** `Simplic.OxS.Server` in the service's host project and
+   in its test projects, and what a project references beside it (section 5.4): raise or remove
+   what `NU1605` names, one package per round, and set a model project's `OxQL.*` reference to
+   the version of the table. A library the service publishes as a NuGet package of its own for
+   other services (an extension package) is raised only where it needs the new API: raising it
+   there forces the new version on every service that consumes that package.
 2. **Leave a start-up order that works alone.** A service that starts with its class maps and
    serializers where they are keeps them there (section 5.2).
 3. **Move only what has to move, and then all of it.** Where class maps are registered with

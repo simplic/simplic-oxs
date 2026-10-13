@@ -160,6 +160,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
                     OxSchemaCodes.EntityIdForeignService,
                     OxSchemaCodes.EntityIdOffGrammar,
                     OxSchemaCodes.EntityTypeShared,
+                    OxSchemaCodes.ExtendableWithoutAddon,
 
                     // probe.leaf subclasses probe.base without a registered class map.
                     global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered,

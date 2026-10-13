@@ -125,7 +125,7 @@ An entity is a structural type that additionally carries entity metadata. Member
 | `aliases` | entities | The ids this entity is also known by: the ids it retired first (ordinally sorted), then the legacy `$ClassName` model ids its controller publishes. Always present, possibly empty. |
 | `key` | entities, keyed item types | The property paths that identify an instance. |
 | `display` | entities | The property that names an instance: the first of `name`, `matchCode`, `number` the entity has as a string. Absent when it has none. |
-| `extendable` | entities | Whether the entity accepts an organisation's declared addon fields. |
+| `extendable` | entities | Whether the entity is declared to accept an organisation's addon fields. It takes them when it also has an `addon` member; `GET /schema/addons` lists exactly the entities that do. |
 | `queryable` | entities | `true`: every entity in the pool is accepted as a query's entity type. |
 | `notFilterable` | entities | The scalar paths the entity refuses to filter on: members the service returns and does not store, which the query engine refuses with `NOT_STORED`. A member with `byVariant` is not stored either and is **not** on the list: the query engine filters it (with `eq`, `neq`, `in` and `nin`). Ordinally sorted. Always present, possibly empty. |
 | `notSortable` | entities | The scalar paths the entity filters on and refuses to sort on: the paths of its members with `byVariant`, which the query engine compares and can neither sort nor group by, wherever they stand. Ordinally sorted. Always present; empty for an entity without such a member: what makes a stored scalar unsortable, crossing a collection, is visible in the descriptors and not repeated here. |
@@ -553,7 +553,7 @@ nothing else is declared.
 
 | you want | you declare |
 |---|---|
-| an entity | `[OxQLType]` on the class; `Extendable = true` publishes `extendable` |
+| an entity | `[OxQLType]` on the class; `Extendable = true` publishes `extendable`, and the entity needs an `addon` member (`IDictionary<string, object> Addon`) to take addon definitions |
 | the entity's REST operations and legacy aliases | list its controller in `ConfigureModelDefinitions()`; the controller is linked to the entity whose response DTO carries `[SearchKey("<entity id>")]`, or whose name is `<Entity>Model` / `<Entity>Response` among that controller's declared responses |
 | a foreign key | `[OxQLReference("<entity id>")]` on the id member, or `[ReferenceId("<id property>")]` on the navigation property, whose type is the target entity; nothing is inferred from a name |
 | a foreign key onto an element of an item collection | `[OxQLReference("<entity id>", "<field>", Item = "<item path>")]` |
@@ -820,7 +820,7 @@ independent costs:
 | `entity-scan-failed` | no | yes |
 | `entity-assemblies-missing` | no | yes |
 | `entity-id-off-grammar`, `entity-id-foreign-service`, `service-name-no-id-prefix`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
-| `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared` | no | no |
+| `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared`, `extendable-without-addon` | no | no |
 | `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `variant-constant-unresolved`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
 
 The last row are the model's format 1.1 codes. Each marks a member the document still describes
@@ -867,6 +867,13 @@ per kind, after the findings, that counts them and says what to do:
 | `polymorphic-subtype-unregistered` | `Ox schema: N stored subtypes have no MongoDB class map and are missing from the schema (…)`, then: register them in `RegisterBsonClassMaps()` or list them in `[BsonKnownTypes]` |
 | `entity-id-off-grammar`, `entity-id-foreign-service` | `Ox schema: N entity ids are not <service>.<entity> with this service's name as the prefix (…)`, then: rename each id and paste the `RetireEntityId` line of its finding |
 
+**Extendable entities.** `extendable-without-addon` marks an entity that is declared extendable
+(`[OxQLType(…, Extendable = true)]`) and has no `addon` member. The document publishes
+`extendable: true` for it as declared; no addon definition can be stored for it
+(`POST /AddonDefinition` answers 400 with the reason), and `GET /schema/addons` does not list
+it. The finding is a warning with the entity and what to do, add the member or drop the flag,
+and stops no start.
+
 **Entity ids.** `entity-id-off-grammar` marks an id that is not `<service>.<entity>` in
 `[a-z][a-z0-9_]*` segments (`booking`), `entity-id-foreign-service` an id on grammar whose
 first segment is not the host's service name in lower case (`archive.page` in the service
@@ -895,7 +902,8 @@ place of an id.
 ### 3.4 How addon definitions reach a request
 
 The query engine asks for an organisation's definitions of every extendable entity a request
-enters, and `GET /schema/addons` for those of every extendable entity. Both ask
+enters, and `GET /schema/addons` for those of every entity that takes definitions: one that
+is declared extendable and has an `addon` member. Both ask
 `AddonDefinitionSource`, which answers from `AddonDefinitionCache`, one per process, keyed by
 organisation and current entity id. A definition's lifetime in the cache is
 `OxQL:Cache:AddonDefinitionTtlSeconds` (30 by default, at least 1).

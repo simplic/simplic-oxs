@@ -57,6 +57,12 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>Two entity ids resolve to one CLR type; only the first is described as that type.</summary>
         public const string EntityTypeShared = "entity-type-shared";
 
+        /// <summary>
+        /// An entity is declared extendable and has no <c>addon</c> member: no addon definition
+        /// can be stored for it, and the addon definitions of the schema do not list it.
+        /// </summary>
+        public const string ExtendableWithoutAddon = "extendable-without-addon";
+
         private static readonly string[] Refusing = [DuplicateEntityId, DanglingTypePointer];
 
         private static readonly string[] Published =

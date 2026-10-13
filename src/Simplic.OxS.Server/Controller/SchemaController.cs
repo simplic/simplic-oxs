@@ -87,13 +87,14 @@ namespace Simplic.OxS.Server.Controller
         public IActionResult Get(CancellationToken ct) =>
             Serve(registry.Body, registry.ETag, registry.Coded);
 
-        /// <summary>The addon definitions of the caller's organisation, per extendable entity.</summary>
+        /// <summary>The addon definitions of the caller's organisation, per entity that takes them.</summary>
         /// <param name="ct">Ends the request when the caller gives up.</param>
         [HttpGet("addons")]
         [Authorize]
-        [EndpointSummary("The addon definitions of the caller's organisation, per extendable entity.")]
+        [EndpointSummary("The addon definitions of the caller's organisation, per entity that takes them.")]
         [EndpointDescription(
-            "Answers one list per extendable entity of this service, keyed by entity id: the organisation's addon definitions as property descriptors in the schema document's format, "
+            "Answers one list per entity of this service that takes addon definitions, keyed by entity id: an entity that is declared extendable and has an `addon` member. "
+            + "A list holds the organisation's addon definitions as property descriptors in the schema document's format, "
             + "which are the properties of the entity's `addon` member. An entity without definitions has an empty list. The format is described in " + Documentation + ".")]
         [DescribedRoute(Conditional = true, AnswerExample = DescribedRouteExamples.SchemaAddons)]
         [ProducesResponseType(typeof(IDictionary<string, IReadOnlyList<OxSchemaProperty>>), StatusCodes.Status200OK, Json, Description = "The definitions per entity id.")]

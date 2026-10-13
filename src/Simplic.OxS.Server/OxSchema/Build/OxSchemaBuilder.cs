@@ -56,6 +56,15 @@ namespace Simplic.OxS.Server.OxSchema
 
             ModelFindings.Import(model, service, findings);
 
+            // Declared extendable, and nothing to hold what is added: the routes that take and list addon definitions leave the entity out.
+            foreach (var entity in model.Entities.Values.Where(entity => entity.Extendable && !OxQL.AddonDefinitionRules.HasBag(entity)))
+                findings.Add(
+                    OxSchemaCodes.ExtendableWithoutAddon,
+                    entity.Id,
+                    "The entity is declared extendable and has no 'addon' member, so no addon definition can be stored for it and GET /schema/addons does not list it. "
+                    + "Add the 'addon' member to the entity, or drop the extendable flag.",
+                    entity.ClrType.FullName);
+
             var entities = EntityDiscovery.Declarations(model);
             var pool = TypePoolWalker.Project(model);
             var link = new ControllerLink(options.ControllerTypes);

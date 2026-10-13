@@ -8,7 +8,8 @@ namespace Simplic.OxS.Server.OxSchema
     /// <summary>
     /// The organisation's addon definitions in the schema's descriptor format, served under
     /// <c>GET /schema/addons</c> as <c>{ "&lt;entityId&gt;": [ descriptor, … ] }</c>: one list
-    /// per extendable entity of the model, each entry a property descriptor exactly as the
+    /// per entity of the model that takes definitions (declared extendable, with an
+    /// <c>addon</c> member), each entry a property descriptor exactly as the
     /// document's <c>properties</c> carry them, the list being the properties of the entity's
     /// <c>addon</c> member. Definitions are per organisation, so they are not in the schema
     /// document and not in its revision; the body carries its own entity tag.
@@ -23,6 +24,7 @@ namespace Simplic.OxS.Server.OxSchema
         /// entity id order. An entity declared extendable without an <c>addon</c> member is
         /// left out: the query engine refuses every addon path on it with
         /// <c>UNKNOWN_PATH</c>, so a list published for it could be added to and never read.
+        /// The schema build names such an entity (<see cref="OxSchemaCodes.ExtendableWithoutAddon"/>).
         /// </summary>
         public static async Task<Result> BuildAsync(EntityModel model, IAddonDefinitionSource source, Guid organisation, CancellationToken cancellationToken)
         {

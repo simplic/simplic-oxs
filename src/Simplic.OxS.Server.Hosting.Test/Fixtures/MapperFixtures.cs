@@ -1,9 +1,65 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Simplic.OxS.Server.OxSchema;
 
 namespace Simplic.OxS.Server.Hosting.Test.Fixtures
 {
+    /// <summary>A service that notes the order its hooks run in, a hosted service of its own and the schema build among them.</summary>
+    public class OrderedStartup(IConfiguration configuration, IWebHostEnvironment environment) : HostingStartup(configuration, environment)
+    {
+        /// <summary>What ran, in the order it ran.</summary>
+        public static readonly List<string> Steps = [];
+
+        protected override string ServiceName => "Ordered";
+
+        protected override Type[] EntityTypes => [];
+
+        protected override void RegisterBsonClassMaps() => Steps.Add(nameof(RegisterBsonClassMaps));
+
+        protected override void RegisterServices(IServiceCollection services)
+        {
+            Steps.Add(nameof(RegisterServices));
+
+            services.AddHostedService<Early>();
+            services.AddTransient<IStartupFilter, AfterTheSchema>();
+        }
+
+        protected override void ConfigureOxSchema(OxSchemaOptionsBuilder schema)
+        {
+            base.ConfigureOxSchema(schema);
+            Steps.Add(nameof(ConfigureOxSchema));
+        }
+
+        protected override void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration) => Steps.Add(nameof(RegisterMapperProfiles));
+
+        private sealed class Early : IHostedService
+        {
+            public Task StartAsync(CancellationToken cancellationToken)
+            {
+                Steps.Add("a hosted service starts");
+
+                return Task.CompletedTask;
+            }
+
+            public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        }
+
+        /// <summary>Runs where the host builds its pipeline: the registry it finds there is built.</summary>
+        private sealed class AfterTheSchema(IServiceProvider provider) : IStartupFilter
+        {
+            public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+            {
+                provider.GetRequiredService<OxSchemaRegistry>();
+                Steps.Add("the schema is built");
+                next(app);
+            };
+        }
+    }
+
     /// <summary>A service whose mapper profiles throw, and count how often they ran.</summary>
     public class BrokenProfilesStartup(IConfiguration configuration, IWebHostEnvironment environment) : HostingStartup(configuration, environment)
     {

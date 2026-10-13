@@ -977,7 +977,9 @@ public void TheSchema_BuildsWithEveryVariantAndEveryReference()
 ```
 
 The test project needs a reference to the service's server project (the one that holds
-`Startup`) and nothing else: the package comes with it.
+`Startup`) and nothing else: the package comes with it. A service whose startup registers
+serializers or class maps in `RegisterServices` builds with them:
+`OxSchemaCheck.Build<Startup>(check => check.RunRegisterServices = true)`.
 
 | member | holds |
 |---|---|
@@ -1419,30 +1421,71 @@ Nothing below needs a line of code in the service.
 
 ### 5.2 What a service has to do
 
-- **Register MongoDB class maps and serializers in `RegisterBsonClassMaps()`.** The schema
-  build looks up the serializer of every entity and of every type reachable from one, when the
-  host starts. The first lookup of a type creates its class map and freezes it.
+- **MongoDB class maps and serializers: leave an order that works alone.** The schema build
+  looks up the serializer of every entity and of every type reachable from one, when the host
+  starts. The first lookup of a type creates its class map and freezes it, so what a service
+  registers has to be in place by then:
+
+  | where a service registers | in place for the build |
+  |---|---|
+  | `RegisterBsonClassMaps()` | yes: before everything else of the service, once per process |
+  | `RegisterServices`, `ConfigureOxSchema` | yes; a second host of the same process calls them again, so the registration needs a guard of its own |
+  | `RegisterMapperProfiles` | yes, and late: the mapper is created while the host starts, right before the schema is built, which is after the hosted services of the service have started. A hosted service that reads or writes a type in `StartAsync` does so before a class map of the profiles exists. A second host of the process runs the profiles again. An exception thrown there stops the start in every environment |
+  | a repository's static constructor, a hosted service, first use | no |
+
+  A service that starts with its registrations in the first three rows keeps them where they
+  are. The order they run in is part of what makes them work, and moving some of them changes
+  it. The hook is for the service whose registrations can run after the build or more than
+  once:
+
+  - class maps registered with `BsonClassMap.RegisterClassMap` and no guard in the mapper
+    profiles, in `RegisterServices` or in `ConfigureOxSchema`, where a process builds more than
+    one host of the service (a test run with a host per test, a schema test beside a host): the
+    second run throws `ArgumentException: An item with the same key has already been added.
+    Key: <type>`;
+  - registrations of the last row;
+  - a start that reports a subtype without a class map (next point).
+
+  **Moving them: serializers and class maps together, in this order.** Inside the hook the
+  plain serializers come first (the object serializer among them), the class maps next, and the
+  serializers that keep another serializer last: one for an interface or a discriminated type
+  looks the object serializer up when it is created.
 
   ```csharp
   protected override void RegisterBsonClassMaps()
   {
+      // 1. Plain serializers: they keep no other serializer.
+      BsonSerializer.RegisterSerializer(new ObjectSerializer(type =>
+          ObjectSerializer.DefaultAllowedTypes(type) || type.FullName!.StartsWith("Simplic.OxS.Parcel")));
+
+      // 2. Class maps.
       BsonClassMap.RegisterClassMap<YardSlot>();
       BsonClassMap.RegisterClassMap<CoveredSlot>();
+
+      // 3. Serializers that keep another one: created here, they keep the ones registered above.
       BsonSerializer.RegisterSerializer(new DiscriminatedInterfaceSerializer<IParcelEvent>());
   }
   ```
 
   `Bootstrap` calls the hook once per process for a startup type, however many hosts the
-  process builds from it (a test run, say), so the registrations need no guard. It runs during
+  process builds from it, so the registrations need no guard. It runs during
   `ConfigureServices`, after the base registered its guid serializer and before
   `RegisterServices`, the mapper and the schema build.
 
-  | where a service registers | in place for the build |
-  |---|---|
-  | `RegisterBsonClassMaps()` | yes; the place for it |
-  | `RegisterServices`, `ConfigureOxSchema` | yes; a second host of the same process calls them again, so the registration needs a guard of its own |
-  | `RegisterMapperProfiles` | yes: the mapper is created while the host starts, right before the schema is built, not on the first request that needs one. An exception thrown there stops the start in every environment |
-  | a repository's static constructor, a hosted service, first use | no |
+  **`There is already a serializer registered for type Object.`** The MongoDB driver throws this
+  `BsonSerializationException` from `BsonSerializer.RegisterSerializer` where only a part was
+  moved: the registration of the object serializer stayed in `RegisterServices`, and the hook,
+  which runs before it, now creates a serializer that keeps the object serializer, or a class
+  map that asks for a member's serializer. The driver creates the default serializer of a type
+  the first time anything looks it up, and registers no other for that type afterwards. The
+  host stops with the exception, which says after the driver's sentence where it was thrown
+  and what to do: register the serializer at the top of `RegisterBsonClassMaps()`, before
+  anything that constructs a serializer or a class map. `TryRegisterSerializer` is no way
+  around it. For a serializer that differs from the one in place the driver throws
+  `There is already a different serializer registered for type Object.`; for one it takes for
+  the same it returns `false`; and either way the default stays in place and the serializer
+  that looked it up keeps it, so the service's own object serializer, with the types it
+  allows, is not the one that reads the service's documents.
 
   A registration that comes after the build meets a frozen map: `RegisterClassMap` throws
   `ArgumentException: An item with the same key has already been added. Key: <type>`,
@@ -1450,14 +1493,14 @@ Nothing below needs a line of code in the service.
   registration guarded by `IsClassMapRegistered` or made with `TryRegisterClassMap` is silently
   skipped, which loses the customisation (`SetIgnoreExtraElements`, discriminators, member maps)
   and surfaces as a deserialisation error later. A fault while the class maps or the mapper
-  profiles are registered stops the start, in every environment, with the original exception.
-  The order above keeps what a service registers in its profiles ahead of the build; the hook is
-  the place that does not depend on it.
-- **Register every stored subclass of a polymorphic type the same way**, or list it in
-  `[BsonKnownTypes]` on the base. Only those are described as variants; a concrete subclass with no
-  registered class map is left out of `variants`, its members are not merged, and the build logs
+  profiles are registered stops the start, in every environment.
+- **Give every stored subclass of a polymorphic type a class map**, registered like the others,
+  or list it in `[BsonKnownTypes]` on the base. Only those are described as variants; a concrete
+  subclass with neither is left out of `variants`, its members are not merged, and the build logs
   `polymorphic-subtype-unregistered` as an error, with one line that counts the subtypes and
-  names the hook (section 3.3).
+  names the hook (section 3.3). The driver knows such a subclass only once something in the
+  process has used it, so one process of a service can describe it where another does not, and
+  their documents and revisions differ. Act on the finding when the start reports it.
 - **Set `<GenerateDocumentationFile>true</GenerateDocumentationFile>`** in the project that holds
   the entity classes if their doc comments are to become descriptions (section 2.3). Without the
   XML file beside the assembly only `[OxQLDescription]` and `[Description]` are read. The switch
@@ -1498,12 +1541,21 @@ Nothing below needs a line of code in the service.
   persisted the old id keep resolving.
 - **Resolving into another service** follows section 2.4: the owner's id carries its prefix
   first, then the reference is declared, and the calling service gets the keys of section 4.2.
-- **Decide two defaults per service.** `GET /schema` is anonymous unless
-  `OxSchema:RequireAuthorization` is true (section 4.1), and a contract 1 `lookup` reads any
+- **Decide three defaults per service.** `GET /schema` is anonymous unless
+  `OxSchema:RequireAuthorization` is true (section 4.1); a contract 1 `lookup` reads any
   collection of the service's database for the caller's organisation unless
-  `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3).
+  `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3); and the OxQL
+  Studio console is served unless the environment is named `Production`
+  (`OxQL:Studio:Enabled`, section 5.1). The environment name decides that default, not what the
+  deployment is used for: a deployment that runs production under another environment name
+  sets `OxQL__Studio__Enabled=false`.
+- **A local run needs the `Redis` section, and the `MongoDB` section for everything that reads
+  data.** A host that validates its services when it is built, as `Host.CreateDefaultBuilder`
+  does in `Development`, does not start without the cache the host's authentication uses.
+  Without a `MongoDB` section the host starts and serves the schema document and the engine's
+  health; section 4.4 lists what else it answers.
 - **A service that references an `OxQL.*` package or a sibling package of this one itself**
-  has to raise that reference, or remove it (section 5.4).
+  checks that reference (section 5.4).
 
 ### 5.3 What changes in the service's swagger
 
@@ -1668,8 +1720,10 @@ New with the regeneration:
 ### 5.4 Packages a service references directly
 
 `Simplic.OxS.Server` depends on its sibling packages and on the five `OxQL.*` packages at the
-versions below or higher. A service that also references one of them directly, at a lower
-version, does not restore: NuGet reports the downgrade as `NU1605`.
+versions below or higher. A project that references `Simplic.OxS.Server` and also references
+one of them directly, at a lower version, does not restore: NuGet reports the downgrade as
+`NU1605`. It reports nothing for a reference in another project, such as a model project the
+server project references: there the higher version is taken without a word.
 
 | package a service may reference directly | minimum beside this release of `Simplic.OxS.Server` |
 |---|---|
@@ -1684,8 +1738,15 @@ version, does not restore: NuGet reports the downgrade as `NU1605`.
   passes; a service that references two of the rows needs two rounds.
 - **Or remove the direct reference.** `Simplic.OxS.Server` brings every package of the table, so
   a project that references the server package (directly or through a project reference) needs
-  none of them listed. A project that does not, such as a domain project that only uses
-  `[OxQLType]`, keeps its `OxQL.Core` reference and raises it.
+  none of them listed.
+- **A model project** that holds the entity classes and does not reference the server package
+  references `OxQL.Model`, which holds the attributes (`[OxQLType]`, `[OxQLReference]`, …), or
+  `OxQL.Core`, which brings `OxQL.Model`. Its version is the one of the table and never a higher
+  one: a model project on a higher `OxQL.Core` or `OxQL.Model` than `Simplic.OxS.Server`
+  depends on restores without a message and leaves the service with the engine's assemblies
+  in two versions (`OxQL.Core` and `OxQL.Model` of the higher, `OxQL.AspNetCore` and
+  `OxQL.Mongo` of the lower). A lower one restores as well, and the service runs on the
+  version of the table; raise it all the same, so the project compiles against what runs.
 - The other sibling packages (`Simplic.OxS`, `Simplic.OxS.Data`, `Simplic.OxS.Data.MongoDB`,
   `Simplic.OxS.InternalClient`, `Simplic.OxS.Settings*`, `Simplic.OxS.Cache*`,
   `Simplic.OxS.MessageBroker`, `Simplic.OxS.ModelDefinition`) did not change with the schema; a
@@ -1693,25 +1754,29 @@ version, does not restore: NuGet reports the downgrade as `NU1605`.
 
 ### 5.5 Upgrading a service: the checklist
 
-1. **Bump** `Simplic.OxS.Server` in every project that references it.
-2. **Restore until it passes**: raise or remove what `NU1605` names, one package per round
-   (section 5.4).
-3. **Move the MongoDB class maps and serializers into `RegisterBsonClassMaps()`** (section 5.2).
-   Registrations in `RegisterServices` and `RegisterMapperProfiles` keep working; the hook is
-   the one place that runs once per process.
-4. **Entity ids**: every `[OxQLType]` id is `<service>.<entity>` with the service's own name.
-   Rename the others and retire the old id in `ConfigureOxSchema`; change the service's own
-   reference declarations to the new id (section 2.1).
-5. **References into other services**: the owner first, then the declaration with its field,
-   then `InternalHosts:<service>` and, where needed, `InternalApiVersions:<service>` in every
-   environment (section 2.4).
-6. **Add the schema check** to the service's unit tests (section 3.5), so a dropped reference,
-   a variant without a class map or an id off the rule fails the build of the service and not
-   its first start.
-7. **Start the service once and read its log**: the `Ox schema finding:` lines, the
-   `Ox schema:` lines that say what to do, and one `OxQL owner` line per referenced service.
-8. **Regenerate** the API clients and the OxQL modules that are generated from the service
-   (section 5.3); its schema revision changes with the package.
+1. **Raise the versions and restore.** `Simplic.OxS.Server` in every project that references
+   it, and what a project references beside it (section 5.4): raise or remove what `NU1605`
+   names, one package per round, and set a model project's `OxQL.*` reference to the version of
+   the table.
+2. **Leave a start-up order that works alone.** A service that starts with its class maps and
+   serializers where they are keeps them there (section 5.2).
+3. **Move only what has to move, and then all of it.** Where class maps are registered with
+   `RegisterClassMap` in the mapper profiles, or the start reports a subtype without a class
+   map, move them into `RegisterBsonClassMaps()` together with every serializer registration,
+   the serializers first (section 5.2).
+4. **Start the service once on a developer's machine, with its real registrations, and read the
+   log**: no `Ox schema finding:` line at error level, one `OxQL owner` line per referenced
+   service, no exception. What the lines ask for is in sections 3.3 (entity ids, subtypes), 2.4
+   and 4.2 (references into other services, `InternalHosts`).
+5. **Check the environment name in every deployment file**, and set `OxQL__Studio__Enabled`
+   explicitly wherever it is not `Production` (section 5.2).
+6. **Add the schema test** to the service's unit tests (section 3.5), with
+   `RunRegisterServices = true` where the startup registers serializers or class maps in
+   `RegisterServices`, so a dropped reference, a variant without a class map or an id off the
+   rule fails the build of the service and not its first start.
+
+The API clients and the OxQL modules that are generated from the service change when they are
+regenerated (section 5.3); the service's schema revision changes with the package.
 
 ---
 

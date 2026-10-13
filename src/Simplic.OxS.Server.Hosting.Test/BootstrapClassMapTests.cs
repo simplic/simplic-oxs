@@ -74,6 +74,17 @@ namespace Simplic.OxS.Server.Hosting.Test
         }
 
         [Fact]
+        public async Task TheHooksOfAStartup_RunInTheOrderTheUpgradeNotesName()
+        {
+            var log = new CapturedLog();
+
+            using var host = await BootstrapHost.StartAsync<OrderedStartup>(log);
+
+            // The class map hook first; the mapper profiles once the service's hosted services have started, and before the schema is built.
+            OrderedStartup.Steps.Should().Equal("RegisterBsonClassMaps", "RegisterServices", "ConfigureOxSchema", "a hosted service starts", "RegisterMapperProfiles", "the schema is built");
+        }
+
+        [Fact]
         public async Task FaultyMapperProfiles_StopTheStart()
         {
             using var host = BootstrapHost.Build<FaultyStartup>();

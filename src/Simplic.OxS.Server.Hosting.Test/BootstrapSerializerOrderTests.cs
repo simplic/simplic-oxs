@@ -14,16 +14,18 @@ namespace Simplic.OxS.Server.Hosting.Test
     {
         /// <summary>What every explained refusal says after the driver's sentence and the place.</summary>
         private const string Remedy =
-            " A registration that ran earlier looked this serializer up, so the driver had already created its default for the type, and a serializer is only registered before that."
+            " The type had a serializer before this registration: one registered earlier, or the default the driver creates when a registration that ran earlier first looked the type's serializer up,"
+            + " as a class map that asks for a member's serializer and a serializer that keeps another one do."
             + " Register this serializer at the top of RegisterBsonClassMaps(), before anything that constructs a serializer or a class map."
-            + " BsonSerializer.TryRegisterSerializer does not help: it leaves the default in place, and the registration that looked it up keeps it.";
+            + " BsonSerializer.TryRegisterSerializer does not help: the serializer in place stays, and the registration that looked it up keeps it.";
 
-        /// <summary>The driver's own sentence for the value type of a startup.</summary>
-        private static string Driver<TMark>() => $"There is already a serializer registered for type {BsonUtils.GetFriendlyTypeName(typeof(Gauge<TMark>))}.";
+        /// <summary>The driver's own sentence for the value type of a startup: <c>RegisterSerializer</c>'s, or <c>TryRegisterSerializer</c>'s.</summary>
+        private static string Driver<TMark>(bool tried = false) =>
+            $"There is already a {(tried ? "different " : "")}serializer registered for type {BsonUtils.GetFriendlyTypeName(typeof(Gauge<TMark>))}.";
 
-        private static void IsExplained<TMark>(BsonSerializationException thrown, string place)
+        private static void IsExplained<TMark>(BsonSerializationException thrown, string place, bool tried = false)
         {
-            thrown.Message.Should().Be($"{Driver<TMark>()} Thrown in {place}.{Remedy}");
+            thrown.Message.Should().Be($"{Driver<TMark>(tried)} Thrown in {place}.{Remedy}");
 
             // What the driver threw is kept, wherever in the chain of causes it was.
             Exception? cause = thrown.InnerException;
@@ -31,7 +33,18 @@ namespace Simplic.OxS.Server.Hosting.Test
             while (cause is not null and not BsonSerializationException)
                 cause = cause.InnerException;
 
-            cause.Should().BeOfType<BsonSerializationException>().Which.Message.Should().Be(Driver<TMark>());
+            cause.Should().BeOfType<BsonSerializationException>().Which.Message.Should().Be(Driver<TMark>(tried));
+        }
+
+        [Fact]
+        public void ASerializerTheServiceTriesToRegister_AfterAClassMapOfTheHookLookedItUp_IsRefusedByTheDriverToo_WithTheRemedy()
+        {
+            var build = () => BootstrapHost.Build<TriedInServicesStartup>();
+
+            IsExplained<MarkTried>(build.Should().Throw<BsonSerializationException>().Which, "RegisterServices", tried: true);
+
+            // The default the class map looked up is the one in place.
+            BsonSerializer.LookupSerializer<Gauge<MarkTried>>().Should().NotBeOfType<GaugeSerializer<MarkTried>>();
         }
 
         [Fact]

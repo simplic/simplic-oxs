@@ -1003,7 +1003,7 @@ MongoDB registrations are the process's. The hook, the mapper profiles and, with
 the check is called and whether a host of that type was built before; a host calls
 `RegisterServices` itself every time, and `ConfigureOxSchema` runs at every call, so a
 registration there has to bear a second call itself. What the service's own code throws reaches
-the test as it is (the driver's refusal of a serializer with its remedy, section 5.2), and what
+the test as it is (the driver's refusal of a serializer with what to do about it, section 5.2), and what
 the hook, the profiles or `RegisterServices` threw reaches every later check of the process
 again, without a second run. A host that starts beside a check waits for it: each of the three
 runs for one of them at a time.

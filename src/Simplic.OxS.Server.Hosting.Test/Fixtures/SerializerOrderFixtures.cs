@@ -78,6 +78,18 @@ namespace Simplic.OxS.Server.Hosting.Test.Fixtures
         protected override void RegisterServices(IServiceCollection services) => SerializerOrder.PlainSerializer<MarkServices>();
     }
 
+    public sealed class MarkTried;
+
+    /// <summary>The hook's class map looks the serializer up; <c>RegisterServices</c> tries to register it afterwards.</summary>
+    public class TriedInServicesStartup(IConfiguration configuration, IWebHostEnvironment environment) : SerializerOrderStartup(configuration, environment)
+    {
+        protected override string ServiceName => "Triedinservices";
+
+        protected override void RegisterBsonClassMaps() => SerializerOrder.ClassMapThatLooksItsMemberUp<MarkTried>();
+
+        protected override void RegisterServices(IServiceCollection services) => BsonSerializer.TryRegisterSerializer(new GaugeSerializer<MarkTried>());
+    }
+
     public sealed class MarkKeeper;
 
     /// <summary>The hook registers a serializer that keeps another; <c>RegisterServices</c> registers that other afterwards.</summary>

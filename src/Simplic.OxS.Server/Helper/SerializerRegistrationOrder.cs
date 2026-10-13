@@ -10,20 +10,28 @@ namespace Simplic.OxS.Server
     /// a class map that asks for a member's serializer, a serializer that keeps another one
     /// (one for an interface or a discriminated type keeps the object serializer), a lookup in
     /// the service's code. From then on <c>BsonSerializer.RegisterSerializer</c> for that type
-    /// throws <c>There is already a serializer registered for type …</c>, which names neither
-    /// the earlier lookup nor the remedy. The remedy is an order: plain serializers first.
+    /// throws <c>There is already a serializer registered for type …</c>, and
+    /// <c>TryRegisterSerializer</c> throws <c>There is already a different serializer registered
+    /// for type …</c> for a serializer that is not the one in place (and returns false for one
+    /// that is). Neither message names the earlier lookup or the remedy. The remedy is an
+    /// order: plain serializers first.
     /// </para>
     /// </summary>
     internal static class SerializerRegistrationOrder
     {
-        /// <summary>What the driver's message starts with.</summary>
-        internal const string DriverMessage = "There is already a serializer registered for type";
+        /// <summary>What the driver's messages start with: <c>RegisterSerializer</c>'s and <c>TryRegisterSerializer</c>'s.</summary>
+        internal static readonly string[] DriverMessages =
+        [
+            "There is already a serializer registered for type",
+            "There is already a different serializer registered for type",
+        ];
 
         /// <summary>What the explained exception says after the driver's own sentence.</summary>
         internal const string Remedy =
-            "A registration that ran earlier looked this serializer up, so the driver had already created its default for the type, and a serializer is only registered before that. "
+            "The type had a serializer before this registration: one registered earlier, or the default the driver creates when a registration that ran earlier first looked the type's serializer up, "
+            + "as a class map that asks for a member's serializer and a serializer that keeps another one do. "
             + "Register this serializer at the top of RegisterBsonClassMaps(), before anything that constructs a serializer or a class map. "
-            + "BsonSerializer.TryRegisterSerializer does not help: it leaves the default in place, and the registration that looked it up keeps it.";
+            + "BsonSerializer.TryRegisterSerializer does not help: the serializer in place stays, and the registration that looked it up keeps it.";
 
         /// <summary>
         /// Runs <paramref name="registrations"/>, the service's code of <paramref name="place"/>.
@@ -63,7 +71,7 @@ namespace Simplic.OxS.Server
         {
             for (var cause = exception; cause is not null; cause = cause.InnerException)
             {
-                if (cause is BsonSerializationException refusal && refusal.Message.StartsWith(DriverMessage, StringComparison.Ordinal))
+                if (cause is BsonSerializationException refusal && DriverMessages.Any(message => refusal.Message.StartsWith(message, StringComparison.Ordinal)))
                     return refusal.Message.Contains(Remedy, StringComparison.Ordinal) ? null : refusal;
             }
 

@@ -22,23 +22,7 @@ public sealed class OxSExceptionHandler(ILogger<OxSExceptionHandler> logger) : I
 
         Log(httpContext, oxsException);
 
-        var problemDetails = ProblemDetailsResponseWriter.Create(
-            httpContext,
-            oxsException.StatusCode,
-            oxsException.Title,
-            oxsException.ProblemType,
-            oxsException.Detail);
-
-        oxsException.PopulateProblemDetails(problemDetails.Extensions);
-
-        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        oxsException.PopulateHeaders(headers);
-
-        await ProblemDetailsResponseWriter.WriteAsync(
-            httpContext,
-            problemDetails,
-            headers.Count > 0 ? headers : null,
-            cancellationToken);
+        await ProblemDetailsResponseWriter.WriteAsync(httpContext, oxsException, cancellationToken);
 
         return true;
     }

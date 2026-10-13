@@ -278,7 +278,14 @@ namespace Simplic.OxS.Server
 
             // Suppress the [ApiController] automatic 400 so ValidationActionFilter produces the single
             // BadRequestException problem+json contract for model-state failures on every controller.
-            services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
+            // A filter that answers an invalid model state itself, through the factory of these
+            // options (the query engine's, for a contract 1 body it does not hand to the binder),
+            // gets that same document from it.
+            services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o =>
+            {
+                o.SuppressModelStateInvalidFilter = true;
+                o.InvalidModelStateResponseFactory = ValidationActionFilter.Answer;
+            });
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 

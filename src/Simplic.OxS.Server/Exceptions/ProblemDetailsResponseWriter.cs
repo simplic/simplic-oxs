@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Simplic.OxS.Exceptions;
 using System.Diagnostics;
 
 namespace Simplic.OxS.Server.Exceptions;
@@ -36,6 +37,24 @@ internal static class ProblemDetailsResponseWriter
             problemDetails.Extensions["traceId"] = traceId;
 
         return problemDetails;
+    }
+
+    /// <summary>
+    /// Writes the problem document of <paramref name="exception"/>: its status, title, type and
+    /// detail, the extension members it adds and the headers it asks for. The exception-handler
+    /// chain answers a thrown <see cref="OxSException"/> with it, and so does whatever answers one
+    /// without throwing it, which keeps the two answers one document.
+    /// </summary>
+    public static ValueTask WriteAsync(HttpContext context, OxSException exception, CancellationToken cancellationToken)
+    {
+        var problemDetails = Create(context, exception.StatusCode, exception.Title, exception.ProblemType, exception.Detail);
+
+        exception.PopulateProblemDetails(problemDetails.Extensions);
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        exception.PopulateHeaders(headers);
+
+        return WriteAsync(context, problemDetails, headers.Count > 0 ? headers : null, cancellationToken);
     }
 
     /// <summary>

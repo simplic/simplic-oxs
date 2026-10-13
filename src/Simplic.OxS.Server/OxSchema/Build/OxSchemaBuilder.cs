@@ -63,7 +63,7 @@ namespace Simplic.OxS.Server.OxSchema
                     entity.Id,
                     "The entity is declared extendable and has no 'addon' member, so no addon definition can be stored for it and GET /schema/addons does not list it. "
                     + "Add the 'addon' member to the entity, or drop the extendable flag.",
-                    entity.ClrType.FullName);
+                    entity.ClrType?.FullName);
 
             var entities = EntityDiscovery.Declarations(model);
             var pool = TypePoolWalker.Project(model);

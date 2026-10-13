@@ -1477,6 +1477,11 @@ security requirement; a test of the package compares it).
 | `GET /OxQL/health` | `shallow` as a query parameter and `X-OxQL-Contract`; 200 `OxQLHealthAnswer` with an example. No security requirement (`security: [{}]`) and no other status. |
 | `GET /schema` | Summary and description with the address of this file. `If-None-Match` as an optional header parameter; 200 with the `OxSchemaDocument` model, the `ETag` header and an example; 304 without a body. No security requirement (`security: [{}]`) and no 401 or 403, unless the host sets `OxSchema:RequireAuthorization`: then the route needs what every route needs and lists both statuses. |
 | `GET /schema/addons` | The same headers; 200 with an object of property descriptor lists keyed by entity id and an example; 304; 401 and 403 as `application/problem+json`. |
+| `GET /AddonDefinition/{entity}` | Summary and a description that says what an addon definition is and names the address of this file, as on every `/AddonDefinition` operation. `entity` as a described path parameter; 200 with a list of `AddonDefinitionResponse` and an example; 401 and 404 as `application/problem+json`. |
+| `GET /AddonDefinition/by-id/{id}` | `id` as a described path parameter; 200 `AddonDefinitionResponse` with an example; 401 and 404 as `application/problem+json`. |
+| `POST /AddonDefinition` | The body `CreateAddonDefinitionRequest` as `application/json`, described, with an example; 201 `AddonDefinitionResponse` with an example; 400 and 409 with the reason as a sentence (a string, `text/plain` or `application/json`, whichever the caller accepts), 400 also as `application/problem+json` for a body the host cannot read; 401 and 403 as `application/problem+json`. |
+| `PUT /AddonDefinition/{id}` | `id`; the body `UpdateAddonDefinitionRequest` with an example; 200 `AddonDefinitionResponse` with an example; 400 and 409 as on `POST`; 401 and 404 as `application/problem+json`. |
+| `DELETE /AddonDefinition/{id}` | `id`; 204 without a body; 409 with the reason as a sentence; 401 and 404 as `application/problem+json`. |
 
 - **The models are the ones of the wire.** The engine binds a request with readers of its own, so
   the document describes the bodies by the engine's documentation models (`OxQLQueryBody`,
@@ -1499,6 +1504,10 @@ security requirement; a test of the package compares it).
   (400, 401, 403, 404, 409, 422, 500) to every operation that does not declare them, and still
   does so for every controller of a service. Its own described routes declare each status they
   answer and get none added.
+- **The addon definition routes** need what the document requires of every route. Every member
+  of their models (`CreateAddonDefinitionRequest`, `UpdateAddonDefinitionRequest`,
+  `AddonDefinitionValueRequest`, `AddonDefinitionResponse`, `AddonDefinitionValueResponse`) is
+  described; the rules a definition is held to are in section 5.1, not in the document.
 - **The models of the schema document** (`OxSchemaDocument`, `OxSchemaType`, `OxSchemaProperty`
   and the types they use) join the document's `components.schemas`. A service that has a model
   of one of those names gets no document until the two differ (the generator names both types):
@@ -1535,7 +1544,10 @@ security requirement; a test of the package compares it).
   the page stage has `count`, the page info has `count` with its state, and the errors of the
   query routes are typed as `OxQLError`. A query route lists
   the statuses it answers and no other: neither 404 nor 409 on query and batch, 200 alone on
-  health.
+  health. The five `/AddonDefinition` operations and their five types keep their names; each
+  lists the statuses it answers and no other (no 422 and no 500, 403 on `POST` alone, 400 on
+  `POST` and `PUT` alone), an answer is `application/json` only, and the error of a 400 and of
+  a 409 is typed as the sentence the route answers (`string`), on a 400 beside `ProblemDetails`.
 
 #### The type names of a regenerated client
 

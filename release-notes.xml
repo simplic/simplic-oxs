@@ -87,5 +87,6 @@
   </ChangeSet>
   <ChangeSet>
     <Change type="enhancement">The answer to every request carries a correlation id in X-Correlation-ID: the id the caller sent in that header, as the caller wrote it, where it is a guid (the form the request context reads), and a new one where the caller sent none or something else. A caller can therefore find its request in the logs by the id it chose.</Change>
+    <Change type="enhancement">The public explain route counts its limit (OxQL:Explain:RatePerMinute, OxQL:Explain:RateBurst) per caller: the user of an organisation, read from the authenticated request by the rules the request context is filled by, so the callers of a service behind one ingress address each have a limit of their own. A request that names neither user nor organisation is counted by its remote address. The scope provider answers the query engine with the same user, organisation and correlation id before the request context is filled as after; the forwarded UserId and OrganizationId headers of an internal call count only once its key was checked (OX_SCHEMA.md section 4.3).</Change>
   </ChangeSet>
 </ReleaseNotes>

@@ -1266,6 +1266,13 @@ defaults the engine's legacy pipeline answers a contract 1 request, unchanged fo
 organisation matched before any stage; each such request is logged under `OxQL.Compat.Legacy`.
 The pipeline is temporary: the engine's `LEGACY.md` describes it and when it is removed.
 
+The public explain route admits each caller `OxQL:Explain:RatePerMinute` explains a minute, in
+bursts of `OxQL:Explain:RateBurst`, and answers 429 with `Retry-After` beyond that. A caller is
+the user of an organisation, as the host reads them from the authenticated request (the bearer
+token's or the api key's claims), so the callers of a service that all arrive from one ingress
+address each have a limit of their own. A request that names neither is counted by its remote
+address.
+
 Engine faults carry their message in `Development` and `local` only.
 
 A host with a `Monitoring` section exports the metrics of the meter named `OxQL`, beside the

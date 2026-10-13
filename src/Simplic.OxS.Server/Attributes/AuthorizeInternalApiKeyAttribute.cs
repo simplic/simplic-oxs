@@ -69,6 +69,9 @@ namespace Simplic.OxS.Server
                 return;
             }
 
+            // The key was checked: the forwarded headers say who the call is made for.
+            context.HttpContext.Items[Filter.RequestIdentity.InternalKeyAdmittedItem] = true;
+
             await next();
         }
 

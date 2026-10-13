@@ -8,7 +8,7 @@ namespace Simplic.OxS.Server.Filter
     /// Writes the problem document of <paramref name="refusal"/> as the exception-handler chain
     /// writes it for the same exception thrown, through the one writer both use.
     /// </summary>
-    internal sealed class InvalidModelStateResult(BadRequestException refusal) : IActionResult
+    internal sealed class InvalidModelStateResult(OxSException refusal) : IActionResult
     {
         /// <inheritdoc />
         public Task ExecuteResultAsync(ActionContext context) =>

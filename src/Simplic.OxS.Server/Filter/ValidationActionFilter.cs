@@ -44,7 +44,7 @@ namespace Simplic.OxS.Server.Filter
         internal static IActionResult Answer(ActionContext context) => new InvalidModelStateResult(Refusal(context.ModelState));
 
         /// <summary>The exception that carries the errors of <paramref name="modelState"/>, one list of sentences per place.</summary>
-        private static BadRequestException Refusal(ModelStateDictionary modelState)
+        private static OxSException Refusal(ModelStateDictionary modelState)
         {
             var errors = modelState
                 .Where(entry => entry.Value is { Errors.Count: > 0 })

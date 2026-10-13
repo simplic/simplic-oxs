@@ -49,7 +49,8 @@
     <Error Condition="!Exists('%(_QueryApiComments.FullPath)')"
            Text="The package cannot be packed without the comments of the query engine: %(_QueryApiComments.FullPath) does not exist. Restore the project with documentation files (NUGET_XMLDOC_MODE unset or 'none') and pack again." />
     <PropertyGroup>
-      <_PackageComments>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(DocumentationFile)'))</_PackageComments>
+      <!-- NormalizePath joins the two and writes the separators of the machine that packs, whichever the property was written with. -->
+      <_PackageComments>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(DocumentationFile)'))</_PackageComments>
     </PropertyGroup>
     <Error Condition="'$(DocumentationFile)' == '' Or !Exists('$(_PackageComments)')"
            Text="The package cannot be packed without its own comments: $(_PackageComments) does not exist. Build the project with GenerateDocumentationFile and pack again." />

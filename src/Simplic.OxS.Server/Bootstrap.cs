@@ -116,7 +116,7 @@ namespace Simplic.OxS.Server
             }
 
             // Register custom services
-            RegisterServices(services);
+            RegisterServicesInto(services);
 
             // Create mapper profiles and register mapper
             services.AddSingleton(provider => CreateMapper());
@@ -439,6 +439,16 @@ namespace Simplic.OxS.Server
         /// up the serializer of every entity and of every type reachable from one and freezes
         /// their class maps: a class map registered after that build throws or is not applied,
         /// and a stored subclass without one is missing from the schema's variants.
+        /// <para>
+        /// Inside the hook the order is: plain serializers first (the object serializer among
+        /// them), class maps next, serializers that keep another serializer last (one for an
+        /// interface or a discriminated type looks the object serializer up when it is created).
+        /// The driver creates the default serializer of a type at its first lookup and refuses a
+        /// registration for the type from then on; where a registration of the service meets
+        /// that refusal, here or in <see cref="RegisterServices"/>,
+        /// <see cref="RegisterMapperProfiles"/> or <see cref="ConfigureOxSchema"/>, the exception
+        /// names this order.
+        /// </para>
         /// </remarks>
         protected virtual void RegisterBsonClassMaps() { }
 
@@ -500,7 +510,7 @@ namespace Simplic.OxS.Server
 
                 try
                 {
-                    RegisterBsonClassMaps();
+                    SerializerRegistrationOrder.Explain(nameof(RegisterBsonClassMaps), RegisterBsonClassMaps);
                     ClassMapsRegistered[GetType()] = null;
                 }
                 catch (Exception exception)
@@ -527,7 +537,7 @@ namespace Simplic.OxS.Server
             {
                 try
                 {
-                    var mapper = new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
+                    var mapper = SerializerRegistrationOrder.Explain(nameof(RegisterMapperProfiles), () => new MapperConfiguration(RegisterMapperProfiles).CreateMapper());
 
                     MapperProfilesRegistered[GetType()] = null;
 
@@ -584,14 +594,61 @@ namespace Simplic.OxS.Server
             schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
             schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
 
-            ConfigureOxSchema(schema);
+            SerializerRegistrationOrder.Explain(nameof(ConfigureOxSchema), () => ConfigureOxSchema(schema));
         }
 
         /// <summary>The assemblies <see cref="GetOxQLTypeAssemblies"/> names, each once.</summary>
         internal Assembly[] OxQLTypeAssemblies() => (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
 
-        /// <summary>Calls <see cref="RegisterServices"/>.</summary>
-        internal void RegisterServicesInto(IServiceCollection services) => RegisterServices(services);
+        /// <summary>
+        /// Calls <see cref="RegisterServices"/>, for a host: every host registers its services.
+        /// One run at a time in a process, whoever starts it, a host or
+        /// <see cref="EnsureRegisterServices"/>: what a service registers beside its services
+        /// (a class map, a serializer) is the process's.
+        /// </summary>
+        internal void RegisterServicesInto(IServiceCollection services)
+        {
+            lock (ServicesRegistered)
+            {
+                try
+                {
+                    SerializerRegistrationOrder.Explain(nameof(RegisterServices), () => RegisterServices(services));
+                    ServicesRegistered[GetType()] = null;
+                }
+                catch (Exception exception)
+                {
+                    ServicesRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs <see cref="RegisterServices"/> into a collection that is thrown away, unless this
+        /// process already ran it for this startup type, in a host or here: what
+        /// <see cref="OxSchemaCheck"/> needs of it is the class maps and serializers a service
+        /// registers there, which are the process's and bear no second registration. A run
+        /// that threw is not repeated over registrations it already made: every later call for
+        /// the type throws what it threw.
+        /// </summary>
+        internal void EnsureRegisterServices()
+        {
+            lock (ServicesRegistered)
+            {
+                if (ServicesRegistered.TryGetValue(GetType(), out var thrown))
+                {
+                    thrown?.Throw();
+
+                    return;
+                }
+
+                RegisterServicesInto(new ServiceCollection());
+            }
+        }
+
+        /// <summary>The startup types whose <see cref="RegisterServices"/> ran in this process, each with what the last run threw, if it did.</summary>
+        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ServicesRegistered = [];
 
         /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.

@@ -986,22 +986,23 @@ connection.
 |---|---|---|
 | `EnvironmentName` | `Production` | What the startup sees as its environment. |
 | `Configuration` | empty | What the startup is created with; its `OxQL` section sets the published limits. With the service's own configuration the revision is the one its host publishes. |
-| `RunRegisterServices` | `false` | Runs `RegisterServices` into a collection that is thrown away. For a service that registers class maps there; a service may also read configuration there that a test does not have, hence off. |
+| `RunRegisterServices` | `false` | Runs `RegisterServices` into a collection that is thrown away. Set it for a service that registers class maps or serializers there: without it the check builds the schema without them. A service may also read configuration there that a test does not have, hence off. |
 
-MongoDB registrations are the process's. The hook and the mapper profiles of a startup type run
-once per process, however often the check is called and whether a host of that type was built
-before; a registration in `RegisterServices` or `ConfigureOxSchema` has to bear a second call
-itself. What the service's own code throws reaches the test as it is, and what the hook or the
-profiles threw reaches every later check of the process again, without a second run. A host
-that starts beside a check waits for it: the profiles run for one of them at a time.
+MongoDB registrations are the process's. The hook, the mapper profiles and, with
+`RunRegisterServices`, `RegisterServices` of a startup type run once per process, however often
+the check is called and whether a host of that type was built before; a host calls
+`RegisterServices` itself every time, and `ConfigureOxSchema` runs at every call, so a
+registration there has to bear a second call itself. What the service's own code throws reaches
+the test as it is (the driver's refusal of a serializer with its remedy, section 5.2), and what
+the hook, the profiles or `RegisterServices` threw reaches every later check of the process
+again, without a second run. A host that starts beside a check waits for it: each of the three
+runs for one of them at a time.
 
 The check registers serializers and class maps for the whole test process, and freezes the class
 map of every type the schema reaches. Where other tests of the assembly register class maps or
 serializers of their own, the check belongs in a test collection of its own that does not run
 beside them (xunit: `[CollectionDefinition("…", DisableParallelization = true)]`), or in a test
-assembly of its own. A startup that registers serializers in `RegisterServices` without a guard
-bears one call with `RunRegisterServices` per process: call the check once, in a fixture the
-tests share, and assert on that result.
+assembly of its own.
 
 ---
 

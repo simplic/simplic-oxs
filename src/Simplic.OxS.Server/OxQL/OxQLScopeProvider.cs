@@ -7,7 +7,7 @@ namespace Simplic.OxS.Server.OxQL;
 /// <summary>
 /// Tells the query engine which organisation a request belongs to: the request context's,
 /// filled by <see cref="RequestContextActionFilter"/> from the bearer token or, on an
-/// internal call, from the forwarded headers. The engine applies <c>organizationId eq</c> at
+/// internal call whose key was checked, from the forwarded headers. The engine applies <c>organizationId eq</c> at
 /// every entry into an entity and answers 403 when the context carries no organisation.
 /// <para>
 /// The engine also asks before the action runs, when the context is not filled yet: for the

@@ -22,14 +22,16 @@ namespace Simplic.OxS.Server.Filter
 
         /// <summary>
         /// Create request context: the correlation id of the request's header, and the user and
-        /// the organisation by the rules of <see cref="RequestIdentity"/>.
+        /// the organisation by the rules of <see cref="RequestIdentity"/>. The forwarded headers
+        /// of the internal key scheme are read only where the key was checked: on a controller
+        /// behind <see cref="AuthorizeInternalApiKeyAttribute"/>, whose filter runs before this one.
         /// </summary>
         /// <param name="executionContext"></param>
         public void OnActionExecuting(ActionExecutingContext executionContext)
         {
             requestContext.CorrelationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderCorrelationIdKey);
 
-            if (RequestIdentity.Read(executionContext.HttpContext, forwardedHeaders: true) is { } identity)
+            if (RequestIdentity.Read(executionContext.HttpContext, RequestIdentity.InternalKeyAdmitted(executionContext.HttpContext)) is { } identity)
             {
                 requestContext.UserId = identity.UserId;
                 requestContext.OrganizationId = identity.OrganizationId;

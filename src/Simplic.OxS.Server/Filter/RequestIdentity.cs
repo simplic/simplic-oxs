@@ -8,7 +8,7 @@ namespace Simplic.OxS.Server.Filter
     /// filled (<see cref="OxQL.OxQLScopeProvider"/>).
     /// <list type="bullet">
     /// <item>A bearer token (<c>bearer</c>, <c>v-bearer</c>, <c>x-bearer</c>): the <c>Id</c> and <c>OId</c> claims of the authenticated principal.</item>
-    /// <item>The internal key scheme: the forwarded <c>UserId</c> and <c>OrganizationId</c> headers.</item>
+    /// <item>The internal key scheme: the forwarded <c>UserId</c> and <c>OrganizationId</c> headers, once the key was checked (<see cref="InternalKeyAdmitted"/>). On a route that checks no key they name nobody.</item>
     /// <item>An api key (<c>x-api-key</c>): the claims of the authenticated principal, whatever the rules above read.</item>
     /// </list>
     /// </summary>
@@ -24,7 +24,7 @@ namespace Simplic.OxS.Server.Filter
         /// Reads the user and the organisation of a request, or null where none of the rules
         /// applies to it. With <paramref name="forwardedHeaders"/> false the headers of the
         /// internal key scheme are not read: they say who the request is made for only once
-        /// the key was checked.
+        /// the key was checked, and every caller passes <see cref="InternalKeyAdmitted"/>.
         /// </summary>
         internal static (Guid? UserId, Guid? OrganizationId)? Read(HttpContext httpContext, bool forwardedHeaders)
         {

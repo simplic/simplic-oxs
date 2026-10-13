@@ -81,7 +81,8 @@ namespace Simplic.OxS.Server.Hosting.Test
             { "the internal key and the forwarded user alone", Internal, [$"Authorization: {ValidKey}", "UserId: {forwarded-user}"], 200, "forwarded-user", "-" },
             { "another key and the forwarded headers", Internal, [$"Authorization: {WrongKey}", "UserId: {forwarded-user}", "OrganizationId: {forwarded-org}"], 401, "-", "-" },
             { "a bearer token on a route between services", Internal, ["Authorization: Bearer {token}"], 401, "-", "-" },
-            { "the internal scheme and the forwarded headers on a route that checks no key", Anonymous, [$"Authorization: {WrongKey}", "UserId: {forwarded-user}", "OrganizationId: {forwarded-org}"], 200, "forwarded-user", "forwarded-org" },
+            { "the internal scheme and the forwarded headers on a route that checks no key", Anonymous, [$"Authorization: {WrongKey}", "UserId: {forwarded-user}", "OrganizationId: {forwarded-org}"], 200, "-", "-" },
+            { "the internal key itself and the forwarded headers on a route that checks no key", Anonymous, [$"Authorization: {ValidKey}", "UserId: {forwarded-user}", "OrganizationId: {forwarded-org}"], 200, "-", "-" },
             { "the forwarded headers alone", Anonymous, ["UserId: {forwarded-user}", "OrganizationId: {forwarded-org}"], 200, "-", "-" },
 
             { "an api key", Anonymous, [$"x-api-key: {WhoStartup.ApiKey}"], 200, "key-user", "key-org" },

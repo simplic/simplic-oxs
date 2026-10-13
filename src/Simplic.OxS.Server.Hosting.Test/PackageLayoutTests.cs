@@ -5,19 +5,20 @@ namespace Simplic.OxS.Server.Hosting.Test
 {
     /// <summary>
     /// What the package holds for a service's build: the targets a referencing project imports
-    /// and, beside them, the comments of the query engine's HTTP assembly those targets copy. The
-    /// test packs the server project as the pipeline does, without building, and reads the
-    /// archive. A restore that leaves documentation files out drops the <c>.xml</c> beside an
-    /// assembly under <c>lib</c> and <c>ref</c> and nothing under <c>build</c>, so the place of
-    /// the file is what a service's OpenAPI document depends on.
+    /// and, beside them, the two comment files those targets copy: the query engine's HTTP
+    /// assembly's and the package's own. The test packs the server project as the pipeline does,
+    /// without building, and reads the archive. A restore that leaves documentation files out
+    /// drops the <c>.xml</c> beside an assembly under <c>lib</c> and <c>ref</c> and nothing under
+    /// <c>build</c>, so the place of the files is what a service's OpenAPI document depends on.
     /// </summary>
     public sealed class PackageLayoutTests
     {
         private const string Comments = "OxQL.AspNetCore.xml";
+        private const string OwnComments = "Simplic.OxS.Server.xml";
         private const string Targets = "Simplic.OxS.Server.targets";
 
         [Fact]
-        public void ThePackage_HoldsTheQueryEnginesCommentsBesideItsTargets_AndNowhereARestoreLeavesThemOut()
+        public void ThePackage_HoldsTheQueryEnginesCommentsAndItsOwnBesideItsTargets_WhereNoRestoreLeavesThemOut()
         {
             var output = Directory.CreateTempSubdirectory("simplic-oxs-pack-").FullName;
 
@@ -30,23 +31,33 @@ namespace Simplic.OxS.Server.Hosting.Test
                 var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
 
                 entries.Where(entry => entry.StartsWith("build", StringComparison.Ordinal)).Should().BeEquivalentTo(
-                    [$"build/{Targets}", $"build/{Comments}", $"buildTransitive/{Targets}", $"buildTransitive/{Comments}"],
-                    "a project imports the targets from build or buildTransitive, and they copy the file beside them");
+                    [
+                        $"build/{Targets}", $"build/{Comments}", $"build/{OwnComments}",
+                        $"buildTransitive/{Targets}", $"buildTransitive/{Comments}", $"buildTransitive/{OwnComments}",
+                    ],
+                    "a project imports the targets from build or buildTransitive, and they copy the files beside them");
 
                 entries.Where(entry => entry.EndsWith(Comments, StringComparison.OrdinalIgnoreCase)).Should().OnlyContain(
                     entry => entry.StartsWith("build", StringComparison.Ordinal),
                     "under lib and ref a restore without documentation files leaves the file out");
 
-                // The comments are those of the engine assembly the package is built against.
-                var expected = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, Comments));
+                // The package's own comments are also where every package has them, beside the assembly: that copy is the one a restore may leave out.
+                entries.Where(entry => entry.EndsWith(OwnComments, StringComparison.OrdinalIgnoreCase) && !entry.StartsWith("build", StringComparison.Ordinal))
+                    .Should().Equal($"lib/net10.0/{OwnComments}");
 
-                foreach (var folder in new[] { "build", "buildTransitive" })
+                // The comments are those of the engine assembly the package is built against, and those of the package's own build.
+                foreach (var file in new[] { Comments, OwnComments })
                 {
-                    Read(archive, $"{folder}/{Comments}").Should().Equal(expected, $"{folder} holds the comments of the referenced engine version");
+                    var expected = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, file));
 
-                    System.Text.Encoding.UTF8.GetString(Read(archive, $"{folder}/{Targets}")).Should().Contain(
-                        $"$(MSBuildThisFileDirectory){Comments}",
-                        "the targets take the file from their own folder");
+                    foreach (var folder in new[] { "build", "buildTransitive" })
+                    {
+                        Read(archive, $"{folder}/{file}").Should().Equal(expected, $"{folder} holds {file} of the build the package is packed from");
+
+                        System.Text.Encoding.UTF8.GetString(Read(archive, $"{folder}/{Targets}")).Should().Contain(
+                            $"$(MSBuildThisFileDirectory){file}",
+                            "the targets take the file from their own folder");
+                    }
                 }
             }
             finally

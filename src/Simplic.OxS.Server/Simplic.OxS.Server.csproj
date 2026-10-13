@@ -20,16 +20,17 @@
   </ItemGroup>
 
   <!--
-    Packs the XML comments of the query engine's HTTP assembly beside the build targets, which
-    copy them from there into a service's output. A restore leaves every file of build and
-    buildTransitive in place, also one that is told to leave documentation files out
-    (NUGET_XMLDOC_MODE=skip, which drops the .xml beside an assembly under lib and ref), so a
-    service's OpenAPI document does not depend on how its packages were restored.
+    Packs two files of XML comments beside the build targets, which copy them from there into a
+    service's output: those of the query engine's HTTP assembly, and this assembly's own. A
+    restore leaves every file of build and buildTransitive in place, also one that is told to
+    leave documentation files out (NUGET_XMLDOC_MODE=skip, which drops the .xml beside an
+    assembly under lib and ref), so a service's OpenAPI document does not depend on how its
+    packages were restored.
 
-    The file is the one beside the OxQL.AspNetCore assembly this project compiles against, so
-    comments and assembly are of one version. Packing fails where it cannot be read. The target
-    reads the restored packages only (ResolvePackageAssets), so it also runs in a pack that
-    does not build.
+    The engine's file is the one beside the OxQL.AspNetCore assembly this project compiles
+    against, so comments and assembly are of one version; this assembly's is the one its build
+    wrote. Packing fails where either cannot be read. The target reads the restored packages and
+    what is built (ResolvePackageAssets), so it also runs in a pack that does not build.
   -->
   <PropertyGroup>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackQueryApiComments</TargetsForTfmSpecificContentInPackage>
@@ -47,8 +48,13 @@
            Text="The package cannot be packed: OxQL.AspNetCore resolves to %(_QueryApiAssembly.NuGetPackageVersion), and the project references @(_QueryApiPin->'%(Version)'). The comments would be those of another version than the one the package names." />
     <Error Condition="!Exists('%(_QueryApiComments.FullPath)')"
            Text="The package cannot be packed without the comments of the query engine: %(_QueryApiComments.FullPath) does not exist. Restore the project with documentation files (NUGET_XMLDOC_MODE unset or 'none') and pack again." />
+    <PropertyGroup>
+      <_PackageComments>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(DocumentationFile)'))</_PackageComments>
+    </PropertyGroup>
+    <Error Condition="'$(DocumentationFile)' == '' Or !Exists('$(_PackageComments)')"
+           Text="The package cannot be packed without its own comments: $(_PackageComments) does not exist. Build the project with GenerateDocumentationFile and pack again." />
     <ItemGroup>
-      <TfmSpecificPackageFile Include="@(_QueryApiComments)" PackagePath="build/;buildTransitive/" />
+      <TfmSpecificPackageFile Include="@(_QueryApiComments);$(_PackageComments)" PackagePath="build/;buildTransitive/" />
     </ItemGroup>
   </Target>
 

@@ -1574,7 +1574,11 @@ security requirement; a test of the package compares it).
   The routes answer as before: one of them left out or empty is 400 with the rule's sentence,
   and `null` is 400 as `application/problem+json`.
 - **The models of the schema document** (`OxSchemaDocument`, `OxSchemaType`, `OxSchemaProperty`
-  and the types they use) join the document's `components.schemas`. A service that has a model
+  and the types they use) join the document's `components.schemas`, each with a description,
+  and so has every member of theirs that is no pointer to another model (92 of 102; the other
+  ten are described by the model they point to). The sentences are the package's own comments
+  on those models, said in the terms of the wire: a member is named by its JSON name, a list of
+  values by the values (`kind`: "One of `string`, `int`, …"), each on one line. A service that has a model
   of one of those names gets no document until the two differ (the generator names both types):
   it renames its own class, or gives it another schema id. The package's own attribute does
   that, `[SwaggerSchemaId("StockProperty")]` (namespace `Simplic.OxS.Server`) on the model, once
@@ -1590,16 +1594,21 @@ security requirement; a test of the package compares it).
       options.CustomSchemaIds(type => type == typeof(Model.OxSchemaProperty) ? "StockProperty" : selector(type));
   });
   ```
-- **Comments of the query engine.** The package brings build targets
-  (`build/Simplic.OxS.Server.targets`, also under `buildTransitive`) that copy
-  `OxQL.AspNetCore.xml` beside the service's assemblies when it is built and when it is
-  published, and the document's setup includes every `OxQL.*.xml` it finds there; one it cannot
-  read is left out with a warning in the log, and the document is generated without it. A project
-  reference to a project that references the package gets them too. The file is part of the
-  package, beside the targets, so the document is described alike in every build, also in one
-  that restores without documentation files (`NUGET_XMLDOC_MODE=skip`, the setting of the .NET
-  SDK container images). A service edits nothing; one
-  that wants the file left out sets `<SimplicOxSCopyQueryApiComments>false</SimplicOxSCopyQueryApiComments>`.
+- **Comments of the query engine and of the package.** The package brings build targets
+  (`build/Simplic.OxS.Server.targets`, also under `buildTransitive`) that copy two files beside
+  the service's assemblies when it is built and when it is published: `OxQL.AspNetCore.xml`
+  and `Simplic.OxS.Server.xml`. The document's setup includes every `OxQL.*.xml` it finds
+  there, and from `Simplic.OxS.Server.xml` the comments of the schema document's models and of
+  the two schema routes and of nothing else: the package's other controllers and models
+  (organisation settings, service contracts, addon fields, the service definition) are in a
+  service's document as they were, and the addon definition models keep the descriptions their
+  members carry as attributes. A file the setup cannot read is left out with a warning in the
+  log, and the document is generated without it. A project reference to a project that
+  references the package gets the files too. Both are part of the package, beside the targets,
+  so the document is described alike in every build, also in one that restores without
+  documentation files (`NUGET_XMLDOC_MODE=skip`, the setting of the .NET SDK container
+  images). A service edits nothing; one that wants the files left out sets
+  `<SimplicOxSCopyQueryApiComments>false</SimplicOxSCopyQueryApiComments>`.
 - **The routes between services** (`internal/oxql/batch`, `internal/oxql/explain`) stay out of
   the document in every environment. Only other services call them, with the internal key, and
   a client generated from the document must not offer them.

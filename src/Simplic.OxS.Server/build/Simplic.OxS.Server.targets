@@ -1,25 +1,31 @@
 <Project>
 
   <!--
-    Puts the XML comments of the query engine's HTTP assembly beside the assemblies of a project
-    that references this package, in its build output and in what it publishes. The OpenAPI
-    document of a service takes the descriptions of the OxQL routes' parameters and of the members
-    of their bodies from that file (SwaggerExtension includes every OxQL.*.xml it finds there).
+    Puts two files of XML comments beside the assemblies of a project that references this
+    package, in its build output and in what it publishes: OxQL.AspNetCore.xml, the comments of
+    the query engine's HTTP assembly, and Simplic.OxS.Server.xml, the comments of this package's
+    own assembly. The OpenAPI document of a service takes from the first the descriptions of the
+    OxQL routes' parameters and of the members of their bodies (SwaggerExtension includes every
+    OxQL.*.xml it finds there), and from the second the descriptions of the schema document's
+    models and nothing else (PackageComments).
 
-    The file is the one packed beside these targets, taken from the engine version the package
-    was built against. It is in every restored package, also where the restore leaves
-    documentation files out (NUGET_XMLDOC_MODE=skip, the setting of the .NET SDK container
-    images), and it is the only source: a build on a developer's machine and one in a container
-    give the same document. Where a project also lists a file of that name for its output
-    (CopyDocumentationFilesFromPackages, PublishReferencesDocumentationFiles), this one takes its
-    place, so the output holds one.
+    The files are the ones packed beside these targets: the engine's from the engine version the
+    package was built against, the package's from its own build. They are in every restored
+    package, also where the restore leaves documentation files out (NUGET_XMLDOC_MODE=skip, the
+    setting of the .NET SDK container images), and they are the only source: a build on a
+    developer's machine and one in a container give the same document. Where a project also
+    lists a file of one of those names for its output (CopyDocumentationFilesFromPackages,
+    PublishReferencesDocumentationFiles), the one from here takes its place, so the output
+    holds one.
 
-    Only that one file is copied. A project that wants none sets SimplicOxSCopyQueryApiComments
-    to false; its document then carries the routes without those sentences.
+    Only those two files are copied. A project that wants neither sets
+    SimplicOxSCopyQueryApiComments to false; its document then carries the routes and the models
+    without those sentences.
   -->
   <PropertyGroup>
-    <!-- A project that imports these targets from the source tree names the file itself. -->
+    <!-- A project that imports these targets from the source tree names the files itself. -->
     <_SimplicOxSQueryApiCommentsFile Condition="'$(_SimplicOxSQueryApiCommentsFile)' == ''">$(MSBuildThisFileDirectory)OxQL.AspNetCore.xml</_SimplicOxSQueryApiCommentsFile>
+    <_SimplicOxSPackageCommentsFile Condition="'$(_SimplicOxSPackageCommentsFile)' == ''">$(MSBuildThisFileDirectory)Simplic.OxS.Server.xml</_SimplicOxSPackageCommentsFile>
   </PropertyGroup>
 
   <Target Name="SimplicOxSFindQueryApiComments"
@@ -28,6 +34,9 @@
       <SimplicOxSQueryApiComments Include="$(_SimplicOxSQueryApiCommentsFile)"
                                   Condition="Exists('$(_SimplicOxSQueryApiCommentsFile)')"
                                   Exclude="@(SimplicOxSQueryApiComments)" />
+      <SimplicOxSPackageComments Include="$(_SimplicOxSPackageCommentsFile)"
+                                 Condition="Exists('$(_SimplicOxSPackageCommentsFile)')"
+                                 Exclude="@(SimplicOxSPackageComments)" />
     </ItemGroup>
   </Target>
 
@@ -39,6 +48,10 @@
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.DestinationSubDirectory)%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'OxQL.AspNetCore.xml'" />
       <ReferenceCopyLocalPaths Include="@(SimplicOxSQueryApiComments)" />
     </ItemGroup>
+    <ItemGroup Condition="'@(SimplicOxSPackageComments)' != ''">
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.DestinationSubDirectory)%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'Simplic.OxS.Server.xml'" />
+      <ReferenceCopyLocalPaths Include="@(SimplicOxSPackageComments)" />
+    </ItemGroup>
   </Target>
 
   <Target Name="SimplicOxSPublishQueryApiComments"
@@ -48,6 +61,13 @@
     <ItemGroup Condition="'@(SimplicOxSQueryApiComments)' != ''">
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'OxQL.AspNetCore.xml'" />
       <ResolvedFileToPublish Include="@(SimplicOxSQueryApiComments)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+    <ItemGroup Condition="'@(SimplicOxSPackageComments)' != ''">
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.RelativePath)' == 'Simplic.OxS.Server.xml'" />
+      <ResolvedFileToPublish Include="@(SimplicOxSPackageComments)">
         <RelativePath>%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>

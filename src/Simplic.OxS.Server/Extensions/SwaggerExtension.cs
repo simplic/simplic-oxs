@@ -120,6 +120,11 @@ namespace Simplic.OxS.Server.Extensions
             services.AddOptions<SwaggerGenOptions>().Configure<ILoggerFactory>((options, loggers) =>
                 IncludeQueryEngineComments(options, AppContext.BaseDirectory, loggers.CreateLogger("Simplic.OxS.Server.OpenApi")));
 
+            // The package's own comments describe the models of the schema document, and nothing
+            // else of the package: the same targets put that file there.
+            services.AddOptions<SwaggerGenOptions>().Configure<ILoggerFactory>((options, loggers) =>
+                PackageComments.Include(options, AppContext.BaseDirectory, loggers.CreateLogger("Simplic.OxS.Server.OpenApi")));
+
             return services;
         }
 

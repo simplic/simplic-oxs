@@ -344,6 +344,35 @@ namespace Simplic.OxS.Server.Test.OxQL
         }
 
         [Fact]
+        public async Task AnOwnerThatAnswers404ToItsHealth_IsAnOwnerWithoutTheRoute_ThrownWithTheStatus()
+        {
+            var client = Client(new AnsweringHandler(HttpStatusCode.NotFound, ""), "vehicle-svc:8080");
+
+            var ask = () => client.IsReachableAsync("vehicle", CancellationToken.None);
+            var thrown = (await ask.Should().ThrowAsync<HttpRequestException>()).Which;
+
+            thrown.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            thrown.Message.Should().Be("The owner of 'vehicle' answered 404 to its health route: it does not serve the query routes at the configured address.");
+            client.OwnerOf("vehicle").Should().BeNull();
+
+            // Before a batch the same owner is one whose facts are not known: the batch reports what it meets, and nothing is thrown here.
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+        }
+
+        [Theory]
+        [InlineData(HttpStatusCode.NotFound)]
+        public async Task AnOwnerThatAnswers404ToABatchOrAnExplain_IsThrownWithTheStatus(HttpStatusCode status)
+        {
+            var client = Client(new AnsweringHandler(status, ""), "vehicle-svc:8080");
+
+            var batch = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var explain = () => client.ExplainBatchAsync("vehicle", new ExplainBatchRequest { Checks = [Explain()] }, TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            (await batch.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(status);
+            (await explain.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(status);
+        }
+
+        [Fact]
         public void TheFormOfAHostEntry_IsSaidInOneSentence()
         {
             RemoteQueryClient.HostEntryForm.Should().Be(

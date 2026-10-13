@@ -366,8 +366,12 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
 
     /// <summary>
     /// Whether the owner's shallow health answers; a success also keeps what that health says of
-    /// the owner, for <see cref="OwnerOf"/>.
+    /// the owner, for <see cref="OwnerOf"/>. An owner that answers 404 is reached and does not
+    /// serve the route where this host calls it (its api version, its host): that is thrown as
+    /// an <see cref="HttpRequestException"/> with the status, as a batch and an explain throw
+    /// it, so whoever asks can tell a route that is not there from an owner that is down.
     /// </summary>
+    /// <exception cref="HttpRequestException">The owner answered 404 to its health route.</exception>
     /// <inheritdoc/>
     public async Task<bool> IsReachableAsync(string serviceKey, CancellationToken cancellationToken)
     {
@@ -388,6 +392,14 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
             using var message = new HttpRequestMessage(HttpMethod.Get, address);
             using var response = await clients.CreateClient(HttpClientName).SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
 
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                throw new HttpRequestException(
+                    $"The owner of '{serviceKey}' answered 404 to its health route: it does not serve the query routes at the configured address.",
+                    null,
+                    System.Net.HttpStatusCode.NotFound);
+            }
+
             if (!response.IsSuccessStatusCode)
                 return false;
 
@@ -395,7 +407,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
 
             return true;
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested && exception is not HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound })
         {
             return false;
         }
@@ -440,6 +452,11 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
         {
             if (!await IsReachableAsync(serviceKey, CancellationToken.None))
                 logger.LogInformation("OxQL owner {Service} did not answer its health before a batch; its engine facts stay unknown", serviceKey);
+        }
+        catch (HttpRequestException)
+        {
+            // The owner does not serve the route: the batch that follows meets the same and reports it.
+            logger.LogInformation("OxQL owner {Service} did not answer its health before a batch; its engine facts stay unknown", serviceKey);
         }
         finally
         {

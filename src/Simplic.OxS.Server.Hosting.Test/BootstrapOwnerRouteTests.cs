@@ -91,18 +91,46 @@ namespace Simplic.OxS.Server.Hosting.Test
         {
             (string Key, string Value)[] settings = [("InternalHosts:carpool", "http://carpool-host:8080"), ("InternalHosts:crew", "crew-host"), ("InternalHosts:billing", "billing-host")];
 
-            using var host = BootstrapHost.Build<DispatchStartup>(new CapturedLog(), environment, settings);
+            var log = new CapturedLog();
+
+            using var host = BootstrapHost.Build<DispatchStartup>(log, environment, settings);
 
             var start = () => host.StartAsync();
 
+            // The exception says that the start is refused, of how many services, and by what it is not; the log line has the key and the service.
             (await start.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Be(
-                $"OxQL refuses to start: OxQL owner carpool: the value of InternalHosts:carpool is not used, because it names a scheme{NotUsed}"
-                + " To start without them, set OxQL:Startup:StrictRemoteReferences to false.");
+                "OxQL refuses to start: 1 referenced service is configured with a value that is no host; the error lines of the log name each. "
+                + "To start without them, set OxQL:Startup:StrictRemoteReferences to false.");
+            log.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Error && entry.Message.StartsWith("OxQL owner carpool: ", StringComparison.Ordinal))
+                .Which.Message.Should().Be($"OxQL owner carpool: the value of InternalHosts:carpool is not used, because it names a scheme{NotUsed}");
 
             // What switches the engine's check of the remote references off switches this one off.
             using var lenient = await BootstrapHost.StartAsync<DispatchStartup>(new CapturedLog(), environment, [.. settings, ("OxQL:Startup:StrictRemoteReferences", "false")]);
 
             lenient.Services.GetRequiredService<global::OxQL.Core.Engine.IRemoteQueryClient>().IsConfigured("carpool").Should().BeFalse();
+        }
+
+        [Theory]
+        [InlineData("Development")]
+        [InlineData("Local")]
+        public async Task AReferencedServiceWithoutAnEntry_StopsTheStart_AndTheLogNamesTheKeysToAdd(string environment)
+        {
+            var log = new CapturedLog();
+
+            using var host = BootstrapHost.Build<DispatchStartup>(log, environment, ("InternalHosts:crew", "crew-host"));
+
+            var start = () => host.StartAsync();
+
+            // What holds of the refusal in every version of the query engine: that it is one, and the switch.
+            (await start.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should()
+                .Contain("OxQL refuses to start").And.Contain("OxQL:Startup:StrictRemoteReferences");
+
+            // The keys and the services are in the log lines, one per service.
+            foreach (var service in new[] { "billing", "carpool" })
+            {
+                log.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Error && entry.Message.StartsWith($"OxQL remote reference finding: service '{service}'", StringComparison.Ordinal))
+                    .Which.Message.Should().Contain($"InternalHosts:{service}").And.Contain($"InternalApiVersions:{service}");
+            }
         }
 
         [Fact]

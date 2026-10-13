@@ -20,8 +20,9 @@ namespace Simplic.OxS.Server.OxQL;
 /// <para>
 /// Where the query engine's check of the remote references stops the start (<c>Development</c>,
 /// <c>Local</c> and continuous integration, unless <c>OxQL:Startup:StrictRemoteReferences</c>
-/// says otherwise), this check stops it with those lines. It is registered ahead of the
-/// engine's, which would name the same service as one without an entry.
+/// says otherwise), this check stops it. The exception names how many services the lines are
+/// about and the switch; the keys and the services are in the lines. It is registered ahead of
+/// the engine's, which would name the same service as one without an entry.
 /// </para>
 /// </summary>
 internal sealed class RemoteOwnerHostCheck(IServiceProvider provider, ILoggerFactory loggers) : IStartupFilter
@@ -45,7 +46,11 @@ internal sealed class RemoteOwnerHostCheck(IServiceProvider provider, ILoggerFac
             logger.LogError("{Finding}", finding);
 
         if (findings.Count > 0 && Strict())
-            throw new InvalidOperationException("OxQL refuses to start: " + string.Join(" ", findings) + " To start without them, set OxQL:Startup:StrictRemoteReferences to false.");
+        {
+            throw new InvalidOperationException(
+                $"OxQL refuses to start: {findings.Count} referenced {(findings.Count == 1 ? "service is" : "services are")} configured with a value that is no host; the error lines of the log name each. "
+                + "To start without them, set OxQL:Startup:StrictRemoteReferences to false.");
+        }
     }
 
     /// <summary>

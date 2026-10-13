@@ -1120,7 +1120,8 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
   ```
 
   Where a missing entry stops the start (`Development`, `Local`, continuous integration), such a
-  value stops it too, with that sentence; `OxQL:Startup:StrictRemoteReferences=false` starts
+  value stops it too (the exception names the number of such services and the switch, the log
+  line the key and the service); `OxQL:Startup:StrictRemoteReferences=false` starts
   the host without either.
 - **`InternalApiVersions`.** An owner that answers on another version than `v1` needs an entry
   on every *calling* service (`InternalApiVersions__vehicle=v2`). Without it the call goes to
@@ -1186,6 +1187,11 @@ the one the engine scoped the parent query with.
   is reported as one that does not serve the route (the `HttpRequestException` carries 404 and
   names the status the owner sent), which the engine logs with the keys to check; a redirected
   health or schema read counts as not answered.
+- An owner that answers 404 is reached and does not serve the route this host calls: `BatchAsync`,
+  `ExplainBatchAsync` and `IsReachableAsync` throw an `HttpRequestException` with that status,
+  so the engine can tell a route that is not there (a wrong `InternalApiVersions` entry, a host
+  that does not map the routes) from an owner that is down. Any other answer of the health
+  route that is no success is "not reachable" (`false`), as before.
   The batch, explain and health addresses are paths under it. `ApiVersionOf(service)` is its
   version segment (the `InternalApiVersions` entry, else `v1`). The query engine reads it through
   `IRemoteOwnerInfo`, so an explain answer names it in each owner's

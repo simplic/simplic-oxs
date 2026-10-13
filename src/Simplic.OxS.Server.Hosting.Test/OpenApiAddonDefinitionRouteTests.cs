@@ -290,6 +290,98 @@ namespace Simplic.OxS.Server.Hosting.Test
                 answer => answer.Status == HttpStatusCode.Forbidden && answer.Media == ProblemJson);
         }
 
+        [Fact]
+        public async Task TheMembersADefinitionCannotBeStoredWithout_AreRequiredAndNotNullable_AndNoOtherIs()
+        {
+            var schemas = (await DocumentAsync())["components"]!["schemas"]!;
+
+            void Requires(string model, string[] required, string[] optional)
+            {
+                var schema = schemas[model]!;
+
+                (schema["required"]?.AsArray().Select(name => name!.GetValue<string>()) ?? []).Should().BeEquivalentTo(required, model);
+
+                foreach (var member in required)
+                    (schema["properties"]![member]!["nullable"]?.GetValue<bool>() ?? false).Should().BeFalse($"{model}.{member} is required");
+
+                foreach (var member in optional)
+                    schema["properties"]![member]!["nullable"]!.GetValue<bool>().Should().BeTrue($"{model}.{member} may be left out");
+
+                Keys(schema["properties"]).Should().BeEquivalentTo([.. required, .. optional], model);
+            }
+
+            Requires("CreateAddonDefinitionRequest", ["entity", "path", "kind"], ["values", "displayName", "description"]);
+            Requires("AddonDefinitionValueRequest", ["value"], ["label"]);
+            Requires("UpdateAddonDefinitionRequest", [], ["values", "displayName", "description"]);
+        }
+
+        public static TheoryData<string, string?> BodiesWithoutARequiredMember => new()
+        {
+            // The body, and the sentence the route refuses it with; null where the host refuses it before the route, with its problem document.
+            { """{ "path": "handling", "kind": "string" }""", "The entity id is required." },
+            { """{ "entity": "", "path": "handling", "kind": "string" }""", "The entity id is required." },
+            { """{ "entity": null, "path": "handling", "kind": "string" }""", null },
+            { """{ "entity": "cask.cask", "kind": "string" }""", "The path is required." },
+            { """{ "entity": "cask.cask", "path": "", "kind": "string" }""", "The path is required." },
+            { """{ "entity": "cask.cask", "path": null, "kind": "string" }""", null },
+            { """{ "entity": "cask.cask", "path": "handling" }""", "'' is not a kind; one of string, int, long, double, decimal, bool, date, dateTime, guid, object is." },
+            { """{ "entity": "cask.cask", "path": "handling", "kind": "" }""", "'' is not a kind; one of string, int, long, double, decimal, bool, date, dateTime, guid, object is." },
+            { """{ "entity": "cask.cask", "path": "handling", "kind": null }""", null },
+            { """{ "entity": "cask.cask", "path": "handling", "kind": "string", "values": [ { "label": "Fragile" } ] }""", "Every value of the list must be non-empty." },
+            { """{ "entity": "cask.cask", "path": "handling", "kind": "string", "values": [ { "value": "", "label": "Fragile" } ] }""", "Every value of the list must be non-empty." },
+            { """{ "entity": "cask.cask", "path": "handling", "kind": "string", "values": [ { "value": null, "label": "Fragile" } ] }""", null },
+        };
+
+        private static async Task<(HttpStatusCode Status, string? Media, string Body)> CreateAsync(string body)
+        {
+            using var host = await BootstrapHost.StartAsync<CaskStartup>(services =>
+            {
+                services.AddScoped(_ => DispatchProxy.Create<IAddonDefinitionRepository, StoresEverything>());
+                services.AddDistributedMemoryCache();
+            });
+            using var client = host.GetTestClient();
+            using var message = new HttpRequestMessage(HttpMethod.Post, "/cask-api/v1/AddonDefinition") { Content = new StringContent(body, Encoding.UTF8, Json) };
+
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Callers.Bearer());
+
+            using var answer = await client.SendAsync(message);
+
+            return (answer.StatusCode, answer.Content.Headers.ContentType?.MediaType, await answer.Content.ReadAsStringAsync());
+        }
+
+        [Theory]
+        [MemberData(nameof(BodiesWithoutARequiredMember))]
+        public async Task TheHost_RefusesADefinitionWithoutAMemberTheDocumentRequires_LeftOutEmptyOrNull(string body, string? sentence)
+        {
+            var (status, media, answered) = await CreateAsync(body);
+
+            status.Should().Be(HttpStatusCode.BadRequest, answered);
+
+            if (sentence is null)
+            {
+                media.Should().Be(ProblemJson);
+                JsonNode.Parse(answered)!["status"]!.GetValue<int>().Should().Be(400);
+            }
+            else
+            {
+                media.Should().Be(Text);
+                answered.Should().Be(sentence);
+            }
+        }
+
+        [Theory]
+        [InlineData("""{ "entity": "cask.cask", "path": "handling", "kind": "string" }""")]
+        [InlineData("""{ "entity": "cask.cask", "path": "handling", "kind": "string", "values": null, "displayName": null, "description": null }""")]
+        [InlineData("""{ "entity": "cask.cask", "path": "handling", "kind": "string", "values": [ { "value": "fragile" }, { "value": "plain", "label": null } ] }""")]
+        public async Task TheHost_StoresADefinitionOfTheRequiredMembersAlone(string body)
+        {
+            var (status, media, answered) = await CreateAsync(body);
+
+            status.Should().Be(HttpStatusCode.Created, answered);
+            media.Should().Be(Json);
+            JsonSerializer.Deserialize<AddonDefinitionResponse>(answered, Strict)!.Path.Should().Be("handling");
+        }
+
         /// <summary>A token of a user that belongs to no organisation, signed with the host's secret.</summary>
         private static string BearerWithoutOrganisation()
         {
@@ -313,6 +405,52 @@ namespace Simplic.OxS.Server.Hosting.Test
                 _ => throw new NotSupportedException(targetMethod.Name),
             };
         }
+    }
+
+    /// <summary>A store without definitions that takes every write.</summary>
+    public class StoresEverything : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            var answer = targetMethod!.ReturnType;
+
+            if (targetMethod.Name == nameof(IAddonDefinitionRepository.GetByEntitiesAsync))
+                return Task.FromResult<IEnumerable<AddonDefinitionDocument>>([]);
+
+            if (answer == typeof(void))
+                return null;
+
+            if (answer == typeof(Task))
+                return Task.CompletedTask;
+
+            // A task of a value: one write, where the store counts them.
+            var value = answer.GetGenericArguments()[0];
+
+            return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(value).Invoke(null, [value == typeof(int) ? 1 : null]);
+        }
+    }
+
+    /// <summary>An entity an organisation adds properties to.</summary>
+    [OxQLType("cask.cask", "cask.cask", Extendable = true)]
+    public class Cask : IDocument<Guid>
+    {
+        public Guid Id { get; set; }
+
+        public Guid OrganizationId { get; set; }
+
+        public bool IsDeleted { get; set; }
+
+        public IDictionary<string, object> Addon { get; set; } = new Dictionary<string, object>();
+    }
+
+    /// <summary>A service with an extendable entity and the addon definition routes of the package.</summary>
+    public class CaskStartup(IConfiguration configuration, IWebHostEnvironment environment) : HostingStartup(configuration, environment)
+    {
+        protected override string ServiceName => "Cask";
+
+        protected override Type[] EntityTypes => [typeof(Cask)];
+
+        protected override Type[] Controllers => [typeof(AddonDefinitionController)];
     }
 
     /// <summary>An entity of the crate service.</summary>

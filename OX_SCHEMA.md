@@ -1568,7 +1568,11 @@ security requirement; a test of the package compares it).
 - **The addon definition routes** need what the document requires of every route. Every member
   of their models (`CreateAddonDefinitionRequest`, `UpdateAddonDefinitionRequest`,
   `AddonDefinitionValueRequest`, `AddonDefinitionResponse`, `AddonDefinitionValueResponse`) is
-  described; the rules a definition is held to are in section 5.1, not in the document.
+  described; the rules a definition is held to are in section 5.1, not in the document. The
+  members a definition is not stored without are `required` and not nullable: `entity`, `path`
+  and `kind` of `CreateAddonDefinitionRequest`, and `value` of `AddonDefinitionValueRequest`.
+  The routes answer as before: one of them left out or empty is 400 with the rule's sentence,
+  and `null` is 400 as `application/problem+json`.
 - **The models of the schema document** (`OxSchemaDocument`, `OxSchemaType`, `OxSchemaProperty`
   and the types they use) join the document's `components.schemas`. A service that has a model
   of one of those names gets no document until the two differ (the generator names both types):

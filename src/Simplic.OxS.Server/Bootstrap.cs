@@ -612,6 +612,7 @@ namespace Simplic.OxS.Server
             schema.ApiName = ApiName;
             schema.ApiVersion = ApiVersion;
             schema.TypeAssemblies = typeAssemblies;
+            schema.NoEntitiesDeclared = noEntitiesDeclared;
             schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
             schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
 
@@ -622,8 +623,22 @@ namespace Simplic.OxS.Server
             SerializerRegistrationOrder.Explain(nameof(ConfigureOxSchema), () => ConfigureOxSchema(schema));
         }
 
-        /// <summary>The assemblies <see cref="GetOxQLTypeAssemblies"/> names, each once.</summary>
-        internal Assembly[] OxQLTypeAssemblies() => (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+        /// <summary>
+        /// The assemblies <see cref="GetOxQLTypeAssemblies"/> names, each once. An empty list is a
+        /// service that declares it has no entities, which the schema is told
+        /// (<see cref="FillOxSchema"/>); no list at all (null) is not.
+        /// </summary>
+        internal Assembly[] OxQLTypeAssemblies()
+        {
+            var named = GetOxQLTypeAssemblies();
+
+            noEntitiesDeclared = named is { Count: 0 };
+
+            return (named ?? new List<Assembly>()).Distinct().ToArray();
+        }
+
+        /// <summary>Whether the last call of <see cref="OxQLTypeAssemblies"/> found an empty list.</summary>
+        private bool noEntitiesDeclared;
 
         /// <summary>
         /// Calls <see cref="RegisterServices"/>, for a host: every host registers its services.
@@ -677,6 +692,7 @@ namespace Simplic.OxS.Server
 
         /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.
+        /// A service without entities returns an empty list: the schema then describes no types and reports nothing.
         /// </summary>
         /// <returns>List of assemblies containing OxQL types</returns>
         protected abstract IList<Assembly> GetOxQLTypeAssemblies();

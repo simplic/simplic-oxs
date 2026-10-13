@@ -16,6 +16,7 @@ namespace Simplic.OxS.Server.OxSchema
             // A scan that failed without throwing leaves the same model as a build that threw: one without the host's entities.
             Degraded = threw || result.Findings.Any(finding => finding.Code == OxSchemaCodes.EntityScanFailed);
             RequireAuthorization = options.RequireAuthorization;
+            NoEntitiesDeclared = options.NoEntitiesDeclared && options.TypeAssemblies.Count == 0;
             Model = result.Model;
             Document = result.Document;
             Body = result.Body;
@@ -70,6 +71,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <inheritdoc cref="OxSchemaBuildOptions.RequireAuthorization"/>
         public bool RequireAuthorization { get; }
+
+        /// <summary>Whether the host declared that the service has no entities, and named no assembly.</summary>
+        internal bool NoEntitiesDeclared { get; }
 
         /// <summary>Every validation finding, in the order the log and the diagnostics use.</summary>
         public IReadOnlyList<OxSchemaFinding> Findings { get; }

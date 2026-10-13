@@ -491,7 +491,8 @@ Published only for findings a client could not detect from absence: an entity dr
 ambiguous id (`duplicate-entity-id`), a pointer with no target (`dangling-type-pointer`: a
 property's type, a snapshot source or a variant's `type`), and a
 pool that is empty because the scan, or the build after it, threw (`entity-scan-failed`) or
-because the host named no assemblies (`entity-assemblies-missing`). `target` is in wire terms; nothing names a CLR type.
+because the host named no list of assemblies (`entity-assemblies-missing`; a service that names an
+empty list has no entities and no diagnostic). `target` is in wire terms; nothing names a CLR type.
 The array is inside the revision hash. Every other finding is logged at startup only (section 3.3).
 
 ### 1.15 Compatibility
@@ -857,8 +858,8 @@ document that is complete. Both sets are closed and keyed on the code.
 
 The startup log carries one summary line, one line per finding, and one line per controller the
 legacy generator could not describe. A refusing or published finding is logged as an error
-(`entity-assemblies-missing` as a warning: a service without entities names no assemblies on
-purpose), and so is a finding the service has to act on although the document stays readable;
+(`entity-assemblies-missing` as a warning: every other route of the service works), and so is
+a finding the service has to act on although the document stays readable;
 every other finding is a warning. The findings a service has to act on get one more error line
 per kind, after the findings, that counts them and says what to do:
 
@@ -866,6 +867,11 @@ per kind, after the findings, that counts them and says what to do:
 |---|---|
 | `polymorphic-subtype-unregistered` | `Ox schema: N stored subtypes have no MongoDB class map and are missing from the schema (…)`, then: register them in `RegisterBsonClassMaps()` or list them in `[BsonKnownTypes]` |
 | `entity-id-off-grammar`, `entity-id-foreign-service` | `Ox schema: N entity ids are not <service>.<entity> with this service's name as the prefix (…)`, then: rename each id and paste the `RetireEntityId` line of its finding |
+
+**A service without entities** returns an empty list from `GetOxQLTypeAssemblies()`. Its
+document has no types and no diagnostic, nothing is reported, and the start says so in one
+information line (`Ox schema: the service declares no OxQL entities: …`).
+`entity-assemblies-missing` is for the startup that returns no list at all (null).
 
 **Extendable entities.** `extendable-without-addon` marks an entity that is declared extendable
 (`[OxQLType(…, Extendable = true)]`) and has no `addon` member. The document publishes

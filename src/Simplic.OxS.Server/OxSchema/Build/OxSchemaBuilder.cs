@@ -54,7 +54,7 @@ namespace Simplic.OxS.Server.OxSchema
             // so a member a service cannot annotate gets the same reference in both.
             var model = ClrModelBuilder.Build(options.TypeAssemblies, options.RetiredEntityIds, options.ReferenceDeclarations);
 
-            ModelFindings.Import(model, service, findings);
+            ModelFindings.Import(model, service, findings, options.NoEntitiesDeclared && options.TypeAssemblies.Count == 0);
 
             // Declared extendable, and nothing to hold what is added: the routes that take and list addon definitions leave the entity out.
             foreach (var entity in model.Entities.Values.Where(entity => entity.Extendable && !OxQL.AddonDefinitionRules.HasBag(entity)))

@@ -37,6 +37,9 @@ namespace Simplic.OxS.Server.OxSchema
                 document.Limits.MaxPageSize,
                 document.Limits.DefaultPageSize);
 
+            if (registry.NoEntitiesDeclared)
+                logger.LogInformation("Ox schema: the service declares no OxQL entities: GetOxQLTypeAssemblies names no assembly.");
+
             foreach (var finding in registry.Findings)
                 logger.Log(
                     LevelOf(finding),
@@ -102,8 +105,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>
         /// A refusing or published finding is an error of the host, with one exception: a
-        /// service that has no entities names no assemblies on purpose, so its published
-        /// <c>entity-assemblies-missing</c> is a warning on every start, not an error. So is a
+        /// service whose startup names no list of entity assemblies still serves every other
+        /// route, so its published <c>entity-assemblies-missing</c> is a warning, not an error
+        /// (a service that names an empty list has no such finding). So is a
         /// finding the service has to act on (<see cref="OxSchemaCodes.IsActionable"/>); every
         /// other finding is a warning.
         /// </summary>

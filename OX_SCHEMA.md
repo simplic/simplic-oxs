@@ -1279,6 +1279,23 @@ A host with a `Monitoring` section exports the metrics of the meter named `OxQL`
 service's own meters (`{service}`, `oxs-{service}`): what an engine version publishes under that
 name reaches the collector without a change in the service.
 
+### 4.4 A host without a database
+
+A host whose configuration has no `MongoDB` section starts, and the routes that read no data
+answer:
+
+| route | answer |
+|---|---|
+| `GET /schema` | 200, the document: it is built from the service's model when the host starts. |
+| `GET /OxQL/health`, with and without `shallow` | 200: the engine's version, contract, capabilities and limits. |
+| `GET /schema/addons` | 404 as `application/problem+json`, whose `detail` says that the service is configured with no database and holds no addon definitions; 401 and 403 as on every host. |
+| `POST /OxQL/query` | 500 in the engine's envelope (`internal_error`); the log names the missing section. |
+
+The `/AddonDefinition` routes need the database. The host's authentication needs its cache
+(the `Redis` section) on every route that authenticates a caller, and a host that validates its
+services when it is built (`Host.CreateDefaultBuilder` does in `Development`) does not start
+without that section.
+
 ---
 
 ## 5 · Upgrading a service to this package version
@@ -1483,7 +1500,7 @@ security requirement; a test of the package compares it).
 | `POST /OxQL/explain` | `X-OxQL-Contract` and `If-None-Match`; `OxQLExplainBody`; 200 `OxQLExplainAnswer` with the `ETag` header; 304; 400, 403, 413, 429 (with `Retry-After`) and 500 with `OxQLError`; 401 and 404 (explain switched off) as `application/problem+json`. |
 | `GET /OxQL/health` | `shallow` as a query parameter and `X-OxQL-Contract`; 200 `OxQLHealthAnswer` with an example. No security requirement (`security: [{}]`) and no other status. |
 | `GET /schema` | Summary and description with the address of this file. `If-None-Match` as an optional header parameter; 200 with the `OxSchemaDocument` model, the `ETag` header and an example; 304 without a body. No security requirement (`security: [{}]`) and no 401 or 403, unless the host sets `OxSchema:RequireAuthorization`: then the route needs what every route needs and lists both statuses. |
-| `GET /schema/addons` | The same headers; 200 with an object of property descriptor lists keyed by entity id and an example; 304; 401 and 403 as `application/problem+json`. |
+| `GET /schema/addons` | The same headers; 200 with an object of property descriptor lists keyed by entity id and an example; 304; 401, 403 and 404 (a host without a database, section 4.4) as `application/problem+json`. |
 | `GET /AddonDefinition/{entity}` | Summary and a description that says what an addon definition is and names the address of this file, as on every `/AddonDefinition` operation. `entity` as a described path parameter; 200 with a list of `AddonDefinitionResponse` and an example; 401 and 404 as `application/problem+json`. |
 | `GET /AddonDefinition/by-id/{id}` | `id` as a described path parameter; 200 `AddonDefinitionResponse` with an example; 401 and 404 as `application/problem+json`. |
 | `POST /AddonDefinition` | The body `CreateAddonDefinitionRequest` as `application/json`, described, with an example; 201 `AddonDefinitionResponse` with an example; 400 and 409 with the reason as a sentence (a string, `text/plain` or `application/json`, whichever the caller accepts), 400 also as `application/problem+json` for a body the host cannot read; 401 and 403 as `application/problem+json`. |

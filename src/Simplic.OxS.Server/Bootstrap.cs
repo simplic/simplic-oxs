@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
@@ -152,8 +153,16 @@ namespace Simplic.OxS.Server
 
             // The engine reads an organisation's addon definitions per request through this
             // source; registered before the core so the engine's empty default does not win.
+            // A host that is configured with no database gets a source that needs none, so the
+            // routes that are handed one without reading it (the schema document, health) answer.
+            var mongodb = Configuration.GetSection("MongoDB").Get<Data.MongoDB.ConnectionSettings>();
+
             services.AddSingleton<AddonDefinitionCache>();
-            services.AddScoped<IAddonDefinitionSource, AddonDefinitionSource>();
+
+            if (mongodb != null)
+                services.AddScoped<IAddonDefinitionSource, AddonDefinitionSource>();
+            else
+                services.AddScoped<IAddonDefinitionSource, NoDatabaseAddonDefinitionSource>();
 
             services.AddOxQLCore(Configuration.GetSection("OxQL"), options =>
             {
@@ -174,8 +183,6 @@ namespace Simplic.OxS.Server
 
             // ── OxQL MongoDB adapter ────────────────────────────────────────────────
             // Change the connection string in appsettings.json (or via environment variable
-            var mongodb = Configuration.GetSection("MongoDB").Get<Data.MongoDB.ConnectionSettings>();
-
             if (mongodb != null)
             {
                 Console.WriteLine("Add OxQL MongoDB");
@@ -193,6 +200,12 @@ namespace Simplic.OxS.Server
                     // engine's own fallback for a host that never builds a schema.
                     options.ScanAssemblies(typeAssemblies);
                 });
+            }
+            else
+            {
+                // Without a database the query routes are constructed all the same: health
+                // answers, and a query fails with a message that names the missing section.
+                services.TryAddSingleton<IQueryEngine, NoDatabaseQueryEngine>();
             }
 
             // ── OxQL ASP.NET Core controller ────────────────────────────────────────

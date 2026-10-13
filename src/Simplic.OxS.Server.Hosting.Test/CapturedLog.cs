@@ -9,6 +9,9 @@ namespace Simplic.OxS.Server.Hosting.Test
         /// <summary>Every entry, in the order it was logged.</summary>
         public ConcurrentQueue<(LogLevel Level, string Message)> Entries { get; } = new();
 
+        /// <summary>Every exception an entry was logged with, in the order it was logged.</summary>
+        public ConcurrentQueue<Exception> Exceptions { get; } = new();
+
         /// <inheritdoc/>
         public ILogger CreateLogger(string categoryName) => new Sink(this);
 
@@ -24,8 +27,13 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
                 owner.Entries.Enqueue((logLevel, formatter(state, exception)));
+
+                if (exception is not null)
+                    owner.Exceptions.Enqueue(exception);
+            }
         }
     }
 }

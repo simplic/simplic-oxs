@@ -11,8 +11,10 @@ namespace Simplic.OxS.Server.OxSchema
     {
         private int logged;
 
-        private OxSchemaRegistry(OxSchemaBuildResult result, OxSchemaBuildOptions options)
+        private OxSchemaRegistry(OxSchemaBuildResult result, OxSchemaBuildOptions options, bool threw = false)
         {
+            // A scan that failed without throwing leaves the same model as a build that threw: one without the host's entities.
+            Degraded = threw || result.Findings.Any(finding => finding.Code == OxSchemaCodes.EntityScanFailed);
             RequireAuthorization = options.RequireAuthorization;
             Model = result.Model;
             Document = result.Document;
@@ -31,13 +33,22 @@ namespace Simplic.OxS.Server.OxSchema
         /// legacy document where it can still be generated.
         /// </summary>
         internal static OxSchemaRegistry BuildDegraded(OxSchemaBuildOptions options, Exception cause) =>
-            new(OxSchemaBuilder.BuildDegraded(options, cause), options);
+            new(OxSchemaBuilder.BuildDegraded(options, cause), options, threw: true);
 
         /// <summary>The entity model: the one the document is projected from and the query engine executes against.</summary>
         public EntityModel Model { get; }
 
         /// <summary>The schema document.</summary>
         public OxSchemaDocument Document { get; }
+
+        /// <summary>
+        /// Whether the model is what a failed build left: the build threw, or its entity scan
+        /// failed (<c>entity-scan-failed</c>), and the model lacks the entities the host declares.
+        /// False for every model the host meant to build, also one without entities and one
+        /// whose document carries other findings. The query engine publishes it on
+        /// <c>GET /OxQL/health</c> as <c>model.degraded</c>, which degrades that answer's status.
+        /// </summary>
+        public bool Degraded { get; }
 
         /// <summary>The document's revision, <c>sha256:</c> plus the digest of its canonical form.</summary>
         public string Revision => Document.Revision!;

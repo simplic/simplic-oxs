@@ -80,6 +80,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.GrpcSample.Clie
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.SchemaRegistry", "Simplic.OxS.SchemaRegistry\Simplic.OxS.SchemaRegistry.csproj", "{0E49EF10-CD47-4538-963C-14275B16540A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simplic.OxS.Server.Hosting.Test", "Simplic.OxS.Server.Hosting.Test\Simplic.OxS.Server.Hosting.Test.csproj", "{273B746D-8F9A-41BD-9DE2-D4403389E5E4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -426,6 +428,18 @@ Global
 		{0E49EF10-CD47-4538-963C-14275B16540A}.Release|x64.Build.0 = Release|Any CPU
 		{0E49EF10-CD47-4538-963C-14275B16540A}.Release|x86.ActiveCfg = Release|Any CPU
 		{0E49EF10-CD47-4538-963C-14275B16540A}.Release|x86.Build.0 = Release|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Debug|x64.Build.0 = Debug|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Debug|x86.Build.0 = Debug|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Release|x64.ActiveCfg = Release|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Release|x64.Build.0 = Release|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Release|x86.ActiveCfg = Release|Any CPU
+		{273B746D-8F9A-41BD-9DE2-D4403389E5E4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

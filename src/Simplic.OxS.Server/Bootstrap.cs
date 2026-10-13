@@ -79,6 +79,9 @@ namespace Simplic.OxS.Server
             // Add MongoDb context and bind configuration
             services.AddMongoDb(Configuration);
 
+            // The service's class maps and serializers, before anything looks a serializer up.
+            EnsureBsonClassMaps();
+
             // Add RabbitMq context and bind configuration
             services.AddRabbitMQ(Configuration, ConfigureEndpointConventions);
 
@@ -115,12 +118,7 @@ namespace Simplic.OxS.Server
             RegisterServices(services);
 
             // Create mapper profiles and register mapper
-            services.AddSingleton(provider =>
-            {
-                var mapperConfig = new MapperConfiguration(RegisterMapperProfiles);
-
-                return mapperConfig.CreateMapper();
-            });
+            services.AddSingleton(provider => CreateMapper());
 
             services.AddTransient<IMapService, MapService>();
 
@@ -164,20 +162,15 @@ namespace Simplic.OxS.Server
 
             // ── Ox schema ───────────────────────────────────────────────────────────
             // Built while the host starts, held in memory, never written to disk.
-            var typeAssemblies = (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+            var typeAssemblies = OxQLTypeAssemblies();
 
-            services.AddOxSchema(schema =>
-            {
-                schema.ServiceName = ServiceName;
-                schema.ApiName = ApiName;
-                schema.ApiVersion = ApiVersion;
-                schema.TypeAssemblies = typeAssemblies;
-                schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
-                schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
-                schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
-
-                ConfigureOxSchema(schema);
-            });
+            // The mapper is created before the schema is built, whoever asks for the schema
+            // first: RegisterMapperProfiles is where services have always registered class maps,
+            // and the build freezes the class map of every type it reaches. A fault in the
+            // profiles therefore stops the start, in every environment, with the original exception.
+            services.AddOxSchema(
+                schema => FillOxSchema(schema, typeAssemblies),
+                provider => provider.GetRequiredService<IMapper>());
 
             // ── OxQL MongoDB adapter ────────────────────────────────────────────────
             // Change the connection string in appsettings.json (or via environment variable
@@ -223,10 +216,11 @@ namespace Simplic.OxS.Server
 
             // ── Remote resolve ──────────────────────────────────────────────────────
             // Resolves and semi-joins into an entity another service owns go to that owner's
-            // internal batch route (InternalHosts / InternalApiVersions), one message per call;
+            // internal batch route (InternalHosts / InternalApiVersions), one message per call,
+            // over a client that waits OxQL:Remote:ConnectTimeoutMs for a connection;
             // explain checks the parts continued there at the owner's internal explain route,
             // which counts its places in flight by the service name this client sends.
-            services.AddHttpClient(RemoteQueryClient.HttpClientName);
+            RemoteQueryClient.AddHttpClient(services, Configuration);
             services.AddSingleton<IRemoteQueryClient>(provider =>
             {
                 var client = ActivatorUtilities.CreateInstance<RemoteQueryClient>(provider);
@@ -235,6 +229,9 @@ namespace Simplic.OxS.Server
 
                 return client;
             });
+
+            // One line per referenced owner at start: the route its calls take.
+            services.AddTransient<IStartupFilter, RemoteOwnerRouteLog>();
 
             // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
             if (OxQLStudioEnabled(Configuration, CurrentEnvironment))
@@ -403,8 +400,29 @@ namespace Simplic.OxS.Server
         /// <summary>
         /// Method for custom profile registrations. (AutoMapper)
         /// </summary>
+        /// <remarks>
+        /// Runs once per host, when the mapper is created: while the host starts, before the Ox
+        /// schema is built. An exception thrown here stops the start. MongoDB class maps and
+        /// serializers registered here are in place for the schema build, but their place is
+        /// <see cref="RegisterBsonClassMaps"/>.
+        /// </remarks>
         /// <param name="mapperConfiguration">Mapper configuration instance. Add profiles to this mapping.</param>
         protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration) { }
+
+        /// <summary>
+        /// The place for the service's MongoDB class maps (<c>BsonClassMap.RegisterClassMap</c>),
+        /// serializers (<c>BsonSerializer.RegisterSerializer</c>) and conventions.
+        /// </summary>
+        /// <remarks>
+        /// Called once per process for a startup type, however many hosts the process builds
+        /// from it, so the registrations need no guard of their own. It runs during
+        /// <see cref="ConfigureServices"/>, after the base registered its guid serializer and
+        /// before <see cref="RegisterServices"/>, the mapper and the Ox schema build, which looks
+        /// up the serializer of every entity and of every type reachable from one and freezes
+        /// their class maps: a class map registered after that build throws or is not applied,
+        /// and a stored subclass without one is missing from the schema's variants.
+        /// </remarks>
+        protected virtual void RegisterBsonClassMaps() { }
 
         /// <summary>
         /// Method for custom endpoint registration (MassTransit/RabbitMq). Register commands in this method.
@@ -445,6 +463,117 @@ namespace Simplic.OxS.Server
         /// example to publish the ids an entity retired when it was renamed.
         /// </summary>
         protected virtual void ConfigureOxSchema(OxSchemaOptionsBuilder schema) { }
+
+        /// <summary>
+        /// Calls <see cref="RegisterBsonClassMaps"/> unless this process already called it for
+        /// this startup type. A hook that threw is not run a second time over registrations it
+        /// already made: every later call for the type throws what it threw.
+        /// </summary>
+        internal void EnsureBsonClassMaps()
+        {
+            lock (ClassMapsRegistered)
+            {
+                if (ClassMapsRegistered.TryGetValue(GetType(), out var thrown))
+                {
+                    thrown?.Throw();
+
+                    return;
+                }
+
+                try
+                {
+                    RegisterBsonClassMaps();
+                    ClassMapsRegistered[GetType()] = null;
+                }
+                catch (Exception exception)
+                {
+                    ClassMapsRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>The startup types whose hook ran in this process, each with what the hook threw, if it did.</summary>
+        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ClassMapsRegistered = [];
+
+        /// <summary>
+        /// Creates the mapper from <see cref="RegisterMapperProfiles"/>, for a host: every host
+        /// gets a mapper of its own, so the profiles run for each. One run at a time in a
+        /// process, whoever starts it, a host or <see cref="EnsureMapperProfiles"/>: what a
+        /// service registers beside its profiles is the process's.
+        /// </summary>
+        internal IMapper CreateMapper()
+        {
+            lock (MapperProfilesRegistered)
+            {
+                try
+                {
+                    var mapper = new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
+
+                    MapperProfilesRegistered[GetType()] = null;
+
+                    return mapper;
+                }
+                catch (Exception exception)
+                {
+                    MapperProfilesRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs <see cref="RegisterMapperProfiles"/> unless this process already ran it for this
+        /// startup type, in a host or here: what <see cref="OxSchemaCheck"/> needs of the mapper
+        /// is the class maps a service registers beside its profiles, which are the process's.
+        /// Profiles that threw are not run a second time over registrations they already made:
+        /// every later call for the type throws what they threw.
+        /// </summary>
+        internal void EnsureMapperProfiles()
+        {
+            // Held while the profiles run, so a concurrent check of the same type waits for the
+            // registrations instead of building its schema beside them.
+            lock (MapperProfilesRegistered)
+            {
+                if (MapperProfilesRegistered.TryGetValue(GetType(), out var thrown))
+                {
+                    thrown?.Throw();
+
+                    return;
+                }
+
+                CreateMapper();
+            }
+        }
+
+        /// <summary>The startup types whose mapper profiles ran in this process, each with what the last run threw, if it did.</summary>
+        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> MapperProfilesRegistered = [];
+
+        /// <summary>
+        /// Fills the schema's inputs from what the service declares and lets
+        /// <see cref="ConfigureOxSchema"/> adjust them: the one definition of what a host hands
+        /// the schema build, for the host itself and for <see cref="OxSchemaCheck"/>.
+        /// </summary>
+        internal void FillOxSchema(OxSchemaOptionsBuilder schema, IReadOnlyList<Assembly> typeAssemblies)
+        {
+            schema.ServiceName = ServiceName;
+            schema.ApiName = ApiName;
+            schema.ApiVersion = ApiVersion;
+            schema.TypeAssemblies = typeAssemblies;
+            schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
+            schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
+            schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
+
+            ConfigureOxSchema(schema);
+        }
+
+        /// <summary>The assemblies <see cref="GetOxQLTypeAssemblies"/> names, each once.</summary>
+        internal Assembly[] OxQLTypeAssemblies() => (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+
+        /// <summary>Calls <see cref="RegisterServices"/>.</summary>
+        internal void RegisterServicesInto(IServiceCollection services) => RegisterServices(services);
 
         /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.

@@ -1,0 +1,49 @@
+<Project>
+
+  <!--
+    Puts the XML comments of the query engine's HTTP assembly beside the assemblies of a project
+    that references this package, in its build output and in what it publishes. The OpenAPI
+    document of a service takes the descriptions of the OxQL routes' parameters and of the members
+    of their bodies from that file (SwaggerExtension includes every OxQL.*.xml it finds there).
+    NuGet copies a package's assembly and leaves the comments beside it in the package folder,
+    and a publish leaves out the comments of references unless told otherwise.
+
+    Only that one file is copied. A project that wants none sets SimplicOxSCopyQueryApiComments
+    to false; its document then carries the routes without those sentences.
+  -->
+  <Target Name="SimplicOxSFindQueryApiComments"
+          DependsOnTargets="ResolveAssemblyReferences"
+          Condition="'$(SimplicOxSCopyQueryApiComments)' != 'false'">
+    <ItemGroup>
+      <_SimplicOxSQueryApiAssembly Include="@(ReferencePath)" Condition="'%(ReferencePath.Filename)%(ReferencePath.Extension)' == 'OxQL.AspNetCore.dll'" />
+      <_SimplicOxSQueryApiCommentsPath Include="@(_SimplicOxSQueryApiAssembly->'%(RootDir)%(Directory)%(Filename).xml')" />
+      <SimplicOxSQueryApiComments Include="@(_SimplicOxSQueryApiCommentsPath)"
+                                  Condition="Exists('%(_SimplicOxSQueryApiCommentsPath.FullPath)')"
+                                  Exclude="@(SimplicOxSQueryApiComments)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="SimplicOxSCopyQueryApiComments"
+          AfterTargets="ResolveAssemblyReferences"
+          DependsOnTargets="SimplicOxSFindQueryApiComments"
+          Condition="'$(SimplicOxSCopyQueryApiComments)' != 'false'">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Include="@(SimplicOxSQueryApiComments)" Exclude="@(ReferenceCopyLocalPaths)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="SimplicOxSPublishQueryApiComments"
+          AfterTargets="ComputeResolvedFilesToPublishList"
+          DependsOnTargets="SimplicOxSFindQueryApiComments"
+          Condition="'$(SimplicOxSCopyQueryApiComments)' != 'false'">
+    <ItemGroup>
+      <_SimplicOxSPublishedQueryApiComments Include="@(SimplicOxSQueryApiComments)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </_SimplicOxSPublishedQueryApiComments>
+      <!-- A project that publishes the comments of every reference already lists the file. -->
+      <ResolvedFileToPublish Include="@(_SimplicOxSPublishedQueryApiComments)" Exclude="@(ResolvedFileToPublish)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

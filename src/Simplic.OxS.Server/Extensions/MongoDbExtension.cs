@@ -18,7 +18,7 @@ namespace Simplic.OxS.Server.Extensions
         /// <returns>Service collection instance</returns>
         internal static IServiceCollection AddMongoDb(this IServiceCollection services, IConfiguration configuration)
         {
-            MongoDB.Bson.Serialization.BsonSerializer.RegisterSerializer(new MongoDB.Bson.Serialization.Serializers.GuidSerializer(GuidRepresentation.Standard));
+            RegisterGuidSerializer();
 
             services.Configure<ConnectionSettings>(options => configuration.GetSection("MongoDB").Bind(options));
 
@@ -36,5 +36,14 @@ namespace Simplic.OxS.Server.Extensions
 
             return services;
         }
+
+        /// <summary>
+        /// Registers the serializer that stores a guid in the standard representation. The
+        /// registration is the process's, so a second host of the process (or a schema check
+        /// before a host) meets it in place and leaves it; a different guid serializer registered
+        /// before it still throws, because a host must not run on another representation.
+        /// </summary>
+        internal static void RegisterGuidSerializer() =>
+            MongoDB.Bson.Serialization.BsonSerializer.TryRegisterSerializer(new MongoDB.Bson.Serialization.Serializers.GuidSerializer(GuidRepresentation.Standard));
     }
 }

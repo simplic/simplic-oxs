@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Xml;
+using System.Xml.XPath;
 
 namespace Simplic.OxS.Server.Extensions
 {
@@ -30,7 +33,10 @@ namespace Simplic.OxS.Server.Extensions
 
                 // Declare the standard problem+json error responses on every operation.
                 c.OperationFilter<ProblemDetailsOperationFilter>();
-                
+
+                // The query and schema routes of this package: what their attributes cannot say.
+                c.OperationFilter<DescribedRouteOperationFilter>();
+
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\"",
@@ -107,7 +113,54 @@ namespace Simplic.OxS.Server.Extensions
                 }
             });
 
+            // The comments of the query engine's assemblies describe the parameters of the OxQL
+            // routes and the members of their bodies. The package's build targets put the files
+            // beside the service's assemblies; a host without them describes the routes without
+            // those sentences.
+            services.AddOptions<SwaggerGenOptions>().Configure<ILoggerFactory>((options, loggers) =>
+                IncludeQueryEngineComments(options, AppContext.BaseDirectory, loggers.CreateLogger("Simplic.OxS.Server.OpenApi")));
+
             return services;
+        }
+
+        /// <summary>
+        /// Includes every <c>OxQL.*.xml</c> of <paramref name="directory"/> in the document's
+        /// comments, in the order of their names. A file that cannot be read (it is no XML, or
+        /// the host may not open it) is left out with a warning: the routes are then described
+        /// without its sentences, and the document is generated all the same.
+        /// </summary>
+        internal static void IncludeQueryEngineComments(SwaggerGenOptions options, string directory, ILogger logger)
+        {
+            List<string> files;
+
+            try
+            {
+                files = [.. Directory.EnumerateFiles(directory, "OxQL.*.xml").Order(StringComparer.Ordinal)];
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(exception, "The OpenAPI document carries no comments of the query engine: {Directory} cannot be listed", directory);
+
+                return;
+            }
+
+            foreach (var file in files)
+            {
+                XPathDocument comments;
+
+                try
+                {
+                    comments = new XPathDocument(file);
+                }
+                catch (Exception exception) when (exception is XmlException or IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning(exception, "The OpenAPI document leaves out the comments of {File}: the file cannot be read", System.IO.Path.GetFileName(file));
+
+                    continue;
+                }
+
+                options.IncludeXmlComments(() => comments);
+            }
         }
 
         public class HideInternalAPIFilter : IDocumentFilter

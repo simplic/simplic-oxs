@@ -23,7 +23,17 @@ namespace Simplic.OxS.Server.OxSchema
         /// check of the model's remote references fails fast on the schema's
         /// <see cref="OxSchemaBuildOptions.ContinuousIntegration"/> value. A second call is a no-op.
         /// </summary>
-        public static IServiceCollection AddOxSchema(this IServiceCollection services, Action<OxSchemaOptionsBuilder> configure)
+        public static IServiceCollection AddOxSchema(this IServiceCollection services, Action<OxSchemaOptionsBuilder> configure) =>
+            services.AddOxSchema(configure, beforeBuild: null);
+
+        /// <summary>
+        /// <see cref="AddOxSchema(IServiceCollection, Action{OxSchemaOptionsBuilder})"/> with a step
+        /// that runs right before the registry is built, whoever resolves the registry first.
+        /// The build freezes the MongoDB class map of every type it reaches, so what a host
+        /// still has to run for its class maps to be registered goes here. What the step throws
+        /// is not a schema defect and stops the start in every environment.
+        /// </summary>
+        internal static IServiceCollection AddOxSchema(this IServiceCollection services, Action<OxSchemaOptionsBuilder> configure, Action<IServiceProvider>? beforeBuild)
         {
             ArgumentNullException.ThrowIfNull(services);
             ArgumentNullException.ThrowIfNull(configure);
@@ -42,7 +52,12 @@ namespace Simplic.OxS.Server.OxSchema
 
             // The query engine's own options, so the document publishes the limits the engine
             // enforces. Resolved when the registry is built, so registration order does not matter.
-            services.TryAddSingleton(provider => BuildRegistry(provider, options));
+            services.TryAddSingleton(provider =>
+            {
+                beforeBuild?.Invoke(provider);
+
+                return BuildRegistry(provider, options);
+            });
 
             // The engine reads the same variables for its remote reference check; what the host
             // states here wins over that read, so the two strict gates never disagree.
@@ -100,13 +115,17 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>
         /// The engine's model provider over the registry: resolving it builds the registry when
         /// nothing else has yet. The revision is the published document's, which explain answers
-        /// carry as <c>schemaRevision</c>.
+        /// carry as <c>schemaRevision</c>. <see cref="Degraded"/> is always said, never left to the
+        /// engine's reading of the entity count: a service without entities is not degraded.
         /// </summary>
         private sealed class OxSchemaEntityModelProvider(OxSchemaRegistry registry) : IEntityModelProvider
         {
             public EntityModel Model { get; } = registry.Model;
 
             public string? SchemaRevision { get; } = registry.Revision;
+
+            /// <summary>Whether the model is what a failed build left (<see cref="OxSchemaRegistry.Degraded"/>).</summary>
+            public bool? Degraded { get; } = registry.Degraded;
         }
     }
 }

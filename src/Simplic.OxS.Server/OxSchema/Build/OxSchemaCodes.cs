@@ -26,6 +26,19 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>An entity id is not <c>&lt;service&gt;.&lt;entity&gt;</c> in lower-case segments.</summary>
         public const string EntityIdOffGrammar = "entity-id-off-grammar";
 
+        /// <summary>
+        /// An entity id is on grammar and its prefix is not the host's service name: another
+        /// service routes a reference by the prefix and does not reach the entity.
+        /// </summary>
+        public const string EntityIdForeignService = "entity-id-foreign-service";
+
+        /// <summary>
+        /// The host's service name is no id segment (it holds a hyphen, say), so no entity id can
+        /// carry it as its prefix and no other service can reference an entity of this service.
+        /// Said once per service, in place of <see cref="EntityIdForeignService"/> per id.
+        /// </summary>
+        public const string ServiceNameNoIdPrefix = "service-name-no-id-prefix";
+
         /// <summary>A structural id is not <c>t_</c> plus a camelCase segment.</summary>
         public const string StructuralIdOffGrammar = "structural-id-off-grammar";
 
@@ -50,6 +63,18 @@ namespace Simplic.OxS.Server.OxSchema
         [
             DuplicateEntityId, DanglingTypePointer, EntityScanFailed, EntityAssembliesMissing,
         ];
+
+        /// <summary>
+        /// The codes that neither refuse nor are published and still ask the service for a
+        /// change: the startup log writes them as errors and says what to do.
+        /// </summary>
+        private static readonly string[] Actionable =
+        [
+            global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered, EntityIdOffGrammar, EntityIdForeignService,
+        ];
+
+        /// <summary>Whether the startup log writes this code as an error although it neither refuses nor is published.</summary>
+        internal static bool IsActionable(string code) => Actionable.Contains(code, StringComparer.Ordinal);
 
         /// <summary>Whether a fail-fast host refuses to start on this code.</summary>
         public static bool Refuses(string code) => Refusing.Contains(code, StringComparer.Ordinal);

@@ -216,6 +216,11 @@ namespace Simplic.OxS.Server
             // Whether its remote reference check stops the host under continuous integration
             // is the schema's decision (AddOxSchema), so both checks fail fast on one value.
             Console.WriteLine("Add OxQL ASP.NET Core");
+
+            // Ahead of the engine's check of the remote references, which reads the same owners:
+            // an InternalHosts value that is no host is named as that, not as a missing entry.
+            services.AddTransient<IStartupFilter, RemoteOwnerHostCheck>();
+
             services.AddOxQLAspNetCore(options =>
             {
                 options.RequireAuthorization = true;

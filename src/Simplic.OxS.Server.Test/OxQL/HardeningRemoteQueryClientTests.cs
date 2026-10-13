@@ -205,15 +205,146 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Theory]
         [InlineData("vehicle:not-a-port")]
         [InlineData("[::1")]
-        public async Task Batch_ToAHostEntryThatFormsNoAddress_FailsAsAnUnreachableOwner(string host)
+        [InlineData("http://vehicle-svc:8080")]
+        [InlineData("user:secret@vehicle-svc")]
+        public async Task Batch_ToAHostEntryThatIsNoHost_IsACallToAServiceThatIsNotConfigured_AndSendsNothing(string host)
         {
             var handler = new SilentHandler();
             var client = Client(handler, host);
 
-            var call = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var batch = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var explain = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
-            await call.Should().ThrowAsync<HttpRequestException>();
+            foreach (var call in new Func<Task>[] { batch, explain })
+            {
+                var thrown = (await call.Should().ThrowAsync<InvalidOperationException>()).Which;
+
+                thrown.Message.Should().StartWith("The 'InternalHosts' entry for 'vehicle' is not used, because ").And.EndWith("the service is not configured on this host.");
+                thrown.Message.Should().NotContain(host).And.NotContain("secret");
+            }
+
             handler.Calls.Should().Be(0);
+        }
+
+        /// <summary>An owner that answers every call with a redirect to another host.</summary>
+        private sealed class RedirectingHandler(HttpStatusCode status) : HttpMessageHandler
+        {
+            public int Calls { get; private set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                Calls++;
+
+                var answer = new HttpResponseMessage(status);
+
+                answer.Headers.Location = new Uri("http://elsewhere.example/vehicle-api/v1/internal/oxql/batch");
+
+                return Task.FromResult(answer);
+            }
+        }
+
+        [Theory]
+        [InlineData(HttpStatusCode.MovedPermanently)]
+        [InlineData(HttpStatusCode.Found)]
+        [InlineData(HttpStatusCode.TemporaryRedirect)]
+        [InlineData(HttpStatusCode.PermanentRedirect)]
+        public async Task ARedirectOfAnOwner_IsAnOwnerThatDoesNotServeTheRoute_AndIsNotFollowed(HttpStatusCode status)
+        {
+            var handler = new RedirectingHandler(status);
+            var client = Client(handler, "vehicle-svc:8080");
+
+            var batch = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var explain = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            foreach (var (call, route) in new (Func<Task> Call, string Route)[] { (batch, "batch"), (explain, "explain") })
+            {
+                var thrown = (await call.Should().ThrowAsync<HttpRequestException>()).Which;
+
+                // What the query engine reads as an owner without the route.
+                thrown.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                thrown.Message.Should().Be($"The owner of 'vehicle' answered the internal {route} with a redirect ({(int)status}), which is not followed: it does not serve the route at the configured address.");
+            }
+
+            handler.Calls.Should().Be(2, "one call per route, and none to where the answer points");
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
+            (await client.SchemaEntitiesAsync("vehicle", null, CancellationToken.None)).Should().BeNull();
+            handler.Calls.Should().Be(4);
+        }
+
+        [Theory]
+        [InlineData("vehicle-svc")]
+        [InlineData("vehicle-svc:8080")]
+        [InlineData("Vehicle.Svc.cluster.local:80")]
+        [InlineData("vehicle_svc")]
+        [InlineData("localhost:65535")]
+        [InlineData("10.42.0.7")]
+        [InlineData("10.42.0.7:8080")]
+        [InlineData("[::1]")]
+        [InlineData("[fd00::17]:8080")]
+        [InlineData("  vehicle-svc:8080  ")]
+        public void AHostEntry_IsAHostWithAnOptionalPort(string host)
+        {
+            var client = Client(new SilentHandler(), host);
+
+            RemoteQueryClient.HostEntryDefect(host.Trim()).Should().BeNull();
+            client.IsConfigured("vehicle").Should().BeTrue();
+            client.RefusedHostOf("vehicle").Should().BeNull();
+            client.BatchUrl("vehicle").Should().Be($"http://{host.Trim()}/vehicle-api/v1/internal/oxql/batch");
+            Uri.TryCreate(client.BatchUrl("vehicle"), UriKind.Absolute, out var address).Should().BeTrue();
+            address!.UserInfo.Should().BeEmpty();
+            address.AbsolutePath.Should().Be("/vehicle-api/v1/internal/oxql/batch");
+        }
+
+        [Theory]
+        [InlineData("http://vehicle-svc:8080", "it names a scheme")]
+        [InlineData("https://vehicle.example.com", "it names a scheme")]
+        [InlineData("vehicle-svc/", "it has a path or a query")]
+        [InlineData("vehicle-svc:8080/base", "it has a path or a query")]
+        [InlineData("vehicle-svc?x=1", "it has a path or a query")]
+        [InlineData("vehicle-svc#x", "it has a path or a query")]
+        [InlineData("vehicle-svc\\base", "it has a path or a query")]
+        [InlineData("user@elsewhere.example.com", "it carries user information")]
+        [InlineData("user:secret@vehicle-svc:8080", "it carries user information")]
+        [InlineData("not a host", "it contains whitespace")]
+        [InlineData("vehicle-svc :8080", "it contains whitespace")]
+        [InlineData("vehicle\tsvc", "it contains whitespace")]
+        [InlineData("vehicle:not-a-port", "it holds a character a host name has none of")]
+        [InlineData("[::1", "it holds a character a host name has none of")]
+        [InlineData("vehicle-svc:8080:9090", "it holds a character a host name has none of")]
+        [InlineData("vehicle%2Dsvc", "it holds a character a host name has none of")]
+        [InlineData("-vehicle", "it holds a character a host name has none of")]
+        [InlineData("vehicle-svc:", "its port is no number from 1 to 65535")]
+        [InlineData("vehicle-svc:0", "its port is no number from 1 to 65535")]
+        [InlineData("vehicle-svc:65536", "its port is no number from 1 to 65535")]
+        [InlineData("vehicle-svc:99999999999", "its port is no number from 1 to 65535")]
+        [InlineData("[1:2]", "it forms no address")]
+        public async Task AHostEntryOfAnotherForm_IsNotConfigured_AndNeverCalled(string host, string defect)
+        {
+            var handler = new SilentHandler();
+            var client = Client(handler, host);
+
+            RemoteQueryClient.HostEntryDefect(host).Should().Be(defect);
+            client.RefusedHostOf("vehicle").Should().Be(defect);
+            client.IsConfigured("vehicle").Should().BeFalse();
+            client.RouteOf("vehicle").Should().BeNull();
+            client.BatchUrl("vehicle").Should().BeNull();
+            client.ExplainUrl("vehicle").Should().BeNull();
+            client.HealthUrl("vehicle").Should().BeNull();
+            client.SchemaUrl("vehicle").Should().BeNull();
+            client.ApiVersionOf("vehicle").Should().BeNull();
+
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+            (await client.SchemaEntitiesAsync("vehicle", null, CancellationToken.None)).Should().BeNull();
+            handler.Calls.Should().Be(0);
+        }
+
+        [Fact]
+        public void TheFormOfAHostEntry_IsSaidInOneSentence()
+        {
+            RemoteQueryClient.HostEntryForm.Should().Be(
+                "host or host:port, where host is a name of letters, digits, dots, hyphens and underscores, an IPv4 address or an IPv6 address in brackets, and port a number from 1 to 65535; no scheme, no user, no path, no query");
+            RemoteQueryClient.HostsSection.Should().Be("InternalHosts");
         }
 
         /// <summary>
@@ -264,17 +395,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             Client(new SilentHandler(), "localhost:8080").ApiVersionSourceOf("vehicle").Should().Be("default");
             Client(new SilentHandler(), "localhost:8080", " ").ApiVersionSourceOf("vehicle").Should().Be("default", "a blank entry is no entry");
             Client(new SilentHandler(), "localhost:8080").ApiVersionSourceOf("hr").Should().BeNull("the host does not know the service");
-        }
-
-        [Theory]
-        [InlineData("vehicle:not-a-port")]
-        [InlineData("[::1")]
-        public async Task IsReachable_ForAHostEntryThatFormsNoAddress_IsFalse(string host)
-        {
-            var handler = new SilentHandler();
-
-            (await Client(handler, host).IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
-            handler.Calls.Should().Be(0);
         }
 
         [Theory]
@@ -614,17 +734,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             var call = () => Client(new BogusCharsetHandler(HttpStatusCode.Forbidden), "vehicle-svc:8080").BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
             (await call.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        }
-
-        [Theory]
-        [InlineData("vehicle:not-a-port")]
-        [InlineData("[::1")]
-        public async Task OwnerOfAsync_ForAHostEntryThatFormsNoAddress_IsTriedOncePerTtl(string host)
-        {
-            var client = Client(new SilentHandler(), host);
-
-            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
-            client.IsProbeFresh("vehicle").Should().BeTrue("a host entry that forms no address counts as tried");
         }
 
         [Fact]

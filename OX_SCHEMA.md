@@ -1057,8 +1057,25 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
   error when the host starts, and stops the start in `Development`, `Local` and under continuous
   integration, decided from the same value the schema build fails fast on (section 3.3: the `CI`
   or the `TF_BUILD` variable, or what `ConfigureOxSchema` states). The check reads the
-  configuration only; nothing is called at startup. An entry that does not form an address is
-  treated as an owner that cannot be reached.
+  configuration only; nothing is called at startup.
+
+  A value is a host with an optional port and nothing else: `vehicle-host`, `vehicle-host:8080`,
+  an IPv4 address, or an IPv6 address in brackets (`[fd00::17]:8080`); a host name consists of
+  letters, digits, dots, hyphens and underscores, and the port is a number from 1 to 65535. The
+  client puts `http://` before the value and the route behind it, so a value with a scheme, a
+  user (`user@host`), a path, a query or whitespace is not one, and no call is ever sent to an
+  address formed from it. The service then counts as not configured: `GET /OxQL/health` does
+  not list it as reachable, a reference into it resolves to nothing, and the host says so once
+  at start, for every such service the model references, as an error that names the key and
+  the form and never repeats the value:
+
+  ```
+  OxQL owner vehicle: the value of InternalHosts:vehicle is not used, because it names a scheme. A value is host or host:port, …
+  ```
+
+  Where a missing entry stops the start (`Development`, `Local`, continuous integration), such a
+  value stops it too, with that sentence; `OxQL:Startup:StrictRemoteReferences=false` starts
+  the host without either.
 - **`InternalApiVersions`.** An owner that answers on another version than `v1` needs an entry
   on every *calling* service (`InternalApiVersions__vehicle=v2`). Without it the call goes to
   `/vehicle-api/v1/…`, the owner answers 404, and the caller sees an unreachable owner: the
@@ -1115,7 +1132,14 @@ correlation ids, the contract header, and `X-OxQL-Caller` with this service's na
 `Bootstrap`), which the owner's internal explain counts its places in flight by. The identity is
 the one the engine scoped the parent query with.
 
-- `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry.
+- `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry
+  or one that is no host; `RefusedHostOf(service)` then says what the value has that a host has
+  not.
+- The named client follows no redirect: the internal key and the caller's identity go to the
+  configured host and nowhere else. An owner that answers a batch or an explain with a redirect
+  is reported as one that does not serve the route (the `HttpRequestException` carries 404 and
+  names the status the owner sent), which the engine logs with the keys to check; a redirected
+  health or schema read counts as not answered.
   The batch, explain and health addresses are paths under it. `ApiVersionOf(service)` is its
   version segment (the `InternalApiVersions` entry, else `v1`). The query engine reads it through
   `IRemoteOwnerInfo`, so an explain answer names it in each owner's

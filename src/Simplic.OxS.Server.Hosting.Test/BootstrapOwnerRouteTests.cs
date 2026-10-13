@@ -34,16 +34,88 @@ namespace Simplic.OxS.Server.Hosting.Test
                 "OxQL owner crew: http://crew-host/crew-api/v1/internal/oxql/batch (api version v1, the default: no InternalApiVersions:crew entry)");
         }
 
-        [Fact]
-        public async Task AnOwnerEntryThatFormsNoAddress_IsNamedAsAWarning()
+        /// <summary>What the start says of an owner whose entry is no host, after the reason.</summary>
+        private const string NotUsed =
+            ". A value is host or host:port, where host is a name of letters, digits, dots, hyphens and underscores, an IPv4 address or an IPv6 address in brackets, and port a number from 1 to 65535; "
+            + "no scheme, no user, no path, no query. Until it is one, the service is not configured on this host: no call is sent to it, and every reference into it resolves to nothing.";
+
+        [Theory]
+        [InlineData("http://carpool-host:8080", "it names a scheme")]
+        [InlineData("https://carpool.example.com", "it names a scheme")]
+        [InlineData("carpool-host/", "it has a path or a query")]
+        [InlineData("carpool-host:8080/base?x=1", "it has a path or a query")]
+        [InlineData("user@elsewhere.example.com", "it carries user information")]
+        [InlineData("user:secret@carpool-host", "it carries user information")]
+        [InlineData("not a host", "it contains whitespace")]
+        [InlineData("carpool-host:port", "it holds a character a host name has none of")]
+        [InlineData("carpool-host:0", "its port is no number from 1 to 65535")]
+        public async Task AnOwnerEntryThatIsNoHost_IsNamedAsAnErrorWithTheKeyAndTheForm_AndTheOwnerIsNotConfigured(string entry, string defect)
         {
             var log = new CapturedLog();
 
-            using var host = await BootstrapHost.StartAsync<DispatchStartup>(log, settings: [("InternalHosts:carpool", "not a host"), ("InternalHosts:crew", "crew-host")]);
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(log, settings: [("InternalHosts:carpool", entry), ("InternalHosts:crew", "crew-host"), ("InternalHosts:billing", "billing-host")]);
 
-            log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith("OxQL owner carpool: ", StringComparison.Ordinal))
-                .Which.Should().Match<(LogLevel Level, string Message)>(entry =>
-                    entry.Level == LogLevel.Warning && entry.Message.Contains("'InternalHosts' entry does not form a valid address"));
+            var line = log.Entries.Should().ContainSingle(logged => logged.Message.StartsWith("OxQL owner carpool: ", StringComparison.Ordinal)).Which;
+
+            line.Level.Should().Be(LogLevel.Error);
+            line.Message.Should().Be($"OxQL owner carpool: the value of InternalHosts:carpool is not used, because {defect}{NotUsed}");
+
+            // Nothing the host logs repeats the value, which may hold a credential.
+            log.Entries.Should().NotContain(logged => logged.Message.Contains(entry, StringComparison.Ordinal) || logged.Message.Contains("secret", StringComparison.Ordinal));
+
+            var client = (RemoteQueryClient)host.Services.GetRequiredService<global::OxQL.Core.Engine.IRemoteQueryClient>();
+
+            client.IsConfigured("carpool").Should().BeFalse();
+            client.BatchUrl("carpool").Should().BeNull();
+            client.IsConfigured("crew").Should().BeTrue();
+
+            // The engine's own check then names the owner among those the host has not configured.
+            log.Entries.Should().Contain(logged => logged.Level == LogLevel.Error && logged.Message.StartsWith("OxQL remote reference finding: service 'carpool' is not configured on this host", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public async Task AnEntryThatIsNoHost_OfAServiceNothingReferences_IsNotNamed()
+        {
+            var log = new CapturedLog();
+
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(log, settings: [.. Owners, ("InternalHosts:billing", "billing-host"), ("InternalHosts:archive", "http://archive-host")]);
+
+            log.Entries.Should().NotContain(logged => logged.Message.Contains("archive", StringComparison.Ordinal));
+            log.Entries.Should().NotContain(logged => logged.Level >= LogLevel.Warning && logged.Message.StartsWith("OxQL", StringComparison.Ordinal));
+        }
+
+        [Theory]
+        [InlineData("Development")]
+        [InlineData("Local")]
+        public async Task AnOwnerEntryThatIsNoHost_StopsTheStartWhereAMissingEntryDoes_WithTheSentenceOfItsLine(string environment)
+        {
+            (string Key, string Value)[] settings = [("InternalHosts:carpool", "http://carpool-host:8080"), ("InternalHosts:crew", "crew-host"), ("InternalHosts:billing", "billing-host")];
+
+            using var host = BootstrapHost.Build<DispatchStartup>(new CapturedLog(), environment, settings);
+
+            var start = () => host.StartAsync();
+
+            (await start.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Be(
+                $"OxQL refuses to start: OxQL owner carpool: the value of InternalHosts:carpool is not used, because it names a scheme{NotUsed}"
+                + " To start without them, set OxQL:Startup:StrictRemoteReferences to false.");
+
+            // What switches the engine's check of the remote references off switches this one off.
+            using var lenient = await BootstrapHost.StartAsync<DispatchStartup>(new CapturedLog(), environment, [.. settings, ("OxQL:Startup:StrictRemoteReferences", "false")]);
+
+            lenient.Services.GetRequiredService<global::OxQL.Core.Engine.IRemoteQueryClient>().IsConfigured("carpool").Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task TheOwnerClient_FollowsNoRedirect()
+        {
+            using var host = await BootstrapHost.StartAsync<DispatchStartup>(settings: Owners);
+
+            var handler = host.Services.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(RemoteQueryClient.HttpClientName);
+
+            while (handler is DelegatingHandler delegating)
+                handler = delegating.InnerHandler!;
+
+            handler.Should().BeOfType<SocketsHttpHandler>().Which.AllowAutoRedirect.Should().BeFalse();
         }
 
         [Fact]

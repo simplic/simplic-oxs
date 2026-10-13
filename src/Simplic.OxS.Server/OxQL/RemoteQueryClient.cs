@@ -33,6 +33,14 @@ namespace Simplic.OxS.Server.OxQL;
 /// (<see cref="OwnerOfAsync"/>), and kept per service (<see cref="IRemoteOwnerInfo"/>); facts
 /// older than that are unknown again. The engine sizes its batches by them.
 /// </para>
+/// <para>
+/// An <c>InternalHosts</c> value is a host with an optional port and nothing else
+/// (<see cref="HostEntryForm"/>). The client calls no address formed from any other value: the
+/// service then counts as not configured (<see cref="IsConfigured"/>), and
+/// <see cref="RefusedHostOf"/> says what the value has that a host has not. The named client
+/// follows no redirect: every call goes to the configured host and nowhere else, and an owner
+/// that answers one with a redirect does not serve the route there.
+/// </para>
 /// </summary>
 public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwnerInfo
 {
@@ -52,6 +60,52 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     public const string HostsSection = "InternalHosts";
 
     private const string DefaultApiVersion = "v1";
+
+    /// <summary>The form of an <c>InternalHosts</c> value, as a log line and a refusal to start name it.</summary>
+    public const string HostEntryForm =
+        "host or host:port, where host is a name of letters, digits, dots, hyphens and underscores, an IPv4 address or an IPv6 address in brackets, and port a number from 1 to 65535; no scheme, no user, no path, no query";
+
+    /// <summary>
+    /// What a configured host value has that a host with an optional port has not, or null for a
+    /// value of the form (<see cref="HostEntryForm"/>). The answer never repeats the value, which
+    /// may hold a credential.
+    /// </summary>
+    /// <param name="value">The trimmed configuration value.</param>
+    public static string? HostEntryDefect(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (value.Any(char.IsWhiteSpace))
+            return "it contains whitespace";
+
+        if (value.Contains("://", StringComparison.Ordinal))
+            return "it names a scheme";
+
+        if (value.Contains('@'))
+            return "it carries user information";
+
+        if (value.IndexOfAny(['/', '\\', '?', '#']) >= 0)
+            return "it has a path or a query";
+
+        var match = HostEntry().Match(value);
+
+        if (!match.Success)
+            return "it holds a character a host name has none of";
+
+        if (match.Groups["port"] is { Success: true, Value: var port }
+            && (!int.TryParse(port, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) || number is < 1 or > 65535))
+        {
+            return "its port is no number from 1 to 65535";
+        }
+
+        // What the calls are sent to is the address this value forms: it has to form one, of this host and nothing more.
+        return Uri.TryCreate($"http://{value}/", UriKind.Absolute, out var address) && address.UserInfo.Length == 0 && address.AbsolutePath == "/"
+            ? null
+            : "it forms no address";
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(?:[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_])?|\[[0-9A-Fa-f:.]+\])(?::(?<port>[0-9]*))?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    private static partial System.Text.RegularExpressions.Regex HostEntry();
 
     /// <summary>
     /// The configuration key of the time the named client waits for an owner to accept a
@@ -83,15 +137,21 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
 
     /// <summary>
     /// Registers the named client every owner call goes through, with the host's connect
-    /// timeout (<see cref="ConnectTimeoutOf"/>, read here, once) on its connections. The client's
-    /// own timeout stays the default: every call brings its budget as a token, and none waits on
-    /// the client's.
+    /// timeout (<see cref="ConnectTimeoutOf"/>, read here, once) on its connections, and which
+    /// follows no redirect. The client's own timeout stays the default: every call brings its
+    /// budget as a token, and none waits on the client's.
     /// </summary>
     internal static IHttpClientBuilder AddHttpClient(IServiceCollection services, IConfiguration configuration)
     {
         var connectTimeout = ConnectTimeoutOf(configuration);
 
-        return services.AddHttpClient(HttpClientName).UseSocketsHttpHandler((handler, _) => handler.ConnectTimeout = connectTimeout);
+        return services.AddHttpClient(HttpClientName).UseSocketsHttpHandler((handler, _) =>
+        {
+            handler.ConnectTimeout = connectTimeout;
+
+            // A call carries the internal key and the caller's identity to the configured owner, and to nobody an answer points at.
+            handler.AllowAutoRedirect = false;
+        });
     }
 
     /// <summary>
@@ -121,6 +181,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     private readonly ILogger<RemoteQueryClient> logger;
     private readonly string internalApiKey;
     private readonly IReadOnlyDictionary<string, string> hosts;
+    private readonly IReadOnlyDictionary<string, string> refusedHosts;
     private readonly IReadOnlyDictionary<string, string> versions;
     private readonly TimeSpan connectTimeout;
     private readonly ConcurrentDictionary<string, OwnerFacts> owners = new(StringComparer.OrdinalIgnoreCase);
@@ -155,7 +216,11 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
         ArgumentNullException.ThrowIfNull(configuration);
 
         internalApiKey = auth.Value.InternalApiKey;
-        hosts = Map(configuration, HostsSection);
+        var configured = Map(configuration, HostsSection);
+
+        // Only a value of the form is ever called; the others are kept by what is wrong with them.
+        hosts = configured.Where(entry => HostEntryDefect(entry.Value) is null).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+        refusedHosts = configured.Where(entry => !hosts.ContainsKey(entry.Key)).ToDictionary(entry => entry.Key, entry => HostEntryDefect(entry.Value)!, StringComparer.OrdinalIgnoreCase);
         versions = Map(configuration, ApiVersionsSection);
         connectTimeout = ConnectTimeoutOf(configuration);
         FactsTtl = TimeSpan.FromSeconds(Math.Max(1, (oxql ?? new OxQLOptions()).Cache.HealthProbeTtlSeconds));
@@ -208,8 +273,20 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     /// </summary>
     public string? HealthUrl(string serviceKey) => Url(serviceKey, "OxQL/health?shallow=true");
 
+    /// <summary>
+    /// Whether the host has an <see cref="HostsSection"/> entry of the form for the service
+    /// (<see cref="HostEntryForm"/>). A service whose entry is of another form is not configured.
+    /// </summary>
     /// <inheritdoc/>
     public bool IsConfigured(string serviceKey) => serviceKey is not null && hosts.ContainsKey(serviceKey);
+
+    /// <summary>
+    /// What the <see cref="HostsSection"/> entry of a service has that a host with an optional
+    /// port has not (<see cref="HostEntryDefect"/>), or null for a service whose entry is of the
+    /// form or that has none. Such a service is not configured and never called.
+    /// </summary>
+    public string? RefusedHostOf(string serviceKey) =>
+        serviceKey is not null && refusedHosts.TryGetValue(serviceKey, out var defect) ? defect : null;
 
     /// <summary>
     /// Executes a batch at the owner. The body is <c>queries</c> and <c>maxTimeMs</c> only (the
@@ -407,12 +484,14 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     private string? Url(string serviceKey, string path) => RouteOf(serviceKey) is { } route ? route + path : null;
 
     /// <summary>
-    /// The address of an owner route. An unknown service is a caller error; a host entry that
-    /// does not form an address is an owner that cannot be reached, and surfaces as the transport
-    /// failure every other unreachable owner surfaces as.
+    /// The address of an owner route. A service that is not configured is a caller error, also
+    /// one whose host entry is not of the form (<see cref="RefusedHostOf"/>): nothing is sent.
     /// </summary>
     private Uri AddressOf(string serviceKey, string? url, string route)
     {
+        if (url is null && RefusedHostOf(serviceKey) is { } defect)
+            throw new InvalidOperationException($"The '{HostsSection}' entry for '{serviceKey}' is not used, because {defect}; the service is not configured on this host.");
+
         if (url is null)
             throw new InvalidOperationException($"No '{HostsSection}' entry for '{serviceKey}'; the service is not configured on this host.");
 
@@ -464,6 +543,16 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
 
         response.Dispose();
         logger.LogWarning("OxQL remote {Route} to {Service} answered {Status} {Code}", route, serviceKey, (int)status, code);
+
+        // The named client follows no redirect, so the route is not served where the call went:
+        // the engine is told what it is told of an owner that answers 404 there.
+        if ((int)status is >= 300 and < 400)
+        {
+            throw new HttpRequestException(
+                $"The owner of '{serviceKey}' answered the internal {route} with a redirect ({(int)status}), which is not followed: it does not serve the route at the configured address.",
+                null,
+                System.Net.HttpStatusCode.NotFound);
+        }
 
         var refusal = code is null ? "." : detail is null ? $": {code}." : $": {code} {detail}";
 

@@ -1588,7 +1588,8 @@ version, does not restore: NuGet reports the downgrade as `NU1605`.
 | `Simplic.OxS.ModelDefinition.Extension` | 3.0.826.1012 |
 | `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
 | `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
-| `OxQL.AspNetCore`, `OxQL.Core`, `OxQL.Model`, `OxQL.Mongo`, `OxQL.Studio` | 2.1.126.1012, all of them the same version |
+| `OxQL.AspNetCore`, `OxQL.Core`, `OxQL.Model`, `OxQL.Mongo` | 2.1.226.1013, all four the same version |
+| `OxQL.Studio` | 2.1.126.1012 |
 
 - **Restore names one package per run.** Raise it, restore again, and repeat until the restore
   passes; a service that references two of the rows needs two rounds.

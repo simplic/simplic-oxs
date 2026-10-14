@@ -54,6 +54,79 @@ namespace Simplic.OxS.Server.Extensions
             }
             """;
 
+        /// <summary>The body of <c>POST /AddonDefinition</c>.</summary>
+        public const string CreateAddonDefinition = """
+            {
+              "entity": "parcel.parcel",
+              "path": "handling",
+              "kind": "string",
+              "values": [ { "value": "fragile", "label": "Fragile" }, { "value": "upright", "label": "Keep upright" } ],
+              "displayName": "Handling",
+              "description": "How the parcel is to be handled on its way."
+            }
+            """;
+
+        /// <summary>An addon definition, as <c>POST /AddonDefinition</c> and <c>GET /AddonDefinition/by-id/{id}</c> answer it.</summary>
+        public const string AddonDefinition = """
+            {
+              "id": "3c8e1f5a-7b24-4d09-a6c1-9e0f2b4d6a18",
+              "entity": "parcel.parcel",
+              "path": "handling",
+              "kind": "string",
+              "values": [ { "value": "fragile", "label": "Fragile" }, { "value": "upright", "label": "Keep upright" } ],
+              "displayName": "Handling",
+              "description": "How the parcel is to be handled on its way.",
+              "retired": false
+            }
+            """;
+
+        /// <summary>The answer of <c>GET /AddonDefinition/{entity}</c>: a definition and a retired one.</summary>
+        public const string AddonDefinitions = """
+            [
+              {
+                "id": "3c8e1f5a-7b24-4d09-a6c1-9e0f2b4d6a18",
+                "entity": "parcel.parcel",
+                "path": "handling",
+                "kind": "string",
+                "values": [ { "value": "fragile", "label": "Fragile" }, { "value": "upright", "label": "Keep upright" } ],
+                "displayName": "Handling",
+                "description": "How the parcel is to be handled on its way.",
+                "retired": false
+              },
+              {
+                "id": "a41d7c9e-2f60-4b83-8d15-6c3e0a9b7f42",
+                "entity": "parcel.parcel",
+                "path": "insuredValue",
+                "kind": "decimal",
+                "displayName": "Insured value",
+                "retired": true
+              }
+            ]
+            """;
+
+        /// <summary>The body of <c>PUT /AddonDefinition/{id}</c>.</summary>
+        public const string UpdateAddonDefinition = """
+            {
+              "values": [ { "value": "fragile", "label": "Fragile" }, { "value": "upright", "label": "Keep upright" }, { "value": "cool", "label": "Keep cool" } ],
+              "displayName": "Handling",
+              "description": "How the parcel is to be handled on its way."
+            }
+            """;
+
+        /// <summary>The answer of <c>PUT /AddonDefinition/{id}</c>.</summary>
+        public const string UpdatedAddonDefinition = """
+            {
+              "id": "3c8e1f5a-7b24-4d09-a6c1-9e0f2b4d6a18",
+              "entity": "parcel.parcel",
+              "path": "handling",
+              "kind": "string",
+              "values": [ { "value": "fragile", "label": "Fragile" }, { "value": "upright", "label": "Keep upright" }, { "value": "cool", "label": "Keep cool" } ],
+              "displayName": "Handling",
+              "description": "How the parcel is to be handled on its way.",
+              "retired": false
+            }
+            """;
+
         /// <summary>
         /// The request and answer examples of a route of the query engine, told by the model of
         /// its body: the query, the batch, the explain, and health, which has none.

@@ -54,15 +54,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             public HttpClient CreateClient(string name) => new(handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
         }
 
-        private sealed class ManualTime(DateTimeOffset start) : TimeProvider
-        {
-            private DateTimeOffset now = start;
-
-            public override DateTimeOffset GetUtcNow() => now;
-
-            public void Advance(TimeSpan by) => now += by;
-        }
-
         private static HttpResponseMessage Served(string body = Document, string? etag = ETag)
         {
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -210,17 +201,28 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact]
         public async Task AnOwnerThatDoesNotAnswerInTime_IsNotKnown_AndNothingIsThrown()
         {
+            var asked = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
             var owner = new OwnerHandler(async (_, token) =>
             {
+                asked.TrySetResult(token);
+
                 await Task.Delay(Timeout.Infinite, token);
 
                 throw new InvalidOperationException("The wait above only ends by cancellation.");
             });
-            var (client, _) = Client(owner);
+            var (client, time) = Client(owner);
 
             client.SchemaBudget = TimeSpan.FromMilliseconds(50);
 
-            var read = await client.SchemaEntitiesAsync("depot", null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(30));
+            var reading = client.SchemaEntitiesAsync("depot", null, CancellationToken.None);
+            var sent = await asked.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            time.Advance(client.SchemaBudget - TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeFalse("the read has the rest of its budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+
+            var read = await reading.WaitAsync(TimeSpan.FromSeconds(30));
 
             read.Should().BeNull();
         }

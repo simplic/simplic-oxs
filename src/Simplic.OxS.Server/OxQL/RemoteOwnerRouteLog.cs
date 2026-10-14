@@ -12,8 +12,9 @@ namespace Simplic.OxS.Server.OxQL;
 /// is a route the owner does not have, which at run time looks like an owner that is down; the
 /// line shows it before the first query.
 /// <para>
-/// Only services with an <c>InternalHosts</c> entry are listed. A referenced service without one
-/// is the query engine's own startup check, which names it.
+/// Only services with an <c>InternalHosts</c> entry that is a host are listed. A referenced
+/// service without one is the query engine's own startup check, which names it; one whose
+/// entry is no host is <see cref="RemoteOwnerHostCheck"/>'s.
 /// </para>
 /// </summary>
 internal sealed class RemoteOwnerRouteLog(IServiceProvider provider, ILoggerFactory loggers) : IStartupFilter
@@ -53,17 +54,6 @@ internal sealed class RemoteOwnerRouteLog(IServiceProvider provider, ILoggerFact
         {
             if (routes.BatchUrl(service) is not { } route)
                 continue;
-
-            if (!Uri.TryCreate(route, UriKind.Absolute, out _))
-            {
-                logger.LogWarning(
-                    "OxQL owner {Service}: its '{Section}' entry does not form a valid address ({Route}); the owner cannot be reached",
-                    service,
-                    RemoteQueryClient.HostsSection,
-                    route);
-
-                continue;
-            }
 
             if (routes.ApiVersionSourceOf(service) is { } source && source != "default")
                 logger.LogInformation("OxQL owner {Service}: {Route} (api version {ApiVersion} from {Source})", service, route, routes.ApiVersionOf(service), source);

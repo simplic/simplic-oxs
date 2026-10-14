@@ -1,8 +1,12 @@
+using System.ComponentModel;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
 using OxQL.AspNetCore;
@@ -15,11 +19,13 @@ namespace Simplic.OxS.Server.Extensions
     /// <summary>
     /// What the OpenAPI document says of a route of this package beyond what the route's own
     /// attributes say (<see cref="DescribedRoute"/>): no security requirement on a route that
-    /// admits anonymous callers, the headers of a conditional request, and one example of the
-    /// request and of the answer. Of a route of the query engine it also says that the body is
-    /// JSON, which values the contract header takes, that what the host answers before the engine
-    /// sees a request is a problem document, and where the bodies of contract 1 are described. It
-    /// touches no other operation, so the document of a service's own controllers is the one it was.
+    /// admits anonymous callers, the headers of a conditional request, that the body is JSON, and
+    /// one example of the request and of the answer. Of a route the host binds a body for it says
+    /// what the body is and that an unreadable one is answered as a problem document. Of a route
+    /// of the query engine it also says which values the contract header takes, that what the host
+    /// answers before the engine sees a request is a problem document, and where the bodies of
+    /// contract 1 are described. It touches no other operation, so the document of a service's
+    /// own controllers is the one it was.
     /// </summary>
     internal sealed class DescribedRouteOperationFilter(IServiceProvider services) : IOperationFilter
     {
@@ -43,8 +49,15 @@ namespace Simplic.OxS.Server.Extensions
                 operation.Responses?.Remove(StatusCodes.Status403Forbidden.ToString());
             }
 
+            // The body is JSON. The host's formatter also reads the other JSON media types; a client is generated for the one.
+            if (operation.RequestBody?.Content is { } media)
+                foreach (var other in media.Keys.Where(type => type != Json).ToList())
+                    media.Remove(other);
+
             if (route.Query)
                 DescribeQueryRoute(operation, context, route);
+            else if (operation.RequestBody is OpenApiRequestBody taken)
+                DescribeBody(operation, context, taken);
 
             if (route.Conditional)
                 DescribeConditional(operation);
@@ -53,6 +66,7 @@ namespace Simplic.OxS.Server.Extensions
                 body.Example = JsonNode.Parse(request);
 
             Example(operation, StatusCodes.Status200OK, route.AnswerExample);
+            Example(operation, StatusCodes.Status201Created, route.AnswerExample);
             Example(operation, StatusCodes.Status400BadRequest, route.RefusalExample);
         }
 
@@ -81,6 +95,31 @@ namespace Simplic.OxS.Server.Extensions
                 && content.TryGetValue(Json, out var written))
             {
                 written.Example = JsonNode.Parse(example);
+            }
+        }
+
+        /// <summary>
+        /// What holds for a route of this package that the host binds a body for: what
+        /// <c>[Description]</c> says of the body parameter (the generator reads the attribute for
+        /// the other parameters), and that a body the host cannot read is answered 400 as its
+        /// problem document, beside what the route itself answers with that status.
+        /// </summary>
+        private static void DescribeBody(OpenApiOperation operation, OperationFilterContext context, OpenApiRequestBody body)
+        {
+            var parameter = context.ApiDescription.ParameterDescriptions
+                .Where(candidate => candidate.Source == BindingSource.Body)
+                .Select(candidate => candidate.ParameterDescriptor)
+                .OfType<ControllerParameterDescriptor>()
+                .FirstOrDefault();
+
+            body.Description ??= parameter?.ParameterInfo.GetCustomAttribute<DescriptionAttribute>()?.Description;
+
+            if (operation.Responses is { } responses
+                && responses.TryGetValue(StatusCodes.Status400BadRequest.ToString(), out var found)
+                && found is OpenApiResponse { Content: { } content }
+                && !content.ContainsKey(ProblemJson))
+            {
+                content[ProblemJson] = new OpenApiMediaType { Schema = context.SchemaGenerator.GenerateSchema(typeof(ProblemDetails), context.SchemaRepository) };
             }
         }
 
@@ -114,11 +153,6 @@ namespace Simplic.OxS.Server.Extensions
         /// <summary>What holds for every route of the query engine.</summary>
         private static void DescribeQueryRoute(OpenApiOperation operation, OperationFilterContext context, DescribedRoute route)
         {
-            // The body is JSON. The host's formatter also reads the other JSON media types; a client is generated for the one.
-            if (operation.RequestBody?.Content is { } bodies)
-                foreach (var other in bodies.Keys.Where(media => media != Json).ToList())
-                    bodies.Remove(other);
-
             // The two contracts are the header's values; any other is refused.
             if (operation.Parameters?.FirstOrDefault(parameter => parameter.In == ParameterLocation.Header && parameter.Name == OxQLQueryService.ContractHeader) is OpenApiParameter { Schema: OpenApiSchema header })
                 header.Enum = [JsonValue.Create("1"), JsonValue.Create("2")];
@@ -168,7 +202,7 @@ namespace Simplic.OxS.Server.Extensions
     /// <summary>What <see cref="DescribedRouteOperationFilter"/> adds to one route.</summary>
     /// <param name="Conditional">Whether the route answers 304 to a matching <c>If-None-Match</c>.</param>
     /// <param name="RequestExample">An example of the request body as JSON text, or null.</param>
-    /// <param name="AnswerExample">An example of the 200 answer as JSON text, or null.</param>
+    /// <param name="AnswerExample">An example of the answer of a success (200 or 201) as JSON text, or null.</param>
     internal sealed record DescribedRoute(bool Conditional, string? RequestExample, string? AnswerExample)
     {
         /// <summary>Whether the route is one of the query engine's.</summary>
@@ -196,7 +230,7 @@ namespace Simplic.OxS.Server.Extensions
             var metadata = description.ActionDescriptor.EndpointMetadata;
 
             if (metadata.OfType<DescribedRouteAttribute>().LastOrDefault() is { } declared)
-                return new DescribedRoute(declared.Conditional, null, declared.AnswerExample);
+                return new DescribedRoute(declared.Conditional, declared.RequestExample, declared.AnswerExample);
 
             if (metadata.OfType<OxQLOperationAttribute>().LastOrDefault() is not { } query)
                 return null;

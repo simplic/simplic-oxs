@@ -7,7 +7,8 @@ namespace Simplic.OxS.Server.Extensions
     /// carries those statuses and no other (<see cref="ProblemDetailsOperationFilter"/> adds none),
     /// and <see cref="DescribedRouteOperationFilter"/> adds what attributes of the framework cannot
     /// say: that an anonymous route needs no credentials, the headers of a conditional request,
-    /// and an example of the answer. It changes nothing about how a request is handled.
+    /// what <c>[Description]</c> says of a parameter, and an example of the request and of the
+    /// answer. It changes nothing about how a request is handled.
     /// </summary>
     [AttributeUsage(AttributeTargets.Method)]
     internal sealed class DescribedRouteAttribute : Attribute
@@ -18,7 +19,10 @@ namespace Simplic.OxS.Server.Extensions
         /// </summary>
         public bool Conditional { get; init; }
 
-        /// <summary>An example of the 200 answer as JSON text, or null for none.</summary>
+        /// <summary>An example of the request body as JSON text, or null for none.</summary>
+        public string? RequestExample { get; init; }
+
+        /// <summary>An example of the answer of a success (200 or 201) as JSON text, or null for none.</summary>
         public string? AnswerExample { get; init; }
     }
 }

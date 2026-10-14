@@ -96,11 +96,11 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             var get = route["get"]!;
 
-            get["summary"]!.GetValue<string>().Should().Be("The addon definitions of the caller's organisation, per extendable entity.");
+            get["summary"]!.GetValue<string>().Should().Be("The addon definitions of the caller's organisation, per entity that takes them.");
             get["description"]!.GetValue<string>().Should().Contain("https://github.com/simplic/simplic-oxs/blob/master/OX_SCHEMA.md");
             Parameters(get).Should().Equal("header If-None-Match");
             get["security"].Should().BeNull("it needs what the document requires of every route");
-            Keys(get["responses"]).Should().Equal("200", "304", "401", "403");
+            Keys(get["responses"]).Should().Equal("200", "304", "401", "403", "404");
 
             var answer = get["responses"]!["200"]!["content"]!["application/json"]!["schema"]!;
 
@@ -108,7 +108,7 @@ namespace Simplic.OxS.Server.Hosting.Test
             answer["additionalProperties"]!["type"]!.GetValue<string>().Should().Be("array");
             Reference(answer["additionalProperties"]!["items"]).Should().Be(nameof(OxSchemaProperty));
 
-            foreach (var refused in new[] { "401", "403" })
+            foreach (var refused in new[] { "401", "403", "404" })
             {
                 Keys(get["responses"]![refused]!["content"]).Should().Equal("application/problem+json");
                 get["responses"]![refused]!["description"]!.GetValue<string>().Should().NotBeNullOrWhiteSpace();

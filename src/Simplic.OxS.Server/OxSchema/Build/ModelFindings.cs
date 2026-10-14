@@ -17,11 +17,18 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The published sentence of <c>entity-scan-failed</c>.</summary>
         internal const string ScanFailedDetail = "The entity scan failed, so this document describes no types at all.";
 
-        /// <summary>Records every model finding, in the document's wording where the code is shared.</summary>
-        public static void Import(EntityModel model, string service, FindingCollector findings)
+        /// <summary>
+        /// Records every model finding, in the document's wording where the code is shared. A
+        /// host that declares it has no entities (<paramref name="noEntitiesDeclared"/>) named no
+        /// assemblies on purpose: that is no finding.
+        /// </summary>
+        public static void Import(EntityModel model, string service, FindingCollector findings, bool noEntitiesDeclared = false)
         {
             foreach (var finding in model.Findings)
             {
+                if (noEntitiesDeclared && finding.Code == BuildCodes.EntityAssembliesMissing)
+                    continue;
+
                 var target = finding.Target.Length == 0 && HostWide.Contains(finding.Code, StringComparer.Ordinal) ? service : finding.Target;
 
                 findings.Add(finding.Code, target, Detail(finding), finding.Detail);

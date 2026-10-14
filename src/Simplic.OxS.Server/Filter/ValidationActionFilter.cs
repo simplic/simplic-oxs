@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Simplic.OxS.Exceptions;
 
 namespace Simplic.OxS.Server.Filter
@@ -13,6 +15,11 @@ namespace Simplic.OxS.Server.Filter
     /// model-state filter is suppressed in <c>Bootstrap</c> so this filter owns the contract for every
     /// controller.
     /// </para>
+    /// <para>
+    /// Whatever answers an invalid model state ahead of this filter does so through
+    /// <c>ApiBehaviorOptions.InvalidModelStateResponseFactory</c>, which <c>Bootstrap</c> sets to
+    /// <see cref="Answer"/>: the same document, written without the throw.
+    /// </para>
     /// </summary>
     public class ValidationActionFilter : IActionFilter
     {
@@ -22,7 +29,24 @@ namespace Simplic.OxS.Server.Filter
             if (context.ModelState.IsValid)
                 return;
 
-            var errors = context.ModelState
+            throw Refusal(context.ModelState);
+        }
+
+        /// <inheritdoc />
+        public void OnActionExecuted(ActionExecutedContext context)
+        {
+        }
+
+        /// <summary>
+        /// The result that writes the host's answer to the invalid model state of
+        /// <paramref name="context"/>: the problem document of the exception this filter throws.
+        /// </summary>
+        internal static IActionResult Answer(ActionContext context) => new InvalidModelStateResult(Refusal(context.ModelState));
+
+        /// <summary>The exception that carries the errors of <paramref name="modelState"/>, one list of sentences per place.</summary>
+        private static OxSException Refusal(ModelStateDictionary modelState)
+        {
+            var errors = modelState
                 .Where(entry => entry.Value is { Errors.Count: > 0 })
                 .ToDictionary(
                     entry => entry.Key,
@@ -32,12 +56,7 @@ namespace Simplic.OxS.Server.Filter
                             : error.ErrorMessage)
                         .ToArray());
 
-            throw new BadRequestException(errors);
-        }
-
-        /// <inheritdoc />
-        public void OnActionExecuted(ActionExecutedContext context)
-        {
+            return new BadRequestException(errors);
         }
     }
 }

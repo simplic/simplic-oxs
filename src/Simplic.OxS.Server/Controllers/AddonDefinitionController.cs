@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Simplic.OxS.Server.Controller;
 using Simplic.OxS.Server.Controllers.Model;
+using Simplic.OxS.Server.Extensions;
 using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.ServiceDefinition;
-using System.Net;
+using System.ComponentModel;
 
 namespace Simplic.OxS.Server.Controllers;
 
@@ -18,12 +20,37 @@ namespace Simplic.OxS.Server.Controllers;
 /// the rows under its current id and under every id it retired; the API answers with the
 /// current id and moves a row it writes to it, unless the current id already holds that path.
 /// The store keeps one row per organisation, entity id and path; a write it refuses is a 409.
+/// <para>
+/// What the OpenAPI document shows of a route is what its attributes say: the summary, the
+/// description, the parameters and every status it answers (<see cref="DescribedRouteAttribute"/>).
+/// A refusal by a rule of this controller is answered as a sentence (<c>BadRequest</c> and
+/// <c>Conflict</c> with a string), and the attributes say so.
+/// </para>
 /// </summary>
 [Authorize]
 [ApiController]
 [Route("[Controller]")]
 public class AddonDefinitionController : OxSController
 {
+    private const string Json = "application/json";
+
+    private const string Text = "text/plain";
+
+    private const string ProblemJson = "application/problem+json";
+
+    /// <summary>What every description says an addon definition is, and where the rules are.</summary>
+    private const string What =
+        "An addon definition is a property an organisation adds to an extendable entity of this service: it is one of the properties of the entity's `addon` member "
+        + "(`GET /schema/addons`), and OxQL filters and sorts by it as its kind. The rules are described in " + SchemaController.Documentation + ".";
+
+    private const string NoCredentials = "The request carries no credentials.";
+
+    private const string NoSuchDefinition = "The caller's organisation has no definition of that id.";
+
+    private const string DefinedMeanwhile = "The definition was to move to the current id of its entity, and another request defined its path there meanwhile. The body is the reason as a sentence; the request can be sent again.";
+
+    private const string Unreadable = " A body that cannot be read is answered as `application/problem+json`.";
+
     private readonly IAddonDefinitionRepository repository;
     private readonly IRequestContext requestContext;
     private readonly OxSchemaRegistry schema;
@@ -47,10 +74,15 @@ public class AddonDefinitionController : OxSController
     /// <param name="entity">The entity id (e.g. "logistics.shipment"), current or retired.</param>
     /// <param name="ct">The request's cancellation token.</param>
     [HttpGet("{entity}")]
-    [ProducesResponseType(typeof(IEnumerable<AddonDefinitionResponse>), (int)HttpStatusCode.OK)]
-    [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> GetByEntityAsync(string entity, CancellationToken ct)
+    [EndpointSummary("The addon definitions of one entity.")]
+    [EndpointDescription("Answers every definition the caller's organisation holds for the entity, ordered by path, the retired ones among them and flagged. " + What)]
+    [DescribedRoute(AnswerExample = DescribedRouteExamples.AddonDefinitions)]
+    [ProducesResponseType(typeof(IEnumerable<AddonDefinitionResponse>), StatusCodes.Status200OK, Json, Description = "The definitions; an empty list for an entity without any.")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemJson, Description = NoCredentials)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson, Description = "The service has no entity of that id.")]
+    public async Task<IActionResult> GetByEntityAsync(
+        [Description("The id of the entity, as the schema document names it (`parcel.parcel`). An id the entity had before is read as the entity.")] string entity,
+        CancellationToken ct)
     {
         if (!schema.Model.TryResolve(entity, out _, out _))
             return NotFound();
@@ -67,10 +99,13 @@ public class AddonDefinitionController : OxSController
     /// <param name="ct">The request's cancellation token.</param>
     [HttpGet("by-id/{id:guid}")]
     [ActionName(nameof(GetByIdAsync))] // the route name Create points at; MVC would otherwise strip the Async suffix
-    [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.OK)]
-    [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> GetByIdAsync(Guid id, CancellationToken ct)
+    [EndpointSummary("One addon definition.")]
+    [EndpointDescription("Answers the definition of that id, also a retired one. " + What)]
+    [DescribedRoute(AnswerExample = DescribedRouteExamples.AddonDefinition)]
+    [ProducesResponseType(typeof(AddonDefinitionResponse), StatusCodes.Status200OK, Json, Description = "The definition.")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemJson, Description = NoCredentials)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson, Description = NoSuchDefinition)]
+    public async Task<IActionResult> GetByIdAsync([Description("The id of the definition.")] Guid id, CancellationToken ct)
     {
         var definition = await FindAsync(id);
 
@@ -88,11 +123,17 @@ public class AddonDefinitionController : OxSController
     /// <param name="request">The create request.</param>
     /// <param name="ct">The request's cancellation token.</param>
     [HttpPost]
-    [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.Created)]
-    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    [ProducesResponseType((int)HttpStatusCode.Conflict)]
-    [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> CreateAsync([FromBody] CreateAddonDefinitionRequest request, CancellationToken ct)
+    [EndpointSummary("Defines an addon property of an entity.")]
+    [EndpointDescription(
+        "Stores a definition for the caller's organisation and answers it with its id. Its entity, path and kind do not change afterwards; "
+        + "a retired definition of the same path and kind is revived, with its id, instead of a second one being stored. " + What)]
+    [DescribedRoute(RequestExample = DescribedRouteExamples.CreateAddonDefinition, AnswerExample = DescribedRouteExamples.AddonDefinition)]
+    [ProducesResponseType(typeof(AddonDefinitionResponse), StatusCodes.Status201Created, Json, Description = "The definition as it is stored. `Location` names the route that answers it.")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest, Text, Json, Description = "A rule refuses the definition (the entity, the path, the kind, the value list, a size limit, a path that another definition's path is part of). The body is the reason as a sentence." + Unreadable)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemJson, Description = NoCredentials)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden, ProblemJson, Description = "The request belongs to no organisation.")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict, Text, Json, Description = "The path is already defined on the entity, or was defined with another kind and retired. The body is the reason as a sentence.")]
+    public async Task<IActionResult> CreateAsync([FromBody, Description("The definition to store.")] CreateAddonDefinitionRequest request, CancellationToken ct)
     {
         if (requestContext.OrganizationId is not { } organizationId)
             return Forbid();
@@ -182,12 +223,20 @@ public class AddonDefinitionController : OxSController
     /// <param name="request">The update request.</param>
     /// <param name="ct">The request's cancellation token.</param>
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(AddonDefinitionResponse), (int)HttpStatusCode.OK)]
-    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    [ProducesResponseType((int)HttpStatusCode.Conflict)]
-    [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> UpdateAsync(Guid id, [FromBody] UpdateAddonDefinitionRequest request, CancellationToken ct)
+    [EndpointSummary("Changes the labels and the value list of an addon definition.")]
+    [EndpointDescription(
+        "Replaces the display name, the description and the value list of the definition by those of the body; a member left out is cleared. "
+        + "Entity, path and kind stay as they are. " + What)]
+    [DescribedRoute(RequestExample = DescribedRouteExamples.UpdateAddonDefinition, AnswerExample = DescribedRouteExamples.UpdatedAddonDefinition)]
+    [ProducesResponseType(typeof(AddonDefinitionResponse), StatusCodes.Status200OK, Json, Description = "The definition as it is stored.")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest, Text, Json, Description = "A rule refuses the value list or a text (the kind takes no value list, a size limit). The body is the reason as a sentence." + Unreadable)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemJson, Description = NoCredentials)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson, Description = NoSuchDefinition)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict, Text, Json, Description = DefinedMeanwhile)]
+    public async Task<IActionResult> UpdateAsync(
+        [Description("The id of the definition.")] Guid id,
+        [FromBody, Description("The labels and the value list the definition gets.")] UpdateAddonDefinitionRequest request,
+        CancellationToken ct)
     {
         var definition = await FindAsync(id);
 
@@ -226,11 +275,16 @@ public class AddonDefinitionController : OxSController
     /// <param name="id">The definition id.</param>
     /// <param name="ct">The request's cancellation token.</param>
     [HttpDelete("{id:guid}")]
-    [ProducesResponseType((int)HttpStatusCode.NoContent)]
-    [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    [ProducesResponseType((int)HttpStatusCode.Conflict)]
-    [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
-    public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken ct)
+    [EndpointSummary("Retires an addon definition.")]
+    [EndpointDescription(
+        "The definition stays stored and is flagged retired; its key is no property of the entity's `addon` member any more, and the values stored under it stay. "
+        + "A retired definition is retired again without an effect, and `POST /AddonDefinition` with its path and kind revives it. " + What)]
+    [DescribedRoute]
+    [ProducesResponseType(StatusCodes.Status204NoContent, Description = "The definition is retired.")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemJson, Description = NoCredentials)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson, Description = NoSuchDefinition)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status409Conflict, Text, Json, Description = DefinedMeanwhile)]
+    public async Task<IActionResult> DeleteAsync([Description("The id of the definition.")] Guid id, CancellationToken ct)
     {
         var definition = await FindAsync(id);
 

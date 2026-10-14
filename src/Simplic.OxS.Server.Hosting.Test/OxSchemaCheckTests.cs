@@ -153,9 +153,9 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             // The host needs a mapper of its own and so runs the profiles too, after the check has left them.
             var start = Task.Run(() => BootstrapHost.StartAsync<GatedProfilesStartup>());
-            var early = await Task.WhenAny(start, Task.Delay(TimeSpan.FromMilliseconds(500)));
 
-            early.Should().NotBeSameAs(start, "the host waits for the run that is inside the profiles");
+            GatedProfilesStartup.SecondEntered.IsSet.Should().BeFalse("the host waits for the run that is inside the profiles");
+            start.IsCompleted.Should().BeFalse("the host waits for the run that is inside the profiles");
             GatedProfilesStartup.ProfileRuns.Should().Be(1);
 
             GatedProfilesStartup.Gate.Set();
@@ -164,6 +164,7 @@ namespace Simplic.OxS.Server.Hosting.Test
 
             using var host = await start;
 
+            GatedProfilesStartup.SecondEntered.IsSet.Should().BeTrue("the host ran the profiles once the check had left them");
             GatedProfilesStartup.ProfileRuns.Should().Be(2);
             GatedProfilesStartup.MostAtOnce.Should().Be(1);
         }

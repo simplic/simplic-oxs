@@ -34,4 +34,23 @@
   <!-- What a service gets from the package: a project reference does not import a package's build targets. -->
   <Import Project="..\Simplic.OxS.Server\build\Simplic.OxS.Server.targets" />
 
+  <!--
+    The package holds the query engine's comments and its own beside its targets; the source
+    tree does not, so this project names the files the package is packed with: the one beside
+    the engine's assembly, and the one the server project's build wrote. The project reference
+    lists the second for the output too, as a package reference with documentation files
+    would: the targets put theirs in its place, which the publish test holds them to.
+  -->
+  <Target Name="NameTheQueryApiCommentsThePackageIsPackedWith"
+          BeforeTargets="SimplicOxSFindQueryApiComments"
+          DependsOnTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <_QueryApiAssembly Include="@(ResolvedCompileFileDefinitions)" Condition="'%(ResolvedCompileFileDefinitions.Filename)%(ResolvedCompileFileDefinitions.Extension)' == 'OxQL.AspNetCore.dll'" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_SimplicOxSQueryApiCommentsFile>@(_QueryApiAssembly->'%(RootDir)%(Directory)%(Filename).xml')</_SimplicOxSQueryApiCommentsFile>
+      <_SimplicOxSPackageCommentsFile>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '..', 'Simplic.OxS.Server', 'bin', '$(Configuration)', '$(TargetFramework)', 'Simplic.OxS.Server.xml'))</_SimplicOxSPackageCommentsFile>
+    </PropertyGroup>
+  </Target>
+
 </Project>

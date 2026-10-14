@@ -28,6 +28,9 @@ namespace Simplic.OxS.Server.OxSchema
         /// <inheritdoc cref="OxSchemaBuildOptions.TypeAssemblies"/>
         public IReadOnlyList<Assembly> TypeAssemblies { get; set; } = [];
 
+        /// <inheritdoc cref="OxSchemaBuildOptions.NoEntitiesDeclared"/>
+        public bool NoEntitiesDeclared { get; set; }
+
         /// <inheritdoc cref="OxSchemaBuildOptions.ControllerTypes"/>
         public IReadOnlyList<Type> ControllerTypes { get; set; } = [];
 
@@ -138,6 +141,7 @@ namespace Simplic.OxS.Server.OxSchema
                 ApiName = ApiName,
                 ApiVersion = ApiVersion,
                 TypeAssemblies = TypeAssemblies,
+                NoEntitiesDeclared = NoEntitiesDeclared,
                 ControllerTypes = ControllerTypes,
                 EnvironmentName = EnvironmentName,
                 ContinuousIntegration = ContinuousIntegration,

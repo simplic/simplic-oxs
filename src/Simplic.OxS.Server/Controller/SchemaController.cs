@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
 using OxQL.Model.Addon;
 using Simplic.OxS.Server.Extensions;
+using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.OxSchema;
 
 namespace Simplic.OxS.Server.Controller
@@ -23,11 +25,43 @@ namespace Simplic.OxS.Server.Controller
     /// description, every status it answers (<see cref="DescribedRouteAttribute"/>). The format
     /// of the document is described in one place, which the descriptions point to.
     /// </para>
+    /// <para>
+    /// The document needs no database, so the controller asks for the addon definitions only
+    /// where they are served. A host that is configured with none (no <c>MongoDB</c> section)
+    /// serves the document and answers the definitions 404 with a problem that says so.
+    /// </para>
     /// </summary>
     [ApiController]
     [Route("/schema")]
-    public sealed class SchemaController(OxSchemaRegistry registry, IAddonDefinitionSource addons, IRequestContext requestContext) : OxSController
+    public sealed class SchemaController : OxSController
     {
+        /// <summary>What the problem of <c>GET /schema/addons</c> says on a host that is configured with no database.</summary>
+        internal const string NoDatabase = "This service holds no addon definitions: it is configured with no database (the MongoDB section).";
+
+        private readonly OxSchemaRegistry registry;
+        private readonly IAddonDefinitionSource? addons;
+        private readonly IRequestContext requestContext;
+
+        /// <summary>The controller as a host creates it: the addon definitions are asked of the request's services, by the route that serves them.</summary>
+        /// <param name="registry">The schema of the host.</param>
+        /// <param name="requestContext">The request's context.</param>
+        [ActivatorUtilitiesConstructor]
+        public SchemaController(OxSchemaRegistry registry, IRequestContext requestContext)
+        {
+            this.registry = registry;
+            this.requestContext = requestContext;
+        }
+
+        /// <summary>The controller over a given source of addon definitions.</summary>
+        /// <param name="registry">The schema of the host.</param>
+        /// <param name="addons">The addon definitions <c>GET /schema/addons</c> serves.</param>
+        /// <param name="requestContext">The request's context.</param>
+        public SchemaController(OxSchemaRegistry registry, IAddonDefinitionSource addons, IRequestContext requestContext)
+            : this(registry, requestContext)
+        {
+            this.addons = addons;
+        }
+
         /// <summary>The address of the description of the schema document's format.</summary>
         internal const string Documentation = "https://github.com/simplic/simplic-oxs/blob/master/OX_SCHEMA.md";
 
@@ -53,28 +87,42 @@ namespace Simplic.OxS.Server.Controller
         public IActionResult Get(CancellationToken ct) =>
             Serve(registry.Body, registry.ETag, registry.Coded);
 
-        /// <summary>The addon definitions of the caller's organisation, per extendable entity.</summary>
+        /// <summary>The addon definitions of the caller's organisation, per entity that takes them.</summary>
         /// <param name="ct">Ends the request when the caller gives up.</param>
         [HttpGet("addons")]
         [Authorize]
-        [EndpointSummary("The addon definitions of the caller's organisation, per extendable entity.")]
+        [EndpointSummary("The addon definitions of the caller's organisation, per entity that takes them.")]
         [EndpointDescription(
-            "Answers one list per extendable entity of this service, keyed by entity id: the organisation's addon definitions as property descriptors in the schema document's format, "
+            "Answers one list per entity of this service that takes addon definitions, keyed by entity id: an entity that is declared extendable and has an `addon` member. "
+            + "A list holds the organisation's addon definitions as property descriptors in the schema document's format, "
             + "which are the properties of the entity's `addon` member. An entity without definitions has an empty list. The format is described in " + Documentation + ".")]
         [DescribedRoute(Conditional = true, AnswerExample = DescribedRouteExamples.SchemaAddons)]
         [ProducesResponseType(typeof(IDictionary<string, IReadOnlyList<OxSchemaProperty>>), StatusCodes.Status200OK, Json, Description = "The definitions per entity id.")]
         [ProducesResponseType(StatusCodes.Status304NotModified, Description = "The lists the caller holds (`If-None-Match`) are the current ones.")]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized, ProblemJson, Description = "The request carries no credentials.")]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden, ProblemJson, Description = "The request belongs to no organisation.")]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson, Description = "The service is configured with no database, so it holds no addon definitions.")]
         public async Task<IActionResult> GetAddonsAsync(CancellationToken ct)
         {
             if (requestContext.OrganizationId is not { } organisation)
                 return StatusCode(StatusCodes.Status403Forbidden);
 
-            var result = await AddonDescriptors.BuildAsync(registry.Model, addons, organisation, ct);
+            if (AddonDefinitions() is not { } source)
+                return Problem(detail: NoDatabase, statusCode: StatusCodes.Status404NotFound, title: "Not Found");
+
+            var result = await AddonDescriptors.BuildAsync(registry.Model, source, organisation, ct);
 
             return Serve(result.Body, result.ETag);
         }
+
+        /// <summary>
+        /// The source of the addon definitions, or null on a host that is configured with no
+        /// database: there the host registers <see cref="NoDatabaseAddonDefinitionSource"/>.
+        /// </summary>
+        private IAddonDefinitionSource? AddonDefinitions() =>
+            (addons ?? HttpContext.RequestServices.GetRequiredService<IAddonDefinitionSource>()) is var source and not NoDatabaseAddonDefinitionSource
+                ? source
+                : null;
 
         private IActionResult Serve(byte[] body, string etag, Func<string, byte[]>? coded = null)
         {

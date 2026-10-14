@@ -139,7 +139,12 @@ namespace Simplic.OxS.Server.OxSchema
     /// <summary>The name of a relation (format 1.1): see <see cref="OxSchemaProperty.Relation"/>.</summary>
     public sealed record OxSchemaRelation
     {
-        /// <summary>The name: a wire segment, unique among the relation names of its type.</summary>
+        /// <summary>
+        /// The name of the reference, a wire segment that is unique among the relation names of its
+        /// type: it lies on the member that carries the reference, or, where <see cref="Member"/> is
+        /// present, on the slot one level above, and is then the name of the reference the slot's key
+        /// member carries.
+        /// </summary>
         [JsonPropertyOrder(0)]
         public required string Name { get; init; }
 

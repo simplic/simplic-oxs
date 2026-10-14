@@ -21,18 +21,25 @@ namespace Simplic.OxS.Server.OxSchema
             var logger = provider.GetRequiredService<ILoggerFactory>().CreateLogger("Simplic.OxS.Server.OxSchema");
             var document = registry.Document;
 
+            if (provider.GetService<OxSchemaRegistration>()?.Warning() is { } registeredTwice)
+                logger.LogWarning("{Warning}", registeredTwice);
+
             logger.LogInformation(
-                "Ox schema built: service={Service} api={Api}/{Version} types={Types} revision={Revision} bytes={Bytes} "
+                "Ox schema built: service={Service} api={Api}/{Version} entities={Entities} types={Types} revision={Revision} bytes={Bytes} "
                 + "findings={Findings} maxPageSize={MaxPageSize} defaultPageSize={DefaultPageSize}",
                 document.Service,
                 document.Api.Name,
                 document.Api.Version,
+                document.Types.Values.Count(type => type.Entity),
                 document.Types.Count,
                 registry.Revision,
                 registry.Body.Length,
                 registry.Findings.Count,
                 document.Limits.MaxPageSize,
                 document.Limits.DefaultPageSize);
+
+            if (registry.NoEntitiesDeclared)
+                logger.LogInformation("Ox schema: the service declares no OxQL entities: GetOxQLTypeAssemblies names no assembly.");
 
             foreach (var finding in registry.Findings)
                 logger.Log(
@@ -70,22 +77,29 @@ namespace Simplic.OxS.Server.OxSchema
 
             if (subtypes.Count > 0)
                 logger.LogError(
-                    "Ox schema: {Count} stored subtypes have no MongoDB class map and are missing from the schema ({Subtypes}). "
-                    + "Register their class maps in Bootstrap.RegisterBsonClassMaps, or list them in [BsonKnownTypes] on the base type: "
+                    "Ox schema: {Count} {Subject} no MongoDB class map and {Verb} missing from the schema ({Subtypes}). "
+                    + "Register {Their} in Bootstrap.RegisterBsonClassMaps, or list {Them} in [BsonKnownTypes] on the base type: "
                     + "a class map registered after the schema is built throws or is not applied.",
                     subtypes.Count,
-                    Listed(subtypes.Select(finding => finding.ClrDetail ?? finding.Target)));
+                    subtypes.Count == 1 ? "stored subtype has" : "stored subtypes have",
+                    subtypes.Count == 1 ? "is" : "are",
+                    Listed(subtypes.Select(finding => finding.ClrDetail ?? finding.Target)),
+                    subtypes.Count == 1 ? "its class map" : "their class maps",
+                    subtypes.Count == 1 ? "it" : "them");
 
             var ids = findings.Where(finding => finding.Code is OxSchemaCodes.EntityIdOffGrammar or OxSchemaCodes.EntityIdForeignService).ToList();
 
             // A service whose name can prefix no id is told so by a finding of its own, and no rename makes its entities reachable.
             if (ids.Count > 0 && !findings.Any(finding => finding.Code == OxSchemaCodes.ServiceNameNoIdPrefix))
                 logger.LogError(
-                    "Ox schema: {Count} entity ids are not <service>.<entity> with this service's name as the prefix ({Ids}), so another service cannot reference them. "
-                    + "Rename each id in its [OxQLType] and paste the RetireEntityId line of its finding into ConfigureOxSchema: the old id keeps resolving. "
+                    "Ox schema: {Count} {Subject} not <service>.<entity> with this service's name as the prefix ({Ids}), so another service cannot reference {Them}. "
+                    + "Rename {Each} in its [OxQLType] and paste the RetireEntityId line of its finding into ConfigureOxSchema: the old id keeps resolving. "
                     + "The host starts as before.",
                     ids.Count,
-                    Listed(ids.Select(finding => finding.Target)));
+                    ids.Count == 1 ? "entity id is" : "entity ids are",
+                    Listed(ids.Select(finding => finding.Target)),
+                    ids.Count == 1 ? "it" : "them",
+                    ids.Count == 1 ? "the id" : "each id");
         }
 
         /// <summary>The first names of a list, and how many more there are.</summary>
@@ -99,8 +113,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>
         /// A refusing or published finding is an error of the host, with one exception: a
-        /// service that has no entities names no assemblies on purpose, so its published
-        /// <c>entity-assemblies-missing</c> is a warning on every start, not an error. So is a
+        /// service whose startup names no list of entity assemblies still serves every other
+        /// route, so its published <c>entity-assemblies-missing</c> is a warning, not an error
+        /// (a service that names an empty list has no such finding). So is a
         /// finding the service has to act on (<see cref="OxSchemaCodes.IsActionable"/>); every
         /// other finding is a warning.
         /// </summary>

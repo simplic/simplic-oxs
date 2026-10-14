@@ -57,7 +57,7 @@ namespace Simplic.OxS.Server.Test.OxSchema
             var summary = log.Entries.Should().ContainSingle(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal)).Subject;
 
             summary.Level.Should().Be(LogLevel.Error);
-            summary.Message.Should().StartWith($"Ox schema: {missing} stored subtypes have no MongoDB class map")
+            summary.Message.Should().StartWith($"Ox schema: {missing} stored {(missing == 1 ? "subtype has" : "subtypes have")} no MongoDB class map")
                 .And.Contain(typeof(Fixtures.SharedLeaf).FullName);
         }
 

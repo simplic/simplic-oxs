@@ -19,6 +19,46 @@
     <None Include="build\Simplic.OxS.Server.targets" Pack="true" PackagePath="build\;buildTransitive\" />
   </ItemGroup>
 
+  <!--
+    Packs two files of XML comments beside the build targets, which copy them from there into a
+    service's output: those of the query engine's HTTP assembly, and this assembly's own. A
+    restore leaves every file of build and buildTransitive in place, also one that is told to
+    leave documentation files out (NUGET_XMLDOC_MODE=skip, which drops the .xml beside an
+    assembly under lib and ref), so a service's OpenAPI document does not depend on how its
+    packages were restored.
+
+    The engine's file is the one beside the OxQL.AspNetCore assembly this project compiles
+    against, so comments and assembly are of one version; this assembly's is the one its build
+    wrote. Packing fails where either cannot be read. The target reads the restored packages and
+    what is built (ResolvePackageAssets), so it also runs in a pack that does not build.
+  -->
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackQueryApiComments</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="PackQueryApiComments" DependsOnTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <_QueryApiAssembly Include="@(ResolvedCompileFileDefinitions)" Condition="'%(ResolvedCompileFileDefinitions.Filename)%(ResolvedCompileFileDefinitions.Extension)' == 'OxQL.AspNetCore.dll'" />
+      <_QueryApiComments Include="@(_QueryApiAssembly->'%(RootDir)%(Directory)%(Filename).xml')" />
+      <_QueryApiPin Include="@(PackageReference)" Condition="'%(PackageReference.Identity)' == 'OxQL.AspNetCore'" />
+    </ItemGroup>
+    <Error Condition="'@(_QueryApiAssembly)' == ''"
+           Text="The package cannot be packed without the comments of the query engine: no reference resolves to OxQL.AspNetCore.dll." />
+    <Error Condition="'%(_QueryApiAssembly.NuGetPackageVersion)' != '@(_QueryApiPin->'%(Version)')'"
+           Text="The package cannot be packed: OxQL.AspNetCore resolves to %(_QueryApiAssembly.NuGetPackageVersion), and the project references @(_QueryApiPin->'%(Version)'). The comments would be those of another version than the one the package names." />
+    <Error Condition="!Exists('%(_QueryApiComments.FullPath)')"
+           Text="The package cannot be packed without the comments of the query engine: %(_QueryApiComments.FullPath) does not exist. Restore the project with documentation files (NUGET_XMLDOC_MODE unset or 'none') and pack again." />
+    <PropertyGroup>
+      <!-- NormalizePath joins the two and writes the separators of the machine that packs, whichever the property was written with. -->
+      <_PackageComments>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(DocumentationFile)'))</_PackageComments>
+    </PropertyGroup>
+    <Error Condition="'$(DocumentationFile)' == '' Or !Exists('$(_PackageComments)')"
+           Text="The package cannot be packed without its own comments: $(_PackageComments) does not exist. Build the project with GenerateDocumentationFile and pack again." />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_QueryApiComments);$(_PackageComments)" PackagePath="build/;buildTransitive/" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.33.1" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
@@ -37,10 +77,10 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="1.14.0-beta.1" />
-    <PackageReference Include="OxQL.AspNetCore" Version="2.1.226.1013" />
+    <PackageReference Include="OxQL.AspNetCore" Version="2.1.426.1014" />
     <PackageReference Include="OxQL.Model" Version="2.1.226.1013" />
-    <PackageReference Include="OxQL.Core" Version="2.1.226.1013" />
-    <PackageReference Include="OxQL.Mongo" Version="2.1.226.1013" />
+    <PackageReference Include="OxQL.Core" Version="2.1.426.1014" />
+    <PackageReference Include="OxQL.Mongo" Version="2.1.326.1014" />
     <PackageReference Include="OxQL.Studio" Version="2.1.126.1012" />
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />

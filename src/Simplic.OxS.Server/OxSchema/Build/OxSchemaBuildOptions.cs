@@ -22,6 +22,13 @@ namespace Simplic.OxS.Server.OxSchema
         /// <summary>The assemblies carrying entity declarations; the same set the query engine scans.</summary>
         public IReadOnlyList<Assembly> TypeAssemblies { get; init; } = [];
 
+        /// <summary>
+        /// Whether the host declares that the service has no entities: it named an empty list of
+        /// assemblies on purpose. An empty <see cref="TypeAssemblies"/> is then a service without
+        /// entities and no finding; without it, it is <c>entity-assemblies-missing</c>.
+        /// </summary>
+        public bool NoEntitiesDeclared { get; init; }
+
         /// <summary>The controllers the host publishes model definitions for; the source of entity operations.</summary>
         public IReadOnlyList<Type> ControllerTypes { get; init; } = [];
 

@@ -103,7 +103,7 @@ namespace Simplic.OxS.Server.OxSchema
     /// <summary>One member of an enum entry.</summary>
     public sealed record OxSchemaEnumValue
     {
-        /// <summary>The CLR member name, verbatim.</summary>
+        /// <summary>The member's name, verbatim as the service declares it.</summary>
         [JsonPropertyOrder(0)]
         public required string Name { get; init; }
 

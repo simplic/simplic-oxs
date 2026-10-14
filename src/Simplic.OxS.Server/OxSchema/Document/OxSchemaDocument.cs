@@ -4,9 +4,14 @@ using System.Text.Json.Serialization;
 namespace Simplic.OxS.Server.OxSchema
 {
     /// <summary>
-    /// The schema document a service publishes under <c>GET /schema</c>. Member order is inside
-    /// <see cref="Revision"/>, so every record in this folder orders its members explicitly.
+    /// The schema document a service publishes under <c>GET /schema</c>: the entities a query can
+    /// read, every type reachable from them, and the limits a query is checked against.
     /// </summary>
+    /// <remarks>
+    /// Member order is inside <see cref="Revision"/>, so every record in this folder orders its
+    /// members explicitly. The summaries of these records are the descriptions of the models in a
+    /// service's OpenAPI document: they speak of the wire, not of this code.
+    /// </remarks>
     public sealed record OxSchemaDocument
     {
         /// <summary>
@@ -27,7 +32,8 @@ namespace Simplic.OxS.Server.OxSchema
         [JsonPropertyOrder(2)]
         public required OxSchemaApi Api { get; init; }
 
-        /// <summary><c>sha256:</c> plus the digest of the canonical form with this member absent. Null only during the build.</summary>
+        /// <summary><c>sha256:</c> plus the digest of the canonical form with this member absent. It names the content of the document.</summary>
+        /// <remarks>Null only during the build.</remarks>
         [JsonPropertyOrder(3)]
         public string? Revision { get; init; }
 
@@ -126,7 +132,7 @@ namespace Simplic.OxS.Server.OxSchema
         public required int MaxReportPageSize { get; init; }
     }
 
-    /// <summary>One thing the build could not describe. Only findings that removed an entity or the whole pool are published; none names a CLR type.</summary>
+    /// <summary>One thing the build could not describe. Only findings that removed an entity or the whole pool are published; none names a type of the service's code.</summary>
     public sealed record OxSchemaDiagnostic
     {
         /// <summary>A stable kebab-case code, e.g. <c>duplicate-entity-id</c>.</summary>

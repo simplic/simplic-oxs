@@ -24,10 +24,12 @@ namespace Simplic.OxS.Server.OxSchema
     /// environment variable.
     /// </para>
     /// <para>
-    /// MongoDB class maps and serializers are registered per process. The class-map hook and the
-    /// mapper profiles of a startup type therefore run once per process, however often the check
-    /// is called and whether or not a host of that type was built before; what a service
-    /// registers elsewhere has to bear a second call itself.
+    /// MongoDB class maps and serializers are registered per process. The class-map hook, the
+    /// mapper profiles and, where asked for, <c>RegisterServices</c> of a startup type therefore
+    /// run once per process, however often the check is called and whether or not a host of
+    /// that type was built before. A host calls <c>RegisterServices</c> itself, every time, and
+    /// <c>ConfigureOxSchema</c> runs at every call: what a service registers there has to bear
+    /// a second call itself.
     /// </para>
     /// <para>
     /// The build never fails fast: a finding that stops a <c>Development</c> host is returned
@@ -65,7 +67,7 @@ namespace Simplic.OxS.Server.OxSchema
             startup.EnsureBsonClassMaps();
 
             if (check.RunRegisterServices)
-                startup.RegisterServicesInto(new ServiceCollection());
+                startup.EnsureRegisterServices();
 
             startup.EnsureMapperProfiles();
 
@@ -171,8 +173,8 @@ namespace Simplic.OxS.Server.OxSchema
         /// Whether the startup's <c>RegisterServices</c> runs, into a service collection that is
         /// thrown away. Off by default, because a service may read configuration there that a
         /// test does not have. Turn it on for a service that registers class maps or serializers
-        /// in <c>RegisterServices</c>; such a registration has to bear a second call in one
-        /// process.
+        /// in <c>RegisterServices</c>. It runs once per process for a startup type, so several
+        /// checks of one test run meet such a registration once.
         /// </summary>
         public bool RunRegisterServices { get; set; }
     }

@@ -25,11 +25,17 @@ namespace Simplic.OxS.Server.Test.OxQL
         /// <summary>An owner that never answers: the call ends only when its token is cancelled.</summary>
         private sealed class SilentHandler : HttpMessageHandler
         {
+            private readonly TaskCompletionSource<CancellationToken> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
             public int Calls { get; private set; }
+
+            /// <summary>The token of the first call, once it is waiting.</summary>
+            public Task<CancellationToken> Entered => entered.Task;
 
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
                 Calls++;
+                entered.TrySetResult(cancellationToken);
 
                 await Task.Delay(Timeout.Infinite, cancellationToken);
 
@@ -101,13 +107,20 @@ namespace Simplic.OxS.Server.Test.OxQL
         /// <summary>A health answer whose body never arrives: the read ends only by cancellation.</summary>
         private sealed class StalledBodyHandler : HttpMessageHandler
         {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent() });
+            private readonly TaskCompletionSource<CancellationToken> reading = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            private sealed class StalledContent : HttpContent
+            /// <summary>The token the body is read with, once the read is waiting.</summary>
+            public Task<CancellationToken> Reading => reading.Task;
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent(reading) });
+
+            private sealed class StalledContent(TaskCompletionSource<CancellationToken> reading) : HttpContent
             {
                 protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
                 {
+                    reading.TrySetResult(cancellationToken);
+
                     await Task.Delay(Timeout.Infinite, cancellationToken);
 
                     throw new InvalidOperationException("The wait above only ends by cancellation.");
@@ -134,14 +147,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             await client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
             handler.Sent.Should().ContainSingle().Which.Headers[RemoteQueryClient.CallerHeader].Should().Be("logistics");
-        }
-
-        /// <summary>A clock a test moves by hand.</summary>
-        private sealed class ManualTime(DateTimeOffset start) : TimeProvider
-        {
-            public DateTimeOffset Now { get; set; } = start;
-
-            public override DateTimeOffset GetUtcNow() => Now;
         }
 
         /// <summary>The identity the engine scoped the parent query with.</summary>
@@ -187,12 +192,21 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task Batch_WithoutAPositiveBudget_IsStillBounded(int budgetMs)
         {
             var handler = new SilentHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "localhost:8080");
+            client.Time = time;
             client.FallbackBudget = TimeSpan.FromMilliseconds(50);
 
-            var call = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var call = client.BatchAsync("vehicle", Batch(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var sent = await handler.Entered;
 
-            await call.Should().ThrowAsync<OperationCanceledException>();
+            time.Advance(client.FallbackBudget - TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeFalse("the call has its fallback budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeTrue("the fallback budget has passed");
+
+            await call.Awaiting(task => task).Should().ThrowAsync<OperationCanceledException>();
             handler.Calls.Should().Be(1);
         }
 
@@ -205,15 +219,179 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Theory]
         [InlineData("vehicle:not-a-port")]
         [InlineData("[::1")]
-        public async Task Batch_ToAHostEntryThatFormsNoAddress_FailsAsAnUnreachableOwner(string host)
+        [InlineData("http://vehicle-svc:8080")]
+        [InlineData("user:secret@vehicle-svc")]
+        public async Task Batch_ToAHostEntryThatIsNoHost_IsACallToAServiceThatIsNotConfigured_AndSendsNothing(string host)
         {
             var handler = new SilentHandler();
             var client = Client(handler, host);
 
-            var call = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var batch = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var explain = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
-            await call.Should().ThrowAsync<HttpRequestException>();
+            foreach (var call in new Func<Task>[] { batch, explain })
+            {
+                var thrown = (await call.Should().ThrowAsync<InvalidOperationException>()).Which;
+
+                thrown.Message.Should().StartWith("The 'InternalHosts' entry for 'vehicle' is not used, because ").And.EndWith("the service is not configured on this host.");
+                thrown.Message.Should().NotContain(host).And.NotContain("secret");
+            }
+
             handler.Calls.Should().Be(0);
+        }
+
+        /// <summary>An owner that answers every call with a redirect to another host.</summary>
+        private sealed class RedirectingHandler(HttpStatusCode status) : HttpMessageHandler
+        {
+            public int Calls { get; private set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                Calls++;
+
+                var answer = new HttpResponseMessage(status);
+
+                answer.Headers.Location = new Uri("http://elsewhere.example/vehicle-api/v1/internal/oxql/batch");
+
+                return Task.FromResult(answer);
+            }
+        }
+
+        [Theory]
+        [InlineData(HttpStatusCode.MovedPermanently)]
+        [InlineData(HttpStatusCode.Found)]
+        [InlineData(HttpStatusCode.TemporaryRedirect)]
+        [InlineData(HttpStatusCode.PermanentRedirect)]
+        public async Task ARedirectOfAnOwner_IsAnOwnerThatDoesNotServeTheRoute_AndIsNotFollowed(HttpStatusCode status)
+        {
+            var handler = new RedirectingHandler(status);
+            var client = Client(handler, "vehicle-svc:8080");
+
+            var batch = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var explain = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            foreach (var (call, route) in new (Func<Task> Call, string Route)[] { (batch, "batch"), (explain, "explain") })
+            {
+                var thrown = (await call.Should().ThrowAsync<HttpRequestException>()).Which;
+
+                // What the query engine reads as an owner without the route.
+                thrown.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                thrown.Message.Should().Be($"The owner of 'vehicle' answered the internal {route} with a redirect ({(int)status}), which is not followed: it does not serve the route at the configured address.");
+            }
+
+            handler.Calls.Should().Be(2, "one call per route, and none to where the answer points");
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
+            (await client.SchemaEntitiesAsync("vehicle", null, CancellationToken.None)).Should().BeNull();
+            handler.Calls.Should().Be(4);
+        }
+
+        [Theory]
+        [InlineData("vehicle-svc")]
+        [InlineData("vehicle-svc:8080")]
+        [InlineData("Vehicle.Svc.cluster.local:80")]
+        [InlineData("vehicle_svc")]
+        [InlineData("vehicle-svc.namespace.svc.cluster.local.")]
+        [InlineData("vehicle-svc.:8080")]
+        [InlineData("localhost:65535")]
+        [InlineData("10.42.0.7")]
+        [InlineData("10.42.0.7:8080")]
+        [InlineData("[::1]")]
+        [InlineData("[fd00::17]:8080")]
+        [InlineData("  vehicle-svc:8080  ")]
+        public void AHostEntry_IsAHostWithAnOptionalPort(string host)
+        {
+            var client = Client(new SilentHandler(), host);
+
+            RemoteQueryClient.HostEntryDefect(host.Trim()).Should().BeNull();
+            client.IsConfigured("vehicle").Should().BeTrue();
+            client.RefusedHostOf("vehicle").Should().BeNull();
+            client.BatchUrl("vehicle").Should().Be($"http://{host.Trim()}/vehicle-api/v1/internal/oxql/batch");
+            Uri.TryCreate(client.BatchUrl("vehicle"), UriKind.Absolute, out var address).Should().BeTrue();
+            address!.UserInfo.Should().BeEmpty();
+            address.AbsolutePath.Should().Be("/vehicle-api/v1/internal/oxql/batch");
+        }
+
+        [Theory]
+        [InlineData("http://vehicle-svc:8080", "it names a scheme")]
+        [InlineData("https://vehicle.example.com", "it names a scheme")]
+        [InlineData("vehicle-svc/", "it has a path or a query")]
+        [InlineData("vehicle-svc:8080/base", "it has a path or a query")]
+        [InlineData("vehicle-svc?x=1", "it has a path or a query")]
+        [InlineData("vehicle-svc#x", "it has a path or a query")]
+        [InlineData("vehicle-svc\\base", "it has a path or a query")]
+        [InlineData("user@elsewhere.example.com", "it carries user information")]
+        [InlineData("user:secret@vehicle-svc:8080", "it carries user information")]
+        [InlineData("not a host", "it contains whitespace")]
+        [InlineData("vehicle-svc :8080", "it contains whitespace")]
+        [InlineData("vehicle\tsvc", "it contains whitespace")]
+        [InlineData("vehicle:not-a-port", "it holds a character a host name has none of")]
+        [InlineData("[::1", "it holds a character a host name has none of")]
+        [InlineData("vehicle-svc:8080:9090", "it holds a character a host name has none of")]
+        [InlineData("vehicle%2Dsvc", "it holds a character a host name has none of")]
+        [InlineData("-vehicle", "it holds a character a host name has none of")]
+        [InlineData("vehicle-svc..", "it holds a character a host name has none of")]
+        [InlineData(".", "it holds a character a host name has none of")]
+        [InlineData("vehicle-svc:", "its port is no number from 1 to 65535")]
+        [InlineData("vehicle-svc:0", "its port is no number from 1 to 65535")]
+        [InlineData("vehicle-svc:65536", "its port is no number from 1 to 65535")]
+        [InlineData("vehicle-svc:99999999999", "its port is no number from 1 to 65535")]
+        [InlineData("[1:2]", "it forms no address")]
+        public async Task AHostEntryOfAnotherForm_IsNotConfigured_AndNeverCalled(string host, string defect)
+        {
+            var handler = new SilentHandler();
+            var client = Client(handler, host);
+
+            RemoteQueryClient.HostEntryDefect(host).Should().Be(defect);
+            client.RefusedHostOf("vehicle").Should().Be(defect);
+            client.IsConfigured("vehicle").Should().BeFalse();
+            client.RouteOf("vehicle").Should().BeNull();
+            client.BatchUrl("vehicle").Should().BeNull();
+            client.ExplainUrl("vehicle").Should().BeNull();
+            client.HealthUrl("vehicle").Should().BeNull();
+            client.SchemaUrl("vehicle").Should().BeNull();
+            client.ApiVersionOf("vehicle").Should().BeNull();
+
+            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+            (await client.SchemaEntitiesAsync("vehicle", null, CancellationToken.None)).Should().BeNull();
+            handler.Calls.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task AnOwnerThatAnswers404ToItsHealth_IsAnOwnerWithoutTheRoute_ThrownWithTheStatus()
+        {
+            var client = Client(new AnsweringHandler(HttpStatusCode.NotFound, ""), "vehicle-svc:8080");
+
+            var ask = () => client.IsReachableAsync("vehicle", CancellationToken.None);
+            var thrown = (await ask.Should().ThrowAsync<HttpRequestException>()).Which;
+
+            thrown.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            thrown.Message.Should().Be("The owner of 'vehicle' answered 404 to its health route: it does not serve the query routes at the configured address.");
+            client.OwnerOf("vehicle").Should().BeNull();
+
+            // Before a batch the same owner is one whose facts are not known: the batch reports what it meets, and nothing is thrown here.
+            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
+        }
+
+        [Theory]
+        [InlineData(HttpStatusCode.NotFound)]
+        public async Task AnOwnerThatAnswers404ToABatchOrAnExplain_IsThrownWithTheStatus(HttpStatusCode status)
+        {
+            var client = Client(new AnsweringHandler(status, ""), "vehicle-svc:8080");
+
+            var batch = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
+            var explain = () => client.ExplainBatchAsync("vehicle", new ExplainBatchRequest { Checks = [Explain()] }, TimeSpan.FromSeconds(1), CancellationToken.None);
+
+            (await batch.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(status);
+            (await explain.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(status);
+        }
+
+        [Fact]
+        public void TheFormOfAHostEntry_IsSaidInOneSentence()
+        {
+            RemoteQueryClient.HostEntryForm.Should().Be(
+                "host or host:port, where host is a name of letters, digits, dots, hyphens and underscores, an IPv4 address or an IPv6 address in brackets, and port a number from 1 to 65535; no scheme, no user, no path, no query");
+            RemoteQueryClient.HostsSection.Should().Be("InternalHosts");
         }
 
         /// <summary>
@@ -264,17 +442,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             Client(new SilentHandler(), "localhost:8080").ApiVersionSourceOf("vehicle").Should().Be("default");
             Client(new SilentHandler(), "localhost:8080", " ").ApiVersionSourceOf("vehicle").Should().Be("default", "a blank entry is no entry");
             Client(new SilentHandler(), "localhost:8080").ApiVersionSourceOf("hr").Should().BeNull("the host does not know the service");
-        }
-
-        [Theory]
-        [InlineData("vehicle:not-a-port")]
-        [InlineData("[::1")]
-        public async Task IsReachable_ForAHostEntryThatFormsNoAddress_IsFalse(string host)
-        {
-            var handler = new SilentHandler();
-
-            (await Client(handler, host).IsReachableAsync("vehicle", CancellationToken.None)).Should().BeFalse();
-            handler.Calls.Should().Be(0);
         }
 
         [Theory]
@@ -376,12 +543,21 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task Explain_WithoutAPositiveBudget_IsStillBounded(int budgetMs)
         {
             var handler = new SilentHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "vehicle-svc:8080");
+            client.Time = time;
             client.FallbackBudget = TimeSpan.FromMilliseconds(50);
 
-            var call = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var call = client.ExplainAsync("vehicle", Explain(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var sent = await handler.Entered;
 
-            await call.Should().ThrowAsync<OperationCanceledException>();
+            time.Advance(client.FallbackBudget - TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeFalse("the call has its fallback budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeTrue("the fallback budget has passed");
+
+            await call.Awaiting(task => task).Should().ThrowAsync<OperationCanceledException>();
             handler.Calls.Should().Be(1);
         }
 
@@ -481,15 +657,23 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task OwnerOfAsync_WhenTheCallerStopsWaiting_IsCancelled_AndTheProbeServesTheNextCaller()
         {
             var handler = new SilentHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "vehicle-svc:8080");
-            client.HealthBudget = TimeSpan.FromMilliseconds(200);
-            using var impatient = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+            client.Time = time;
+            using var impatient = new CancellationTokenSource();
 
-            var first = async () => await client.OwnerOfAsync("vehicle", impatient.Token);
-            await first.Should().ThrowAsync<OperationCanceledException>();
+            var first = client.OwnerOfAsync("vehicle", impatient.Token).AsTask();
+            var probe = await handler.Entered;
+            impatient.Cancel();
+
+            await first.Awaiting(task => task).Should().ThrowAsync<OperationCanceledException>();
+            probe.IsCancellationRequested.Should().BeFalse("the probe runs on its own clock, not on the caller's token");
 
             (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
-            handler.Calls.Should().Be(1, "the second caller waited on the probe the first one started");
+            handler.Calls.Should().Be(1, "the probe the first caller started serves the next one");
+
+            time.Advance(client.HealthBudget);
+            probe.IsCancellationRequested.Should().BeTrue("the probe is bounded by the health budget");
         }
 
         [Fact]
@@ -555,10 +739,20 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact(Timeout = 10_000)]
         public async Task IsReachable_WhenTheHealthBodyDoesNotArriveInTime_IsTrue_AndLearnsNothing()
         {
-            var client = Client(new StalledBodyHandler(), "vehicle-svc:8080");
-            client.HealthBudget = TimeSpan.FromMilliseconds(50);
+            var handler = new StalledBodyHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
+            var client = Client(handler, "vehicle-svc:8080");
+            client.Time = time;
 
-            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue("the owner answered");
+            var reachable = client.IsReachableAsync("vehicle", CancellationToken.None);
+            var read = await handler.Reading;
+
+            time.Advance(client.HealthBudget - TimeSpan.FromMilliseconds(1));
+            read.IsCancellationRequested.Should().BeFalse("the body has the rest of the health budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+
+            (await reachable).Should().BeTrue("the owner answered");
             client.OwnerOf("vehicle").Should().BeNull();
         }
 
@@ -614,17 +808,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             var call = () => Client(new BogusCharsetHandler(HttpStatusCode.Forbidden), "vehicle-svc:8080").BatchAsync("vehicle", Batch(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
             (await call.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        }
-
-        [Theory]
-        [InlineData("vehicle:not-a-port")]
-        [InlineData("[::1")]
-        public async Task OwnerOfAsync_ForAHostEntryThatFormsNoAddress_IsTriedOncePerTtl(string host)
-        {
-            var client = Client(new SilentHandler(), host);
-
-            (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
-            client.IsProbeFresh("vehicle").Should().BeTrue("a host entry that forms no address counts as tried");
         }
 
         [Fact]

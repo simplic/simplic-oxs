@@ -2,8 +2,14 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Simplic.OxS.Server.Hosting.Test.Fixtures;
 
 namespace Simplic.OxS.Server.Hosting.Test
@@ -68,6 +74,98 @@ namespace Simplic.OxS.Server.Hosting.Test
             body.ContainsKey("code").Should().BeFalse();
             answer.Headers.Contains("Server-Timing").Should().BeFalse();
 
+            engine.Executed.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task TheAnswerOfTheInvalidModelStateFactory_IsTheHostsOwnAnswerToAnInvalidModelState()
+        {
+            using var host = await StartAsync(new AnsweringEngine());
+            using var client = host.GetTestClient();
+
+            // What the host answers where its own filter meets the invalid model state.
+            using var answer = await client.SendAsync(AsUser(Post("/parcel-api/v1/OxQL/query", Unbindable, contract: null)));
+
+            var thrown = await answer.Content.ReadAsStringAsync();
+            var document = JsonNode.Parse(thrown)!.AsObject();
+
+            answer.StatusCode.Should().Be(HttpStatusCode.BadRequest, thrown);
+
+            // The same model state and the same request, handed to the factory a filter ahead of the host's answers through.
+            using var scope = host.Services.CreateScope();
+            using var written = new MemoryStream();
+
+            var http = new DefaultHttpContext { RequestServices = scope.ServiceProvider, TraceIdentifier = document["traceId"]!.GetValue<string>() };
+
+            http.Request.Path = document["instance"]!.GetValue<string>();
+            http.Response.Body = written;
+
+            var action = new ActionContext(http, new RouteData(), new ActionDescriptor());
+
+            foreach (var (place, sentences) in document["errors"]!.AsObject())
+            {
+                foreach (var sentence in sentences!.AsArray())
+                    action.ModelState.AddModelError(place, sentence!.GetValue<string>());
+            }
+
+            var options = scope.ServiceProvider.GetRequiredService<IOptions<ApiBehaviorOptions>>().Value;
+
+            await options.InvalidModelStateResponseFactory(action).ExecuteResultAsync(action);
+
+            // One document: every member, value and place, in the order the host writes them.
+            Encoding.UTF8.GetString(written.ToArray()).Should().Be(thrown);
+            http.Response.StatusCode.Should().Be((int)answer.StatusCode);
+            http.Response.ContentType.Should().Be(answer.Content.Headers.ContentType!.ToString());
+
+            // The framework's own filter, which would answer through the factory ahead of the host's, stays off.
+            options.SuppressModelStateInvalidFilter.Should().BeTrue();
+        }
+
+        /// <summary>A query whose match holds half of a surrogate pair, which is no Unicode text.</summary>
+        private const string BrokenText = """{"entityType":"parcel.parcel","pipeline":[{"match":{"number":{"eq":"a\ud800"}}}]}""";
+
+        /// <summary>A batch of that one query.</summary>
+        private const string BrokenBatch = """{"queries":[""" + BrokenText + "]}";
+
+        [Theory]
+        [InlineData("/OxQL/query", BrokenText, false, null)]
+        [InlineData("/OxQL/query", BrokenText, false, 1)]
+        [InlineData("/OxQL/batch", BrokenBatch, false, null)]
+        [InlineData("/OxQL/batch", BrokenBatch, false, 1)]
+        [InlineData("/OxQL/explain", BrokenText, false, null)]
+        [InlineData("/OxQL/explain", BrokenText, false, 1)]
+        [InlineData("/internal/oxql/batch", BrokenBatch, true, null)]
+        [InlineData("/internal/oxql/batch", BrokenBatch, true, 1)]
+        public async Task AContract1BodyWithTextThatIsNoUnicodeText_IsAnsweredInTheHostsOwnForm(string route, string sent, bool betweenServices, int? contract)
+        {
+            var engine = new AnsweringEngine();
+
+            using var host = await StartAsync(engine);
+            using var client = host.GetTestClient();
+
+            var message = Post("/parcel-api/v1" + route, sent, contract);
+
+            using var answer = await client.SendAsync(betweenServices ? AsService(message) : AsUser(message));
+
+            var text = await answer.Content.ReadAsStringAsync();
+
+            answer.StatusCode.Should().Be(HttpStatusCode.BadRequest, text);
+            answer.Content.Headers.ContentType!.ToString().Should().Be("application/problem+json");
+
+            // The document of every 400 of the host for a body it does not read, with the one place the text is said at.
+            var body = JsonNode.Parse(text)!.AsObject();
+
+            body.Select(member => member.Key).Should().Equal("type", "title", "status", "detail", "instance", "traceId", "errors");
+            body["type"]!.GetValue<string>().Should().Be("urn:simplic-oxs:problem:bad-request");
+            body["title"]!.GetValue<string>().Should().Be("Bad Request");
+            body["status"]!.GetValue<int>().Should().Be(400);
+            body["detail"]!.GetValue<string>().Should().Be("One or more validation errors occurred.");
+            body["instance"]!.GetValue<string>().Should().Be(route);
+            body["traceId"]!.GetValue<string>().Should().NotBeEmpty();
+            body["errors"]!.AsObject().Select(place => place.Key).Should().Equal("$");
+            body["errors"]!["$"]!.AsArray().Should().ContainSingle().Which!.GetValue<string>().Should().Contain("Unicode");
+
+            body.ContainsKey("code").Should().BeFalse();
             engine.Executed.Should().BeEmpty();
         }
 

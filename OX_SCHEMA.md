@@ -125,7 +125,7 @@ An entity is a structural type that additionally carries entity metadata. Member
 | `aliases` | entities | The ids this entity is also known by: the ids it retired first (ordinally sorted), then the legacy `$ClassName` model ids its controller publishes. Always present, possibly empty. |
 | `key` | entities, keyed item types | The property paths that identify an instance. |
 | `display` | entities | The property that names an instance: the first of `name`, `matchCode`, `number` the entity has as a string. Absent when it has none. |
-| `extendable` | entities | Whether the entity accepts an organisation's declared addon fields. |
+| `extendable` | entities | Whether the entity is declared to accept an organisation's addon fields. It takes them when it also has an `addon` member; `GET /schema/addons` lists exactly the entities that do. |
 | `queryable` | entities | `true`: every entity in the pool is accepted as a query's entity type. |
 | `notFilterable` | entities | The scalar paths the entity refuses to filter on: members the service returns and does not store, which the query engine refuses with `NOT_STORED`. A member with `byVariant` is not stored either and is **not** on the list: the query engine filters it (with `eq`, `neq`, `in` and `nin`). Ordinally sorted. Always present, possibly empty. |
 | `notSortable` | entities | The scalar paths the entity filters on and refuses to sort on: the paths of its members with `byVariant`, which the query engine compares and can neither sort nor group by, wherever they stand. Ordinally sorted. Always present; empty for an entity without such a member: what makes a stored scalar unsortable, crossing a collection, is visible in the descriptors and not repeated here. |
@@ -491,7 +491,8 @@ Published only for findings a client could not detect from absence: an entity dr
 ambiguous id (`duplicate-entity-id`), a pointer with no target (`dangling-type-pointer`: a
 property's type, a snapshot source or a variant's `type`), and a
 pool that is empty because the scan, or the build after it, threw (`entity-scan-failed`) or
-because the host named no assemblies (`entity-assemblies-missing`). `target` is in wire terms; nothing names a CLR type.
+because the host named no list of assemblies (`entity-assemblies-missing`; a service that names an
+empty list has no entities and no diagnostic). `target` is in wire terms; nothing names a CLR type.
 The array is inside the revision hash. Every other finding is logged at startup only (section 3.3).
 
 ### 1.15 Compatibility
@@ -553,7 +554,7 @@ nothing else is declared.
 
 | you want | you declare |
 |---|---|
-| an entity | `[OxQLType]` on the class; `Extendable = true` publishes `extendable` |
+| an entity | `[OxQLType]` on the class; `Extendable = true` publishes `extendable`, and the entity needs an `addon` member (`IDictionary<string, object> Addon`) to take addon definitions |
 | the entity's REST operations and legacy aliases | list its controller in `ConfigureModelDefinitions()`; the controller is linked to the entity whose response DTO carries `[SearchKey("<entity id>")]`, or whose name is `<Entity>Model` / `<Entity>Response` among that controller's declared responses |
 | a foreign key | `[OxQLReference("<entity id>")]` on the id member, or `[ReferenceId("<id property>")]` on the navigation property, whose type is the target entity; nothing is inferred from a name |
 | a foreign key onto an element of an item collection | `[OxQLReference("<entity id>", "<field>", Item = "<item path>")]` |
@@ -719,12 +720,22 @@ service `vehicle`; a reference that names it is sent to `InternalHosts:vehicle`,
 
 ## 3 · How the document is built
 
-`AddOxSchema` (called by `Bootstrap`) registers `OxSchemaRegistry` as a singleton, hands the
-registry's entity model to the query engine as its `IEntityModelProvider`, and installs a
-startup filter that resolves the registry before the first request. `Bootstrap` has called
-`RegisterBsonClassMaps()` by then, and it creates the AutoMapper instance (and so runs
-`RegisterMapperProfiles`) right before the build, whoever resolves the registry first: a class
-map a service registers in either place is there when the build looks its type up (section 5.2).
+`Bootstrap` registers `OxSchemaRegistry` as a singleton, hands the registry's entity model to
+the query engine as its `IEntityModelProvider`, and installs a startup filter that resolves the
+registry before the first request. `Bootstrap` has called `RegisterBsonClassMaps()` by then, and
+it creates the AutoMapper instance (and so runs `RegisterMapperProfiles`) right before the
+build, whoever resolves the registry first: a class map a service registers in either place is
+there when the build looks its type up (section 5.2).
+
+A service registers nothing for the schema: its options go into `ConfigureOxSchema`. The public
+`AddOxSchema` is for a host that is not built on `Bootstrap`. Where a service built on
+`Bootstrap` calls it all the same, the host's registration stands, with its step before the
+build: a call before the host's is merged into it (the names, the api version and the
+environment are the host's; the type assemblies and controllers are the host's and then the
+call's; retired ids, reference declarations and a required authorization of the call are kept),
+a call after it changes nothing, and a registry the service registered by itself is replaced.
+The start logs each as one warning that names `ConfigureOxSchema`.
+
 The build runs once, on the startup thread, and is one pass in `OxSchemaBuilder`:
 
 1. **Legacy document.** `/ModelDefinition` is generated from the declared controllers by the
@@ -810,15 +821,27 @@ independent costs:
 | `entity-scan-failed` | no | yes |
 | `entity-assemblies-missing` | no | yes |
 | `entity-id-off-grammar`, `entity-id-foreign-service`, `service-name-no-id-prefix`, `structural-id-off-grammar`, `property-name-off-grammar` | no | no |
-| `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared` | no | no |
+| `controller-link-ambiguous`, `reference-declaration-unresolved`, `collection-untyped`, `entity-type-shared`, `extendable-without-addon` | no | no |
 | `polymorphic-member-conflict`, `polymorphic-subtype-unregistered`, `variant-constant-unresolved`, `reference-key-kind-mismatch`, `reference-case-target-unknown`, `reference-item-unknown`, `reference-candidate-undeclared` | no | no |
 
 The last row are the model's format 1.1 codes. Each marks a member the document still describes
 (as `unknown`), a variant or a reference case it leaves out in a way its absence shows, so each is
 logged only. `reference-candidate-undeclared` is defined by the engine and not emitted yet. The
-same holds for every other code of the engine's model build that this table does not list, such
-as `reference-target-unknown`, `reference-target-field-unknown` and `retired-id-ambiguous`: a code
-the document does not share is never refusing and never published.
+same holds for every other code of the engine's model build: a code the document does not
+share is never refusing and never published. These are the codes of the model build that the
+table above does not list, each logged as a warning with its target:
+
+| code | what it marks |
+|---|---|
+| `retired-id-ambiguous` | A retired id is also a live entity id, or two current ids claim it; it is dropped. |
+| `entity-key-missing` | The entity has no member that is stored as `_id`. |
+| `member-serializer-opaque`, `member-serializer-unavailable` | A member's serializer is no document serializer, or could not be resolved; the member is `unknown`. |
+| `path-depth-exceeded` | A path goes deeper than the walk allows, or the entity has more paths than the index holds; what lies beyond is not indexed. |
+| `reference-target-unknown` | A reference names an entity id of this service that the model does not have; the reference is dropped. |
+| `reference-target-field-unknown` | A reference into another service names no field (this host cannot know the target's key), or names a field its target of this service does not have; the reference, or the case, is dropped. |
+| `reference-target-unprefixed` | A reference names a target id without a service prefix (`<service>.<entity>`) that is no entity of this host. Such an id names no owning service and is never a remote target; the reference, or the case, is dropped. |
+| `polymorphic-variant-name-conflict` | Two variants of one polymorphic type have the same name; neither is described as a variant. |
+| `document-version-unsupported` | Not a finding of a build: what a reader of a schema document reports for a format version it does not understand. |
 
 **Refusing** is for ambiguity, where no reading of the document is correct. A host **fails
 fast** on a refusing finding in the `Development` and `Local` environments and under continuous
@@ -847,8 +870,8 @@ document that is complete. Both sets are closed and keyed on the code.
 
 The startup log carries one summary line, one line per finding, and one line per controller the
 legacy generator could not describe. A refusing or published finding is logged as an error
-(`entity-assemblies-missing` as a warning: a service without entities names no assemblies on
-purpose), and so is a finding the service has to act on although the document stays readable;
+(`entity-assemblies-missing` as a warning: every other route of the service works), and so is
+a finding the service has to act on although the document stays readable;
 every other finding is a warning. The findings a service has to act on get one more error line
 per kind, after the findings, that counts them and says what to do:
 
@@ -856,6 +879,23 @@ per kind, after the findings, that counts them and says what to do:
 |---|---|
 | `polymorphic-subtype-unregistered` | `Ox schema: N stored subtypes have no MongoDB class map and are missing from the schema (…)`, then: register them in `RegisterBsonClassMaps()` or list them in `[BsonKnownTypes]` |
 | `entity-id-off-grammar`, `entity-id-foreign-service` | `Ox schema: N entity ids are not <service>.<entity> with this service's name as the prefix (…)`, then: rename each id and paste the `RetireEntityId` line of its finding |
+
+Each line speaks of one where there is one (`1 stored subtype has …`, `1 entity id is …`). The
+summary line names the entities beside the pool: `Ox schema built: service=… api=…
+entities=N types=M revision=… bytes=… findings=…`, `types` counting every pool entry, the
+entities among them.
+
+**A service without entities** returns an empty list from `GetOxQLTypeAssemblies()`. Its
+document has no types and no diagnostic, nothing is reported, and the start says so in one
+information line (`Ox schema: the service declares no OxQL entities: …`).
+`entity-assemblies-missing` is for the startup that returns no list at all (null).
+
+**Extendable entities.** `extendable-without-addon` marks an entity that is declared extendable
+(`[OxQLType(…, Extendable = true)]`) and has no `addon` member. The document publishes
+`extendable: true` for it as declared; no addon definition can be stored for it
+(`POST /AddonDefinition` answers 400 with the reason), and `GET /schema/addons` does not list
+it. The finding is a warning with the entity and what to do, add the member or drop the flag,
+and stops no start.
 
 **Entity ids.** `entity-id-off-grammar` marks an id that is not `<service>.<entity>` in
 `[a-z][a-z0-9_]*` segments (`booking`), `entity-id-foreign-service` an id on grammar whose
@@ -885,7 +925,8 @@ place of an id.
 ### 3.4 How addon definitions reach a request
 
 The query engine asks for an organisation's definitions of every extendable entity a request
-enters, and `GET /schema/addons` for those of every extendable entity. Both ask
+enters, and `GET /schema/addons` for those of every entity that takes definitions: one that
+is declared extendable and has an `addon` member. Both ask
 `AddonDefinitionSource`, which answers from `AddonDefinitionCache`, one per process, keyed by
 organisation and current entity id. A definition's lifetime in the cache is
 `OxQL:Cache:AddonDefinitionTtlSeconds` (30 by default, at least 1).
@@ -967,7 +1008,9 @@ public void TheSchema_BuildsWithEveryVariantAndEveryReference()
 ```
 
 The test project needs a reference to the service's server project (the one that holds
-`Startup`) and nothing else: the package comes with it.
+`Startup`) and nothing else: the package comes with it. A service whose startup registers
+serializers or class maps in `RegisterServices` builds with them:
+`OxSchemaCheck.Build<Startup>(check => check.RunRegisterServices = true)`.
 
 | member | holds |
 |---|---|
@@ -986,22 +1029,23 @@ connection.
 |---|---|---|
 | `EnvironmentName` | `Production` | What the startup sees as its environment. |
 | `Configuration` | empty | What the startup is created with; its `OxQL` section sets the published limits. With the service's own configuration the revision is the one its host publishes. |
-| `RunRegisterServices` | `false` | Runs `RegisterServices` into a collection that is thrown away. For a service that registers class maps there; a service may also read configuration there that a test does not have, hence off. |
+| `RunRegisterServices` | `false` | Runs `RegisterServices` into a collection that is thrown away. Set it for a service that registers class maps or serializers there: without it the check builds the schema without them. A service may also read configuration there that a test does not have, hence off. |
 
-MongoDB registrations are the process's. The hook and the mapper profiles of a startup type run
-once per process, however often the check is called and whether a host of that type was built
-before; a registration in `RegisterServices` or `ConfigureOxSchema` has to bear a second call
-itself. What the service's own code throws reaches the test as it is, and what the hook or the
-profiles threw reaches every later check of the process again, without a second run. A host
-that starts beside a check waits for it: the profiles run for one of them at a time.
+MongoDB registrations are the process's. The hook, the mapper profiles and, with
+`RunRegisterServices`, `RegisterServices` of a startup type run once per process, however often
+the check is called and whether a host of that type was built before; a host calls
+`RegisterServices` itself every time, and `ConfigureOxSchema` runs at every call, so a
+registration there has to bear a second call itself. What the service's own code throws reaches
+the test as it is (the driver's refusal of a serializer with what to do about it, section 5.2), and what
+the hook, the profiles or `RegisterServices` threw reaches every later check of the process
+again, without a second run. A host that starts beside a check waits for it: each of the three
+runs for one of them at a time.
 
 The check registers serializers and class maps for the whole test process, and freezes the class
 map of every type the schema reaches. Where other tests of the assembly register class maps or
 serializers of their own, the check belongs in a test collection of its own that does not run
 beside them (xunit: `[CollectionDefinition("…", DisableParallelization = true)]`), or in a test
-assembly of its own. A startup that registers serializers in `RegisterServices` without a guard
-bears one call with `RunRegisterServices` per process: call the check once, in a fixture the
-tests share, and assert on that result.
+assembly of its own.
 
 ---
 
@@ -1056,9 +1100,29 @@ the target entity id (`vehicle` of `vehicle.vehicle`):
 - **`InternalHosts`.** A declared reference into a service without an entry is logged as an
   error when the host starts, and stops the start in `Development`, `Local` and under continuous
   integration, decided from the same value the schema build fails fast on (section 3.3: the `CI`
-  or the `TF_BUILD` variable, or what `ConfigureOxSchema` states). The check reads the
-  configuration only; nothing is called at startup. An entry that does not form an address is
-  treated as an owner that cannot be reached.
+  or the `TF_BUILD` variable, or what `ConfigureOxSchema` states), unless the host sets
+  `OxQL:Startup:StrictRemoteReferences` (section 4.3): `false` starts the host in every
+  environment with the error lines, `true` stops it in every environment. The check reads the
+  configuration only; nothing is called at startup.
+
+  A value is a host with an optional port and nothing else: `vehicle-host`, `vehicle-host:8080`,
+  an IPv4 address, or an IPv6 address in brackets (`[fd00::17]:8080`); a host name consists of
+  letters, digits, dots, hyphens and underscores, and the port is a number from 1 to 65535. The
+  client puts `http://` before the value and the route behind it, so a value with a scheme, a
+  user (`user@host`), a path, a query or whitespace is not one, and no call is ever sent to an
+  address formed from it. The service then counts as not configured: `GET /OxQL/health` does
+  not list it as reachable, a reference into it resolves to nothing, and the host says so once
+  at start, for every such service the model references, as an error that names the key and
+  the form and never repeats the value:
+
+  ```
+  OxQL owner vehicle: the value of InternalHosts:vehicle is not used, because it names a scheme. A value is host or host:port, …
+  ```
+
+  Where a missing entry stops the start (`Development`, `Local`, continuous integration), such a
+  value stops it too (the exception names the number of such services and the switch, the log
+  line the key and the service); `OxQL:Startup:StrictRemoteReferences=false` starts
+  the host without either.
 - **`InternalApiVersions`.** An owner that answers on another version than `v1` needs an entry
   on every *calling* service (`InternalApiVersions__vehicle=v2`). Without it the call goes to
   `/vehicle-api/v1/…`, the owner answers 404, and the caller sees an unreachable owner: the
@@ -1093,7 +1157,14 @@ batch whose entries can be told apart only the entry that does not read is refus
 of `results` with `params.entry`, and the other entries run, so one wrong query of a caller does
 not take the others of its batch with it. The internal key is checked first: a call without it is
 401 whatever its body holds. A request under contract 1 is not touched by any of this: the host
-answers a body it cannot bind with its own `problem+json`, as it always has.
+answers a body it cannot bind with its own `problem+json`, as it always has. That holds also for
+a body whose text is not valid Unicode (half of a surrogate pair in a string, say), on query, batch
+and explain and on the internal batch: 400 in the host's own form, with the one place `$` in
+`errors`. The engine answers such a contract 1 body through
+`ApiBehaviorOptions.InvalidModelStateResponseFactory`, which `Bootstrap` sets to
+`ValidationActionFilter.Answer`, so the answer is the Simplic problem document (`type`, `title`,
+`status`, `detail`, `instance`, `traceId`, `errors`) that `ValidationActionFilter` gives every
+invalid model state, member for member, and not the framework's default.
 
 **The internal explain is bounded twice.** It admits at most
 `OxQL:Explain:MaxConcurrentPerCaller` (4) explains in flight per calling service, named by the
@@ -1115,7 +1186,19 @@ correlation ids, the contract header, and `X-OxQL-Caller` with this service's na
 `Bootstrap`), which the owner's internal explain counts its places in flight by. The identity is
 the one the engine scoped the parent query with.
 
-- `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry.
+- `RouteOf(service)` is the owner's base route above, or null when `InternalHosts` has no entry
+  or one that is no host; `RefusedHostOf(service)` then says what the value has that a host has
+  not.
+- The named client follows no redirect: the internal key and the caller's identity go to the
+  configured host and nowhere else. An owner that answers a batch or an explain with a redirect
+  is reported as one that does not serve the route (the `HttpRequestException` carries 404 and
+  names the status the owner sent), which the engine logs with the keys to check; a redirected
+  health or schema read counts as not answered.
+- An owner that answers 404 is reached and does not serve the route this host calls: `BatchAsync`,
+  `ExplainBatchAsync` and `IsReachableAsync` throw an `HttpRequestException` with that status,
+  so the engine can tell a route that is not there (a wrong `InternalApiVersions` entry, a host
+  that does not map the routes) from an owner that is down. Any other answer of the health
+  route that is no success is "not reachable" (`false`), as before.
   The batch, explain and health addresses are paths under it. `ApiVersionOf(service)` is its
   version segment (the `InternalApiVersions` entry, else `v1`). The query engine reads it through
   `IRemoteOwnerInfo`, so an explain answer names it in each owner's
@@ -1249,6 +1332,7 @@ include the page sizes this package used to set in code (`MaxPageSize` 500, `Def
 | `OxQL:Compat:Legacy:MaxTimeMs` | The time a contract 1 request may take in the database; `OxQL:Execution:MaxTimeMs` does not apply to it. | 600000 |
 | `OxQL:Explain:Enabled` | Whether `POST /OxQL/explain` and `POST internal/oxql/explain` answer, and whether the OxQL Studio console offers explain; 404 otherwise. Explain binds and compiles a request and never executes it. | `true` |
 | `OxQL:Cursor:SigningKey` | The secret paging cursors are signed with. | `Auth:Token` |
+| `OxQL:Startup:StrictRemoteReferences` | Whether a declared reference into a service this host is not configured for (no `InternalHosts` entry, or one that is no host, section 4.2) stops the start. Not set: it does in `Development`, `Local` and under continuous integration, and nowhere else. `true`: in every environment. `false`: in none; the start then logs the error lines and goes on, and each such reference resolves to nothing. The message of the refusal names this key. | not set |
 | `OxQL:Remote:ConnectTimeoutMs` | Read by this package, not by the engine: how long a call to another service waits for the owner to accept a connection, in milliseconds (section 4.2). Zero or less: no connect timeout of the client's own, so a call waits for a connection as long as its budget lasts. Read once, at start; a value that is no whole number stops the start. | 2000 |
 
 The cursor key is never used as it is: the engine derives the signing key from the secret with
@@ -1266,11 +1350,43 @@ defaults the engine's legacy pipeline answers a contract 1 request, unchanged fo
 organisation matched before any stage; each such request is logged under `OxQL.Compat.Legacy`.
 The pipeline is temporary: the engine's `LEGACY.md` describes it and when it is removed.
 
+The public explain route admits each caller `OxQL:Explain:RatePerMinute` explains a minute, in
+bursts of `OxQL:Explain:RateBurst`, and answers 429 with `Retry-After` beyond that. A caller is
+the user of an organisation, as the host reads them from the authenticated request (the bearer
+token's or the api key's claims), so the callers of a service that all arrive from one ingress
+address each have a limit of their own. A request that names neither is counted by its remote
+address.
+
 Engine faults carry their message in `Development` and `local` only.
 
 A host with a `Monitoring` section exports the metrics of the meter named `OxQL`, beside the
 service's own meters (`{service}`, `oxs-{service}`): what an engine version publishes under that
 name reaches the collector without a change in the service.
+
+### 4.4 A host without a database
+
+A host whose configuration has no `MongoDB` section starts, and the routes that read no data
+answer:
+
+| route | answer |
+|---|---|
+| `GET /schema` | 200, the document: it is built from the service's model when the host starts. |
+| `GET /OxQL/health`, with and without `shallow` | 200: the engine's version, contract, capabilities and limits. |
+| `GET /schema/addons` | 404 as `application/problem+json`, whose `detail` says that the service is configured with no database and holds no addon definitions; 401 and 403 as on every host. |
+| `POST /OxQL/query` | 500 in the engine's envelope (`internal_error`); the log names the missing section. |
+
+The `/AddonDefinition` routes need the database.
+
+The host's authentication needs its cache (the `Redis` section). Without the section:
+
+- a host that validates its services when it is built does not start (`AggregateException`,
+  "Some services are not able to be constructed", naming `IDistributedCache`). That is what
+  `Host.CreateDefaultBuilder` and `WebApplication.CreateBuilder` do in the environment
+  `Development`, and in no other;
+- every other host starts, in every environment. It answers the routes of controllers that
+  require no authorization (`GET /schema`), and 500 on every route of a controller that
+  requires authorization, an anonymous action of such a controller included: the caller is
+  authenticated before the action is looked at.
 
 ---
 
@@ -1286,6 +1402,13 @@ Nothing below needs a line of code in the service.
   the same controller list; it is built once at startup, nothing writes
   `ModelDefinition/ModelDefinition.json` any more, and the route answers `GET` only. A
   controller the generator cannot describe is left out instead of replacing the whole document.
+  The member names of that document are camel case as JSON spells it, which is the spelling of
+  the OpenAPI document, from `Simplic.OxS.ModelDefinition.Service` 3.0.1226.825 on, the version
+  this package requires (section 5.4): a member written `QRCode` in C# is `qrCode` and `IBAN`
+  is `iban`. Earlier versions lower-cased the first letter only (`qRCode`, `iBAN`). A service
+  that comes from an earlier version gets the new names with the upgrade, for every member that
+  starts with more than one capital letter; whatever is keyed on the old names (a stored grid
+  or form configuration, a client) has to follow.
 - The document in format 1.1 (section 1.15): descriptions, deprecations and constraints where the
   code declares them, polymorphic types with their variants, typed and conditional references, and
   a relation name for every reference, derived by the engine (section 1.10): the service declares
@@ -1360,30 +1483,71 @@ Nothing below needs a line of code in the service.
 
 ### 5.2 What a service has to do
 
-- **Register MongoDB class maps and serializers in `RegisterBsonClassMaps()`.** The schema
-  build looks up the serializer of every entity and of every type reachable from one, when the
-  host starts. The first lookup of a type creates its class map and freezes it.
+- **MongoDB class maps and serializers: leave an order that works alone.** The schema build
+  looks up the serializer of every entity and of every type reachable from one, when the host
+  starts. The first lookup of a type creates its class map and freezes it, so what a service
+  registers has to be in place by then:
+
+  | where a service registers | in place for the build |
+  |---|---|
+  | `RegisterBsonClassMaps()` | yes: before everything else of the service, once per process |
+  | `RegisterServices`, `ConfigureOxSchema` | yes; a second host of the same process calls them again, so the registration needs a guard of its own |
+  | `RegisterMapperProfiles` | yes, and late: the mapper is created while the host starts, right before the schema is built, which is after the hosted services of the service have started. A hosted service that reads or writes a type in `StartAsync` does so before a class map of the profiles exists. A second host of the process runs the profiles again. An exception thrown there stops the start in every environment |
+  | a repository's static constructor, a hosted service, first use | no |
+
+  A service that starts with its registrations in the first three rows keeps them where they
+  are. The order they run in is part of what makes them work, and moving some of them changes
+  it. The hook is for the service whose registrations can run after the build or more than
+  once:
+
+  - class maps registered with `BsonClassMap.RegisterClassMap` and no guard in the mapper
+    profiles, in `RegisterServices` or in `ConfigureOxSchema`, where a process builds more than
+    one host of the service (a test run with a host per test, a schema test beside a host): the
+    second run throws `ArgumentException: An item with the same key has already been added.
+    Key: <type>`;
+  - registrations of the last row;
+  - a start that reports a subtype without a class map (next point).
+
+  **Moving them: serializers and class maps together, in this order.** Inside the hook the
+  plain serializers come first (the object serializer among them), the class maps next, and the
+  serializers that keep another serializer last: one for an interface or a discriminated type
+  looks the object serializer up when it is created.
 
   ```csharp
   protected override void RegisterBsonClassMaps()
   {
+      // 1. Plain serializers: they keep no other serializer.
+      BsonSerializer.RegisterSerializer(new ObjectSerializer(type =>
+          ObjectSerializer.DefaultAllowedTypes(type) || type.FullName!.StartsWith("Simplic.OxS.Parcel")));
+
+      // 2. Class maps.
       BsonClassMap.RegisterClassMap<YardSlot>();
       BsonClassMap.RegisterClassMap<CoveredSlot>();
+
+      // 3. Serializers that keep another one: created here, they keep the ones registered above.
       BsonSerializer.RegisterSerializer(new DiscriminatedInterfaceSerializer<IParcelEvent>());
   }
   ```
 
   `Bootstrap` calls the hook once per process for a startup type, however many hosts the
-  process builds from it (a test run, say), so the registrations need no guard. It runs during
+  process builds from it, so the registrations need no guard. It runs during
   `ConfigureServices`, after the base registered its guid serializer and before
   `RegisterServices`, the mapper and the schema build.
 
-  | where a service registers | in place for the build |
-  |---|---|
-  | `RegisterBsonClassMaps()` | yes; the place for it |
-  | `RegisterServices`, `ConfigureOxSchema` | yes; a second host of the same process calls them again, so the registration needs a guard of its own |
-  | `RegisterMapperProfiles` | yes: the mapper is created while the host starts, right before the schema is built, not on the first request that needs one. An exception thrown there stops the start in every environment |
-  | a repository's static constructor, a hosted service, first use | no |
+  **`There is already a serializer registered for type Object.`** The MongoDB driver throws this
+  `BsonSerializationException` from `BsonSerializer.RegisterSerializer` where only a part was
+  moved: the registration of the object serializer stayed in `RegisterServices`, and the hook,
+  which runs before it, now creates a serializer that keeps the object serializer, or a class
+  map that asks for a member's serializer. The driver creates the default serializer of a type
+  the first time anything looks it up, and registers no other for that type afterwards. The
+  host stops with the exception, which says after the driver's sentence where it was thrown
+  and what to do: register the serializer at the top of `RegisterBsonClassMaps()`, before
+  anything that constructs a serializer or a class map. `TryRegisterSerializer` is no way
+  around it. For a serializer that differs from the one in place the driver throws
+  `There is already a different serializer registered for type Object.`; for one it takes for
+  the same it returns `false`; and either way the default stays in place and the serializer
+  that looked it up keeps it, so the service's own object serializer, with the types it
+  allows, is not the one that reads the service's documents.
 
   A registration that comes after the build meets a frozen map: `RegisterClassMap` throws
   `ArgumentException: An item with the same key has already been added. Key: <type>`,
@@ -1391,14 +1555,14 @@ Nothing below needs a line of code in the service.
   registration guarded by `IsClassMapRegistered` or made with `TryRegisterClassMap` is silently
   skipped, which loses the customisation (`SetIgnoreExtraElements`, discriminators, member maps)
   and surfaces as a deserialisation error later. A fault while the class maps or the mapper
-  profiles are registered stops the start, in every environment, with the original exception.
-  The order above keeps what a service registers in its profiles ahead of the build; the hook is
-  the place that does not depend on it.
-- **Register every stored subclass of a polymorphic type the same way**, or list it in
-  `[BsonKnownTypes]` on the base. Only those are described as variants; a concrete subclass with no
-  registered class map is left out of `variants`, its members are not merged, and the build logs
+  profiles are registered stops the start, in every environment.
+- **Give every stored subclass of a polymorphic type a class map**, registered like the others,
+  or list it in `[BsonKnownTypes]` on the base. Only those are described as variants; a concrete
+  subclass with neither is left out of `variants`, its members are not merged, and the build logs
   `polymorphic-subtype-unregistered` as an error, with one line that counts the subtypes and
-  names the hook (section 3.3).
+  names the hook (section 3.3). The driver knows such a subclass only once something in the
+  process has used it, so one process of a service can describe it where another does not, and
+  their documents and revisions differ. Act on the finding when the start reports it.
 - **Set `<GenerateDocumentationFile>true</GenerateDocumentationFile>`** in the project that holds
   the entity classes if their doc comments are to become descriptions (section 2.3). Without the
   XML file beside the assembly only `[OxQLDescription]` and `[Description]` are read. The switch
@@ -1419,7 +1583,9 @@ Nothing below needs a line of code in the service.
   not depend on anything that is set up later.
 - **`ModelDefinitionBuilder.AddControllerDefinitions` is `[Obsolete]`.** `Bootstrap` no longer
   calls it and nothing reads the file it writes. A service that calls it itself gets CS0618,
-  which is a build break under `TreatWarningsAsErrors`; delete the call.
+  which is a build break under `TreatWarningsAsErrors`; delete the call and put nothing in its
+  place: the host builds the document from the controllers `ConfigureModelDefinitions()`
+  returns. In particular a service does not call `AddOxSchema` (section 3).
 - **`OxQLOrganizationFilter` is removed.** `Bootstrap` registers the scope provider
   (`AddOxQLScope<OxQLScopeProvider>()`) in its place, and the engine applies the organisation at
   every entry into an entity. A service that registered the filter
@@ -1437,12 +1603,33 @@ Nothing below needs a line of code in the service.
   persisted the old id keep resolving.
 - **Resolving into another service** follows section 2.4: the owner's id carries its prefix
   first, then the reference is declared, and the calling service gets the keys of section 4.2.
-- **Decide two defaults per service.** `GET /schema` is anonymous unless
-  `OxSchema:RequireAuthorization` is true (section 4.1), and a contract 1 `lookup` reads any
+- **Decide three defaults per service.** `GET /schema` is anonymous unless
+  `OxSchema:RequireAuthorization` is true (section 4.1); a contract 1 `lookup` reads any
   collection of the service's database for the caller's organisation unless
-  `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3).
+  `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3); and the OxQL
+  Studio console is served unless the environment is named `Production`
+  (`OxQL:Studio:Enabled`, section 5.1). The environment name decides that default, not what the
+  deployment is used for: a deployment that runs production under another environment name
+  sets `OxQL__Studio__Enabled=false`.
+- **A local run needs the `Redis` section, and the `MongoDB` section for everything that reads
+  data.** Without `Redis` a host in the environment `Development` does not start where its
+  builder validates the services (the default builders do), and a host that starts answers 500
+  on every route of a controller that requires authorization. Without a `MongoDB` section the
+  host starts and serves the schema document and the engine's health. Section 4.4 has both
+  in full.
 - **A service that references an `OxQL.*` package or a sibling package of this one itself**
-  has to raise that reference, or remove it (section 5.4).
+  checks that reference (section 5.4).
+- **The SDK of the server project does not matter.** The host names the package's assembly as
+  an application part itself, so the package's routes are served by a project of
+  `Microsoft.NET.Sdk` as by one of `Microsoft.NET.Sdk.Web`; such a service adds nothing. A
+  service whose server project is of the plain SDK serves them from this upgrade on: `/schema`
+  and `/schema/addons`, `/AddonDefinition`, `/AddonField`, `/OrganizationSettings`,
+  `/ServiceContract`, `/ServiceDefinition`, `/ModelDefinition` and the internal query routes
+  (`internal/oxql/…`). Its OpenAPI document gains the first six groups (the tags `Schema`,
+  `AddonDefinition`, `AddonField`, `OrganizationSettings`, `ServiceContract` and
+  `ServiceDefinition`) with their models, and a client generated from it gains their
+  operations on its next regeneration; the internal routes stay out of the document. The
+  build targets of the package and the OxQL Studio page do not depend on the web SDK either.
 
 ### 5.3 What changes in the service's swagger
 
@@ -1476,7 +1663,12 @@ security requirement; a test of the package compares it).
 | `POST /OxQL/explain` | `X-OxQL-Contract` and `If-None-Match`; `OxQLExplainBody`; 200 `OxQLExplainAnswer` with the `ETag` header; 304; 400, 403, 413, 429 (with `Retry-After`) and 500 with `OxQLError`; 401 and 404 (explain switched off) as `application/problem+json`. |
 | `GET /OxQL/health` | `shallow` as a query parameter and `X-OxQL-Contract`; 200 `OxQLHealthAnswer` with an example. No security requirement (`security: [{}]`) and no other status. |
 | `GET /schema` | Summary and description with the address of this file. `If-None-Match` as an optional header parameter; 200 with the `OxSchemaDocument` model, the `ETag` header and an example; 304 without a body. No security requirement (`security: [{}]`) and no 401 or 403, unless the host sets `OxSchema:RequireAuthorization`: then the route needs what every route needs and lists both statuses. |
-| `GET /schema/addons` | The same headers; 200 with an object of property descriptor lists keyed by entity id and an example; 304; 401 and 403 as `application/problem+json`. |
+| `GET /schema/addons` | The same headers; 200 with an object of property descriptor lists keyed by entity id and an example; 304; 401, 403 and 404 (a host without a database, section 4.4) as `application/problem+json`. |
+| `GET /AddonDefinition/{entity}` | Summary and a description that says what an addon definition is and names the address of this file, as on every `/AddonDefinition` operation. `entity` as a described path parameter; 200 with a list of `AddonDefinitionResponse` and an example; 401 and 404 as `application/problem+json`. |
+| `GET /AddonDefinition/by-id/{id}` | `id` as a described path parameter; 200 `AddonDefinitionResponse` with an example; 401 and 404 as `application/problem+json`. |
+| `POST /AddonDefinition` | The body `CreateAddonDefinitionRequest` as `application/json`, described, with an example; 201 `AddonDefinitionResponse` with an example; 400 and 409 with the reason as a sentence (a string, `text/plain` or `application/json`, whichever the caller accepts), 400 also as `application/problem+json` for a body the host cannot read; 401 and 403 as `application/problem+json`. |
+| `PUT /AddonDefinition/{id}` | `id`; the body `UpdateAddonDefinitionRequest` with an example; 200 `AddonDefinitionResponse` with an example; 400 and 409 as on `POST`; 401 and 404 as `application/problem+json`. |
+| `DELETE /AddonDefinition/{id}` | `id`; 204 without a body; 409 with the reason as a sentence; 401 and 404 as `application/problem+json`. |
 
 - **The models are the ones of the wire.** The engine binds a request with readers of its own, so
   the document describes the bodies by the engine's documentation models (`OxQLQueryBody`,
@@ -1499,8 +1691,20 @@ security requirement; a test of the package compares it).
   (400, 401, 403, 404, 409, 422, 500) to every operation that does not declare them, and still
   does so for every controller of a service. Its own described routes declare each status they
   answer and get none added.
+- **The addon definition routes** need what the document requires of every route. Every member
+  of their models (`CreateAddonDefinitionRequest`, `UpdateAddonDefinitionRequest`,
+  `AddonDefinitionValueRequest`, `AddonDefinitionResponse`, `AddonDefinitionValueResponse`) is
+  described; the rules a definition is held to are in section 5.1, not in the document. The
+  members a definition is not stored without are `required` and not nullable: `entity`, `path`
+  and `kind` of `CreateAddonDefinitionRequest`, and `value` of `AddonDefinitionValueRequest`.
+  The routes answer as before: one of them left out or empty is 400 with the rule's sentence,
+  and `null` is 400 as `application/problem+json`.
 - **The models of the schema document** (`OxSchemaDocument`, `OxSchemaType`, `OxSchemaProperty`
-  and the types they use) join the document's `components.schemas`. A service that has a model
+  and the types they use) join the document's `components.schemas`, each with a description,
+  and so has every member of theirs that is no pointer to another model (92 of 102; the other
+  ten are described by the model they point to). The sentences are the package's own comments
+  on those models, said in the terms of the wire: a member is named by its JSON name, a list of
+  values by the values (`kind`: "One of `string`, `int`, …"), each on one line. A service that has a model
   of one of those names gets no document until the two differ (the generator names both types):
   it renames its own class, or gives it another schema id. The package's own attribute does
   that, `[SwaggerSchemaId("StockProperty")]` (namespace `Simplic.OxS.Server`) on the model, once
@@ -1516,13 +1720,21 @@ security requirement; a test of the package compares it).
       options.CustomSchemaIds(type => type == typeof(Model.OxSchemaProperty) ? "StockProperty" : selector(type));
   });
   ```
-- **Comments of the query engine.** The package brings build targets
-  (`build/Simplic.OxS.Server.targets`, also under `buildTransitive`) that copy
-  `OxQL.AspNetCore.xml` beside the service's assemblies when it is built and when it is
-  published, and the document's setup includes every `OxQL.*.xml` it finds there; one it cannot
-  read is left out with a warning in the log, and the document is generated without it. A project
-  reference to a project that references the package gets them too. A service edits nothing; one
-  that wants the file left out sets `<SimplicOxSCopyQueryApiComments>false</SimplicOxSCopyQueryApiComments>`.
+- **Comments of the query engine and of the package.** The package brings build targets
+  (`build/Simplic.OxS.Server.targets`, also under `buildTransitive`) that copy two files beside
+  the service's assemblies when it is built and when it is published: `OxQL.AspNetCore.xml`
+  and `Simplic.OxS.Server.xml`. The document's setup includes every `OxQL.*.xml` it finds
+  there, and from `Simplic.OxS.Server.xml` the comments of the schema document's models and of
+  the two schema routes and of nothing else: the package's other controllers and models
+  (organisation settings, service contracts, addon fields, the service definition) are in a
+  service's document as they were, and the addon definition models keep the descriptions their
+  members carry as attributes. A file the setup cannot read is left out with a warning in the
+  log, and the document is generated without it. A project reference to a project that
+  references the package gets the files too. Both are part of the package, beside the targets,
+  so the document is described alike in every build, also in one that restores without
+  documentation files (`NUGET_XMLDOC_MODE=skip`, the setting of the .NET SDK container
+  images). A service edits nothing; one that wants the files left out sets
+  `<SimplicOxSCopyQueryApiComments>false</SimplicOxSCopyQueryApiComments>`.
 - **The routes between services** (`internal/oxql/batch`, `internal/oxql/explain`) stay out of
   the document in every environment. Only other services call them, with the internal key, and
   a client generated from the document must not offer them.
@@ -1532,7 +1744,10 @@ security requirement; a test of the package compares it).
   the page stage has `count`, the page info has `count` with its state, and the errors of the
   query routes are typed as `OxQLError`. A query route lists
   the statuses it answers and no other: neither 404 nor 409 on query and batch, 200 alone on
-  health.
+  health. The five `/AddonDefinition` operations and their five types keep their names; each
+  lists the statuses it answers and no other (no 422 and no 500, 403 on `POST` alone, 400 on
+  `POST` and `PUT` alone), an answer is `application/json` only, and the error of a 400 and of
+  a 409 is typed as the sentence the route answers (`string`), on a 400 beside `ProblemDetails`.
 
 #### The type names of a regenerated client
 
@@ -1579,8 +1794,10 @@ New with the regeneration:
 ### 5.4 Packages a service references directly
 
 `Simplic.OxS.Server` depends on its sibling packages and on the five `OxQL.*` packages at the
-versions below or higher. A service that also references one of them directly, at a lower
-version, does not restore: NuGet reports the downgrade as `NU1605`.
+versions below or higher. A project that references `Simplic.OxS.Server` and also references
+one of them directly, at a lower version, does not restore: NuGet reports the downgrade as
+`NU1605`. It reports nothing for a reference in another project, such as a model project the
+server project references: there the higher version is taken without a word.
 
 | package a service may reference directly | minimum beside this release of `Simplic.OxS.Server` |
 |---|---|
@@ -1588,15 +1805,24 @@ version, does not restore: NuGet reports the downgrade as `NU1605`.
 | `Simplic.OxS.ModelDefinition.Extension` | 3.0.826.1012 |
 | `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
 | `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
-| `OxQL.AspNetCore`, `OxQL.Core`, `OxQL.Model`, `OxQL.Mongo` | 2.1.226.1013, all four the same version |
+| `OxQL.AspNetCore`, `OxQL.Core` | 2.1.426.1014, both the same version |
+| `OxQL.Mongo` | 2.1.326.1014 |
+| `OxQL.Model` | 2.1.226.1013 |
 | `OxQL.Studio` | 2.1.126.1012 |
 
 - **Restore names one package per run.** Raise it, restore again, and repeat until the restore
   passes; a service that references two of the rows needs two rounds.
 - **Or remove the direct reference.** `Simplic.OxS.Server` brings every package of the table, so
   a project that references the server package (directly or through a project reference) needs
-  none of them listed. A project that does not, such as a domain project that only uses
-  `[OxQLType]`, keeps its `OxQL.Core` reference and raises it.
+  none of them listed.
+- **A model project** that holds the entity classes and does not reference the server package
+  references `OxQL.Model`, which holds the attributes (`[OxQLType]`, `[OxQLReference]`, …), or
+  `OxQL.Core`, which brings `OxQL.Model`. Its version is the one of the table and never a higher
+  one: a model project on a higher `OxQL.Core` or `OxQL.Model` than `Simplic.OxS.Server`
+  depends on restores without a message and leaves the service with the engine's assemblies
+  in two versions (`OxQL.Core` and `OxQL.Model` of the higher, `OxQL.AspNetCore` and
+  `OxQL.Mongo` of the lower). A lower one restores as well, and the service runs on the
+  version of the table; raise it all the same, so the project compiles against what runs.
 - The other sibling packages (`Simplic.OxS`, `Simplic.OxS.Data`, `Simplic.OxS.Data.MongoDB`,
   `Simplic.OxS.InternalClient`, `Simplic.OxS.Settings*`, `Simplic.OxS.Cache*`,
   `Simplic.OxS.MessageBroker`, `Simplic.OxS.ModelDefinition`) did not change with the schema; a
@@ -1604,25 +1830,31 @@ version, does not restore: NuGet reports the downgrade as `NU1605`.
 
 ### 5.5 Upgrading a service: the checklist
 
-1. **Bump** `Simplic.OxS.Server` in every project that references it.
-2. **Restore until it passes**: raise or remove what `NU1605` names, one package per round
-   (section 5.4).
-3. **Move the MongoDB class maps and serializers into `RegisterBsonClassMaps()`** (section 5.2).
-   Registrations in `RegisterServices` and `RegisterMapperProfiles` keep working; the hook is
-   the one place that runs once per process.
-4. **Entity ids**: every `[OxQLType]` id is `<service>.<entity>` with the service's own name.
-   Rename the others and retire the old id in `ConfigureOxSchema`; change the service's own
-   reference declarations to the new id (section 2.1).
-5. **References into other services**: the owner first, then the declaration with its field,
-   then `InternalHosts:<service>` and, where needed, `InternalApiVersions:<service>` in every
-   environment (section 2.4).
-6. **Add the schema check** to the service's unit tests (section 3.5), so a dropped reference,
-   a variant without a class map or an id off the rule fails the build of the service and not
-   its first start.
-7. **Start the service once and read its log**: the `Ox schema finding:` lines, the
-   `Ox schema:` lines that say what to do, and one `OxQL owner` line per referenced service.
-8. **Regenerate** the API clients and the OxQL modules that are generated from the service
-   (section 5.3); its schema revision changes with the package.
+1. **Raise the versions and restore.** `Simplic.OxS.Server` in the service's host project and
+   in its test projects, and what a project references beside it (section 5.4): raise or remove
+   what `NU1605` names, one package per round, and set a model project's `OxQL.*` reference to
+   the version of the table. A library the service publishes as a NuGet package of its own for
+   other services (an extension package) is raised only where it needs the new API: raising it
+   there forces the new version on every service that consumes that package.
+2. **Leave a start-up order that works alone.** A service that starts with its class maps and
+   serializers where they are keeps them there (section 5.2).
+3. **Move only what has to move, and then all of it.** Where class maps are registered with
+   `RegisterClassMap` in the mapper profiles, or the start reports a subtype without a class
+   map, move them into `RegisterBsonClassMaps()` together with every serializer registration,
+   the serializers first (section 5.2).
+4. **Start the service once on a developer's machine, with its real registrations, and read the
+   log**: no `Ox schema finding:` line at error level, one `OxQL owner` line per referenced
+   service, no exception. What the lines ask for is in sections 3.3 (entity ids, subtypes), 2.4
+   and 4.2 (references into other services, `InternalHosts`).
+5. **Check the environment name in every deployment file**, and set `OxQL__Studio__Enabled`
+   explicitly wherever it is not `Production` (section 5.2).
+6. **Add the schema test** to the service's unit tests (section 3.5), with
+   `RunRegisterServices = true` where the startup registers serializers or class maps in
+   `RegisterServices`, so a dropped reference, a variant without a class map or an id off the
+   rule fails the build of the service and not its first start.
+
+The API clients and the OxQL modules that are generated from the service change when they are
+regenerated (section 5.3); the service's schema revision changes with the package.
 
 ---
 

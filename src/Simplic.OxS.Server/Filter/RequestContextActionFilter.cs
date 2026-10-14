@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Primitives;
 
@@ -21,34 +21,20 @@ namespace Simplic.OxS.Server.Filter
         }
 
         /// <summary>
-        /// Create request context
+        /// Create request context: the correlation id of the request's header, and the user and
+        /// the organisation by the rules of <see cref="RequestIdentity"/>. The forwarded headers
+        /// of the internal key scheme are read only where the key was checked: on a controller
+        /// behind <see cref="AuthorizeInternalApiKeyAttribute"/>, whose filter runs before this one.
         /// </summary>
         /// <param name="executionContext"></param>
         public void OnActionExecuting(ActionExecutingContext executionContext)
         {
             requestContext.CorrelationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderCorrelationIdKey);
 
-            var authorization = executionContext.HttpContext.Request.Headers.Authorization.ToString()?.Split(" ").ToList();
-
-            if (authorization != null && (authorization[0].ToLower() == Constants.HttpAuthorizationSchemeBearerKey
-                                            || authorization[0].ToLower() == "v-bearer"
-                                            || authorization[0].ToLower() == "x-bearer"))
+            if (RequestIdentity.Read(executionContext.HttpContext, RequestIdentity.InternalKeyAdmitted(executionContext.HttpContext)) is { } identity)
             {
-                requestContext.UserId = GetUserId(executionContext.HttpContext);
-                requestContext.OrganizationId = GetOrganizationId(executionContext.HttpContext);
-            }
-
-            if (authorization != null && authorization[0].ToLower() == Constants.HttpAuthorizationSchemeInternalKey)
-            {
-                requestContext.UserId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderUserIdKey);
-                requestContext.OrganizationId = GetFromHeader(executionContext.HttpContext, Constants.HttpHeaderOrganizationIdKey);
-            }
-
-            var apiKey = executionContext.HttpContext.Request.Headers.FirstOrDefault(x => x.Key.Equals(Constants.HttpHeaderApiKey));
-            if(!apiKey.Equals(default(KeyValuePair<string, StringValues>)) && !string.IsNullOrEmpty(apiKey.Value))
-            {
-                requestContext.UserId = GetUserId(executionContext.HttpContext);
-                requestContext.OrganizationId = GetOrganizationId(executionContext.HttpContext);
+                requestContext.UserId = identity.UserId;
+                requestContext.OrganizationId = identity.OrganizationId;
             }
         }
 
@@ -56,16 +42,15 @@ namespace Simplic.OxS.Server.Filter
         /// Request ended
         /// </summary>
         /// <param name="context"></param>
-        /// <exception cref="NotImplementedException"></exception>
         public void OnActionExecuted(ActionExecutedContext context) { }
 
         /// <summary>
-        /// Get a value fro the http header by its key
+        /// Get a value from the http header by its key: the header's first value, where it is a guid
         /// </summary>
         /// <param name="httpContext"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        private Guid? GetFromHeader(HttpContext httpContext, string key)
+        internal static Guid? GetFromHeader(HttpContext httpContext, string key)
         {
             if (httpContext.Request.Headers.TryGetValue(key, out StringValues correlationIds))
             {
@@ -74,40 +59,6 @@ namespace Simplic.OxS.Server.Filter
                 if (Guid.TryParse(correlationId, out Guid id))
                     return id;
             }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Gets the actual user id from the given jwt token
-        /// </summary>
-        /// <returns>User id as guid. Null if no user id was found.</returns>
-        protected Guid? GetUserId(HttpContext httpContext)
-        {
-            var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "Id");
-
-            if (string.IsNullOrWhiteSpace(claim?.Value))
-                return null;
-
-            if (Guid.TryParse(claim.Value, out Guid result))
-                return result;
-
-            return null;
-        }
-
-        /// <summary>
-        /// Gets the actual organization id from the given jwt token
-        /// </summary>
-        /// <returns>Organization id as guid. Null if no organization id was found.</returns>
-        protected Guid? GetOrganizationId(HttpContext httpContext)
-        {
-            var claim = httpContext.User.Claims.FirstOrDefault(x => x.Type == "OId");
-
-            if (string.IsNullOrWhiteSpace(claim?.Value))
-                return null;
-
-            if (Guid.TryParse(claim.Value, out Guid result))
-                return result;
 
             return null;
         }

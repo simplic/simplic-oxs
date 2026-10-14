@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
@@ -115,7 +116,7 @@ namespace Simplic.OxS.Server
             }
 
             // Register custom services
-            RegisterServices(services);
+            RegisterServicesInto(services);
 
             // Create mapper profiles and register mapper
             services.AddSingleton(provider => CreateMapper());
@@ -152,8 +153,16 @@ namespace Simplic.OxS.Server
 
             // The engine reads an organisation's addon definitions per request through this
             // source; registered before the core so the engine's empty default does not win.
+            // A host that is configured with no database gets a source that needs none, so the
+            // routes that are handed one without reading it (the schema document, health) answer.
+            var mongodb = Configuration.GetSection("MongoDB").Get<Data.MongoDB.ConnectionSettings>();
+
             services.AddSingleton<AddonDefinitionCache>();
-            services.AddScoped<IAddonDefinitionSource, AddonDefinitionSource>();
+
+            if (mongodb != null)
+                services.AddScoped<IAddonDefinitionSource, AddonDefinitionSource>();
+            else
+                services.AddScoped<IAddonDefinitionSource, NoDatabaseAddonDefinitionSource>();
 
             services.AddOxQLCore(Configuration.GetSection("OxQL"), options =>
             {
@@ -168,14 +177,15 @@ namespace Simplic.OxS.Server
             // first: RegisterMapperProfiles is where services have always registered class maps,
             // and the build freezes the class map of every type it reaches. A fault in the
             // profiles therefore stops the start, in every environment, with the original exception.
-            services.AddOxSchema(
+            // The host's registration is the one that stands: a schema the service registered
+            // itself is merged into it or replaced, and the start says so (ConfigureOxSchema is
+            // the place for a service's schema options).
+            services.AddHostOxSchema(
                 schema => FillOxSchema(schema, typeAssemblies),
                 provider => provider.GetRequiredService<IMapper>());
 
             // ── OxQL MongoDB adapter ────────────────────────────────────────────────
             // Change the connection string in appsettings.json (or via environment variable
-            var mongodb = Configuration.GetSection("MongoDB").Get<Data.MongoDB.ConnectionSettings>();
-
             if (mongodb != null)
             {
                 Console.WriteLine("Add OxQL MongoDB");
@@ -194,6 +204,12 @@ namespace Simplic.OxS.Server
                     options.ScanAssemblies(typeAssemblies);
                 });
             }
+            else
+            {
+                // Without a database the query routes are constructed all the same: health
+                // answers, and a query fails with a message that names the missing section.
+                services.TryAddSingleton<IQueryEngine, NoDatabaseQueryEngine>();
+            }
 
             // ── OxQL ASP.NET Core controller ────────────────────────────────────────
             // Routes: POST /oxql/query, POST /oxql/batch, GET /oxql/health, POST /oxql/explain
@@ -203,6 +219,11 @@ namespace Simplic.OxS.Server
             // Whether its remote reference check stops the host under continuous integration
             // is the schema's decision (AddOxSchema), so both checks fail fast on one value.
             Console.WriteLine("Add OxQL ASP.NET Core");
+
+            // Ahead of the engine's check of the remote references, which reads the same owners:
+            // an InternalHosts value that is no host is named as that, not as a missing entry.
+            services.AddTransient<IStartupFilter, RemoteOwnerHostCheck>();
+
             services.AddOxQLAspNetCore(options =>
             {
                 options.RequireAuthorization = true;
@@ -238,11 +259,14 @@ namespace Simplic.OxS.Server
                 services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
 
             // Register web-api controller. Must be executed before creating swagger configuration
-            MvcBuilder(services.AddControllers(o =>
+            var mvc = services.AddControllers(o =>
             {
                 o.Filters.Add<RequestContextActionFilter>();
                 o.Filters.Add<ValidationActionFilter>();
-            }));
+            });
+
+            AddPackageControllers(mvc);
+            MvcBuilder(mvc);
 
             // Global exception handling: a single problem+json contract for every error, built by an
             // ordered IExceptionHandler chain (OxSException -> known framework -> fallback) behind
@@ -254,7 +278,14 @@ namespace Simplic.OxS.Server
 
             // Suppress the [ApiController] automatic 400 so ValidationActionFilter produces the single
             // BadRequestException problem+json contract for model-state failures on every controller.
-            services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
+            // A filter that answers an invalid model state itself, through the factory of these
+            // options (the query engine's, for a contract 1 body it does not hand to the binder),
+            // gets that same document from it.
+            services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o =>
+            {
+                o.SuppressModelStateInvalidFilter = true;
+                o.InvalidModelStateResponseFactory = ValidationActionFilter.Answer;
+            });
 
             services.AddSwagger(CurrentEnvironment, ApiVersion, ServiceName, GetApiInformation());
 
@@ -351,6 +382,23 @@ namespace Simplic.OxS.Server
         protected virtual void MvcBuilder(IMvcBuilder builder) { }
 
         /// <summary>
+        /// Names this package's assembly as an application part, unless it is one already, so
+        /// its controllers (the schema, addon definition, model definition and service
+        /// definition routes, the internal query routes) are served. A host project of the web
+        /// SDK names the assemblies it references as parts by itself; a project of the plain
+        /// SDK names none, and the package's routes must not depend on that. The assembly is
+        /// named once: the host's list of parts is what a service reads and changes in
+        /// <see cref="MvcBuilder"/>, and it holds no entry twice.
+        /// </summary>
+        internal static void AddPackageControllers(IMvcBuilder builder)
+        {
+            var package = typeof(Bootstrap).Assembly;
+
+            if (!builder.PartManager.ApplicationParts.OfType<Microsoft.AspNetCore.Mvc.ApplicationParts.AssemblyPart>().Any(part => part.Assembly == package))
+                builder.AddApplicationPart(package);
+        }
+
+        /// <summary>
         /// Configures gRPC service endpoints on the specified endpoint route builder.
         /// </summary>
         /// <remarks>Override this method to customize the mapping of gRPC endpoints for your application.
@@ -421,6 +469,16 @@ namespace Simplic.OxS.Server
         /// up the serializer of every entity and of every type reachable from one and freezes
         /// their class maps: a class map registered after that build throws or is not applied,
         /// and a stored subclass without one is missing from the schema's variants.
+        /// <para>
+        /// Inside the hook the order is: plain serializers first (the object serializer among
+        /// them), class maps next, serializers that keep another serializer last (one for an
+        /// interface or a discriminated type looks the object serializer up when it is created).
+        /// The driver creates the default serializer of a type at its first lookup and refuses a
+        /// registration for the type from then on; where a registration of the service meets
+        /// that refusal, here or in <see cref="RegisterServices"/>,
+        /// <see cref="RegisterMapperProfiles"/> or <see cref="ConfigureOxSchema"/>, the exception
+        /// names this order.
+        /// </para>
         /// </remarks>
         protected virtual void RegisterBsonClassMaps() { }
 
@@ -482,7 +540,7 @@ namespace Simplic.OxS.Server
 
                 try
                 {
-                    RegisterBsonClassMaps();
+                    SerializerRegistrationOrder.Explain(nameof(RegisterBsonClassMaps), RegisterBsonClassMaps);
                     ClassMapsRegistered[GetType()] = null;
                 }
                 catch (Exception exception)
@@ -509,7 +567,7 @@ namespace Simplic.OxS.Server
             {
                 try
                 {
-                    var mapper = new MapperConfiguration(RegisterMapperProfiles).CreateMapper();
+                    var mapper = SerializerRegistrationOrder.Explain(nameof(RegisterMapperProfiles), () => new MapperConfiguration(RegisterMapperProfiles).CreateMapper());
 
                     MapperProfilesRegistered[GetType()] = null;
 
@@ -562,21 +620,87 @@ namespace Simplic.OxS.Server
             schema.ApiName = ApiName;
             schema.ApiVersion = ApiVersion;
             schema.TypeAssemblies = typeAssemblies;
+            schema.NoEntitiesDeclared = noEntitiesDeclared;
             schema.ControllerTypes = ConfigureModelDefinitions().ToArray();
             schema.EnvironmentName = CurrentEnvironment.EnvironmentName;
-            schema.RequireAuthorization = Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
 
-            ConfigureOxSchema(schema);
+            // Whoever requires authorization for the document is heard: the configuration, or a
+            // registration of the service that came before the host's. ConfigureOxSchema decides last.
+            schema.RequireAuthorization |= Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
+
+            SerializerRegistrationOrder.Explain(nameof(ConfigureOxSchema), () => ConfigureOxSchema(schema));
         }
 
-        /// <summary>The assemblies <see cref="GetOxQLTypeAssemblies"/> names, each once.</summary>
-        internal Assembly[] OxQLTypeAssemblies() => (GetOxQLTypeAssemblies() ?? new List<Assembly>()).Distinct().ToArray();
+        /// <summary>
+        /// The assemblies <see cref="GetOxQLTypeAssemblies"/> names, each once. An empty list is a
+        /// service that declares it has no entities, which the schema is told
+        /// (<see cref="FillOxSchema"/>); no list at all (null) is not.
+        /// </summary>
+        internal Assembly[] OxQLTypeAssemblies()
+        {
+            var named = GetOxQLTypeAssemblies();
 
-        /// <summary>Calls <see cref="RegisterServices"/>.</summary>
-        internal void RegisterServicesInto(IServiceCollection services) => RegisterServices(services);
+            noEntitiesDeclared = named is { Count: 0 };
+
+            return (named ?? new List<Assembly>()).Distinct().ToArray();
+        }
+
+        /// <summary>Whether the last call of <see cref="OxQLTypeAssemblies"/> found an empty list.</summary>
+        private bool noEntitiesDeclared;
+
+        /// <summary>
+        /// Calls <see cref="RegisterServices"/>, for a host: every host registers its services.
+        /// One run at a time in a process, whoever starts it, a host or
+        /// <see cref="EnsureRegisterServices"/>: what a service registers beside its services
+        /// (a class map, a serializer) is the process's.
+        /// </summary>
+        internal void RegisterServicesInto(IServiceCollection services)
+        {
+            lock (ServicesRegistered)
+            {
+                try
+                {
+                    SerializerRegistrationOrder.Explain(nameof(RegisterServices), () => RegisterServices(services));
+                    ServicesRegistered[GetType()] = null;
+                }
+                catch (Exception exception)
+                {
+                    ServicesRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs <see cref="RegisterServices"/> into a collection that is thrown away, unless this
+        /// process already ran it for this startup type, in a host or here: what
+        /// <see cref="OxSchemaCheck"/> needs of it is the class maps and serializers a service
+        /// registers there, which are the process's and bear no second registration. A run
+        /// that threw is not repeated over registrations it already made: every later call for
+        /// the type throws what it threw.
+        /// </summary>
+        internal void EnsureRegisterServices()
+        {
+            lock (ServicesRegistered)
+            {
+                if (ServicesRegistered.TryGetValue(GetType(), out var thrown))
+                {
+                    thrown?.Throw();
+
+                    return;
+                }
+
+                RegisterServicesInto(new ServiceCollection());
+            }
+        }
+
+        /// <summary>The startup types whose <see cref="RegisterServices"/> ran in this process, each with what the last run threw, if it did.</summary>
+        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ServicesRegistered = [];
 
         /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.
+        /// A service without entities returns an empty list: the schema then describes no types and reports nothing.
         /// </summary>
         /// <returns>List of assemblies containing OxQL types</returns>
         protected abstract IList<Assembly> GetOxQLTypeAssemblies();

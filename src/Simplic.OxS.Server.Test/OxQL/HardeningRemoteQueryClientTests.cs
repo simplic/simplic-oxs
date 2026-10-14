@@ -25,11 +25,17 @@ namespace Simplic.OxS.Server.Test.OxQL
         /// <summary>An owner that never answers: the call ends only when its token is cancelled.</summary>
         private sealed class SilentHandler : HttpMessageHandler
         {
+            private readonly TaskCompletionSource<CancellationToken> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
             public int Calls { get; private set; }
+
+            /// <summary>The token of the first call, once it is waiting.</summary>
+            public Task<CancellationToken> Entered => entered.Task;
 
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
                 Calls++;
+                entered.TrySetResult(cancellationToken);
 
                 await Task.Delay(Timeout.Infinite, cancellationToken);
 
@@ -101,13 +107,20 @@ namespace Simplic.OxS.Server.Test.OxQL
         /// <summary>A health answer whose body never arrives: the read ends only by cancellation.</summary>
         private sealed class StalledBodyHandler : HttpMessageHandler
         {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent() });
+            private readonly TaskCompletionSource<CancellationToken> reading = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            private sealed class StalledContent : HttpContent
+            /// <summary>The token the body is read with, once the read is waiting.</summary>
+            public Task<CancellationToken> Reading => reading.Task;
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StalledContent(reading) });
+
+            private sealed class StalledContent(TaskCompletionSource<CancellationToken> reading) : HttpContent
             {
                 protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
                 {
+                    reading.TrySetResult(cancellationToken);
+
                     await Task.Delay(Timeout.Infinite, cancellationToken);
 
                     throw new InvalidOperationException("The wait above only ends by cancellation.");
@@ -134,14 +147,6 @@ namespace Simplic.OxS.Server.Test.OxQL
             await client.ExplainAsync("vehicle", Explain(), TimeSpan.FromSeconds(1), CancellationToken.None);
 
             handler.Sent.Should().ContainSingle().Which.Headers[RemoteQueryClient.CallerHeader].Should().Be("logistics");
-        }
-
-        /// <summary>A clock a test moves by hand.</summary>
-        private sealed class ManualTime(DateTimeOffset start) : TimeProvider
-        {
-            public DateTimeOffset Now { get; set; } = start;
-
-            public override DateTimeOffset GetUtcNow() => Now;
         }
 
         /// <summary>The identity the engine scoped the parent query with.</summary>
@@ -187,12 +192,21 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task Batch_WithoutAPositiveBudget_IsStillBounded(int budgetMs)
         {
             var handler = new SilentHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "localhost:8080");
+            client.Time = time;
             client.FallbackBudget = TimeSpan.FromMilliseconds(50);
 
-            var call = () => client.BatchAsync("vehicle", Batch(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var call = client.BatchAsync("vehicle", Batch(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var sent = await handler.Entered;
 
-            await call.Should().ThrowAsync<OperationCanceledException>();
+            time.Advance(client.FallbackBudget - TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeFalse("the call has its fallback budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeTrue("the fallback budget has passed");
+
+            await call.Awaiting(task => task).Should().ThrowAsync<OperationCanceledException>();
             handler.Calls.Should().Be(1);
         }
 
@@ -529,12 +543,21 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task Explain_WithoutAPositiveBudget_IsStillBounded(int budgetMs)
         {
             var handler = new SilentHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "vehicle-svc:8080");
+            client.Time = time;
             client.FallbackBudget = TimeSpan.FromMilliseconds(50);
 
-            var call = () => client.ExplainAsync("vehicle", Explain(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var call = client.ExplainAsync("vehicle", Explain(), TimeSpan.FromMilliseconds(budgetMs), CancellationToken.None);
+            var sent = await handler.Entered;
 
-            await call.Should().ThrowAsync<OperationCanceledException>();
+            time.Advance(client.FallbackBudget - TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeFalse("the call has its fallback budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+            sent.IsCancellationRequested.Should().BeTrue("the fallback budget has passed");
+
+            await call.Awaiting(task => task).Should().ThrowAsync<OperationCanceledException>();
             handler.Calls.Should().Be(1);
         }
 
@@ -634,15 +657,23 @@ namespace Simplic.OxS.Server.Test.OxQL
         public async Task OwnerOfAsync_WhenTheCallerStopsWaiting_IsCancelled_AndTheProbeServesTheNextCaller()
         {
             var handler = new SilentHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
             var client = Client(handler, "vehicle-svc:8080");
-            client.HealthBudget = TimeSpan.FromMilliseconds(200);
-            using var impatient = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+            client.Time = time;
+            using var impatient = new CancellationTokenSource();
 
-            var first = async () => await client.OwnerOfAsync("vehicle", impatient.Token);
-            await first.Should().ThrowAsync<OperationCanceledException>();
+            var first = client.OwnerOfAsync("vehicle", impatient.Token).AsTask();
+            var probe = await handler.Entered;
+            impatient.Cancel();
+
+            await first.Awaiting(task => task).Should().ThrowAsync<OperationCanceledException>();
+            probe.IsCancellationRequested.Should().BeFalse("the probe runs on its own clock, not on the caller's token");
 
             (await client.OwnerOfAsync("vehicle", CancellationToken.None)).Should().BeNull();
-            handler.Calls.Should().Be(1, "the second caller waited on the probe the first one started");
+            handler.Calls.Should().Be(1, "the probe the first caller started serves the next one");
+
+            time.Advance(client.HealthBudget);
+            probe.IsCancellationRequested.Should().BeTrue("the probe is bounded by the health budget");
         }
 
         [Fact]
@@ -708,10 +739,20 @@ namespace Simplic.OxS.Server.Test.OxQL
         [Fact(Timeout = 10_000)]
         public async Task IsReachable_WhenTheHealthBodyDoesNotArriveInTime_IsTrue_AndLearnsNothing()
         {
-            var client = Client(new StalledBodyHandler(), "vehicle-svc:8080");
-            client.HealthBudget = TimeSpan.FromMilliseconds(50);
+            var handler = new StalledBodyHandler();
+            var time = new ManualTime(DateTimeOffset.UnixEpoch);
+            var client = Client(handler, "vehicle-svc:8080");
+            client.Time = time;
 
-            (await client.IsReachableAsync("vehicle", CancellationToken.None)).Should().BeTrue("the owner answered");
+            var reachable = client.IsReachableAsync("vehicle", CancellationToken.None);
+            var read = await handler.Reading;
+
+            time.Advance(client.HealthBudget - TimeSpan.FromMilliseconds(1));
+            read.IsCancellationRequested.Should().BeFalse("the body has the rest of the health budget");
+
+            time.Advance(TimeSpan.FromMilliseconds(1));
+
+            (await reachable).Should().BeTrue("the owner answered");
             client.OwnerOf("vehicle").Should().BeNull();
         }
 

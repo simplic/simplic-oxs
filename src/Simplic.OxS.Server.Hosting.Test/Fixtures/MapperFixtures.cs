@@ -92,6 +92,9 @@ namespace Simplic.OxS.Server.Hosting.Test.Fixtures
         /// <summary>Set when a run is inside the profiles.</summary>
         public static readonly ManualResetEventSlim Entered = new();
 
+        /// <summary>Set when a second run is inside the profiles.</summary>
+        public static readonly ManualResetEventSlim SecondEntered = new();
+
         /// <summary>What the first run waits for.</summary>
         public static readonly ManualResetEventSlim Gate = new();
 
@@ -107,7 +110,7 @@ namespace Simplic.OxS.Server.Hosting.Test.Fixtures
 
         protected override void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration)
         {
-            Interlocked.Increment(ref ProfileRuns);
+            var run = Interlocked.Increment(ref ProfileRuns);
 
             var now = Interlocked.Increment(ref inside);
 
@@ -115,6 +118,9 @@ namespace Simplic.OxS.Server.Hosting.Test.Fixtures
                 MostAtOnce = Math.Max(MostAtOnce, now);
 
             Entered.Set();
+
+            if (run >= 2)
+                SecondEntered.Set();
             Gate.Wait(TimeSpan.FromSeconds(30));
 
             Interlocked.Decrement(ref inside);

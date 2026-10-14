@@ -172,7 +172,7 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
     /// </summary>
     internal TimeSpan FactsTtl { get; set; }
 
-    /// <summary>The clock the owner facts age by.</summary>
+    /// <summary>The clock the owner facts age by, and the one the time bounds of the remote calls run on.</summary>
     internal TimeProvider Time { get; set; } = TimeProvider.System;
 
     /// <summary>The most of an owner's refusal message a thrown exception quotes.</summary>
@@ -604,13 +604,31 @@ public sealed partial class RemoteQueryClient : IRemoteQueryClient, IRemoteOwner
         static string? Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text) ? text : null;
     }
 
-    private static CancellationTokenSource Timeout(TimeSpan bound, CancellationToken cancellationToken)
+    /// <summary>
+    /// A token cancelled by <paramref name="cancellationToken"/> or once <paramref name="bound"/>
+    /// has passed on <see cref="Time"/>.
+    /// </summary>
+    private Bound Timeout(TimeSpan bound, CancellationToken cancellationToken) => new(bound, Time, cancellationToken);
+
+    /// <summary>A caller's token linked to a time bound on a clock; disposing it stops the bound's timer.</summary>
+    private sealed class Bound : IDisposable
     {
-        var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        private readonly CancellationTokenSource elapsed;
+        private readonly CancellationTokenSource linked;
 
-        timeout.CancelAfter(bound);
+        public Bound(TimeSpan bound, TimeProvider time, CancellationToken cancellationToken)
+        {
+            elapsed = new CancellationTokenSource(bound, time);
+            linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, elapsed.Token);
+        }
 
-        return timeout;
+        public CancellationToken Token => linked.Token;
+
+        public void Dispose()
+        {
+            linked.Dispose();
+            elapsed.Dispose();
+        }
     }
 
     /// <summary>

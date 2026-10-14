@@ -1157,7 +1157,14 @@ batch whose entries can be told apart only the entry that does not read is refus
 of `results` with `params.entry`, and the other entries run, so one wrong query of a caller does
 not take the others of its batch with it. The internal key is checked first: a call without it is
 401 whatever its body holds. A request under contract 1 is not touched by any of this: the host
-answers a body it cannot bind with its own `problem+json`, as it always has.
+answers a body it cannot bind with its own `problem+json`, as it always has. That holds also for
+a body whose text is not valid Unicode (half of a surrogate pair in a string, say), on query, batch
+and explain and on the internal batch: 400 in the host's own form, with the one place `$` in
+`errors`. The engine answers such a contract 1 body through
+`ApiBehaviorOptions.InvalidModelStateResponseFactory`, which `Bootstrap` sets to
+`ValidationActionFilter.Answer`, so the answer is the Simplic problem document (`type`, `title`,
+`status`, `detail`, `instance`, `traceId`, `errors`) that `ValidationActionFilter` gives every
+invalid model state, member for member, and not the framework's default.
 
 **The internal explain is bounded twice.** It admits at most
 `OxQL:Explain:MaxConcurrentPerCaller` (4) explains in flight per calling service, named by the
@@ -1798,7 +1805,9 @@ server project references: there the higher version is taken without a word.
 | `Simplic.OxS.ModelDefinition.Extension` | 3.0.826.1012 |
 | `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
 | `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
-| `OxQL.AspNetCore`, `OxQL.Core`, `OxQL.Model`, `OxQL.Mongo` | 2.1.226.1013, all four the same version |
+| `OxQL.AspNetCore`, `OxQL.Core` | 2.1.426.1014, both the same version |
+| `OxQL.Mongo` | 2.1.326.1014 |
+| `OxQL.Model` | 2.1.226.1013 |
 | `OxQL.Studio` | 2.1.126.1012 |
 
 - **Restore names one package per run.** Raise it, restore again, and repeat until the restore

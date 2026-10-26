@@ -1805,8 +1805,9 @@ server project references: there the higher version is taken without a word.
 | `Simplic.OxS.ModelDefinition.Extension` | 3.0.826.1012 |
 | `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
 | `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
-| `OxQL.AspNetCore`, `OxQL.Core` | 2.1.426.1014, both the same version |
-| `OxQL.Mongo` | 2.1.326.1014 |
+| `OxQL.AspNetCore` | 2.1.426.1014 |
+| `OxQL.Core` | 2.1.526.1026 |
+| `OxQL.Mongo` | 2.1.426.1026 |
 | `OxQL.Model` | 2.1.226.1013 |
 | `OxQL.Studio` | 2.1.126.1012 |
 

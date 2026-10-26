@@ -110,5 +110,6 @@
   </ChangeSet>
   <ChangeSet>
     <Change type="enhancement">The package builds on OxQL.Core 2.1.526.1026 and OxQL.Mongo 2.1.426.1026 (OxQL.AspNetCore 2.1.426.1014, OxQL.Model 2.1.226.1013 and OxQL.Studio 2.1.126.1012 are unchanged): a contract 2 join alias the projection keeps whole shows the target's whole row, and the binder, keyed fetch and explain messages carry the params a client needs to word them itself. A service that references one of these packages directly raises it to at least that version or removes the reference (OX_SCHEMA.md section 5.4).</Change>
+    <Change type="enhancement">The OxQL Studio console under {pathBase}/oxql is served in every environment, Production included: OxQL:Studio:Enabled defaults to true and no longer depends on the environment name. A host that should not serve it sets OxQL__Studio__Enabled=false (OX_SCHEMA.md sections 5.1 and 5.2).</Change>
   </ChangeSet>
 </ReleaseNotes>

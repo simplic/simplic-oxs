@@ -255,7 +255,7 @@ namespace Simplic.OxS.Server
             services.AddTransient<IStartupFilter, RemoteOwnerRouteLog>();
 
             // OxQL Studio: shape from /schema and /schema/addons, execution through /oxql.
-            if (OxQLStudioEnabled(Configuration, CurrentEnvironment))
+            if (OxQLStudioEnabled(Configuration))
                 services.AddOxQLStudio(options => ConfigureOxQLStudio(options, Configuration));
 
             // Register web-api controller. Must be executed before creating swagger configuration
@@ -369,8 +369,8 @@ namespace Simplic.OxS.Server
                 // Map gRPC endpoints
                 MapGrpcEndpoints(endpoints);
 
-                // Map OxQL Studio UI (off in Production unless OxQL:Studio:Enabled says otherwise)
-                if (OxQLStudioEnabled(Configuration, env))
+                // Map OxQL Studio UI (on unless OxQL:Studio:Enabled says otherwise)
+                if (OxQLStudioEnabled(Configuration))
                     endpoints.MapOxQLStudio();
             });
         }
@@ -713,12 +713,10 @@ namespace Simplic.OxS.Server
 
         /// <summary>
         /// Whether the OxQL Studio console is served: <c>OxQL:Studio:Enabled</c>, which defaults to on
-        /// in every environment but Production. The console is an anonymous developer page on the
-        /// API's origin that loads its editor from a CDN and keeps a pasted bearer in the browser, so
-        /// a production host serves it only when configured to.
+        /// in every environment, Production included. A host that should not serve it sets the key to false.
         /// </summary>
-        internal static bool OxQLStudioEnabled(IConfiguration configuration, IHostEnvironment environment) =>
-            configuration.GetValue("OxQL:Studio:Enabled", !environment.IsProduction());
+        internal static bool OxQLStudioEnabled(IConfiguration configuration) =>
+            configuration.GetValue("OxQL:Studio:Enabled", true);
 
         /// <summary>
         /// The OxQL Studio console's options. Every path is relative to the path base

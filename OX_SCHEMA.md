@@ -539,7 +539,11 @@ Out of scope in this version: writes — the document describes read shapes only
 Addon keys are per organisation, so they are not in the document, but they are no longer
 undescribed: `GET /schema/addons` returns the calling organisation's definitions per entity in
 this same descriptor format, and a consumer merges them under the entity's `addon` member. A
-defined key is typed and filterable; an undefined one stays opaque.
+defined key is typed and filterable; an undefined one stays opaque. The engine filters, sorts,
+groups and aggregates a defined key by its value converted to the defined kind, whether the
+value is stored plain or wrapped. A key defined as `date` is published with kind `dateTime`
+(the definition API still answers `date`) and takes timestamps: a bare `YYYY-MM-DD` operand on
+it is refused.
 
 ---
 
@@ -1803,9 +1807,9 @@ server project references: there the higher version is taken without a word.
 | `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
 | `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
 | `OxQL.AspNetCore` | 2.1.426.1014 |
-| `OxQL.Core` | 2.1.526.1026 |
-| `OxQL.Mongo` | 2.1.426.1026 |
-| `OxQL.Model` | 2.1.226.1013 |
+| `OxQL.Core` | 2.1.626.1028 |
+| `OxQL.Mongo` | 2.1.526.1028 |
+| `OxQL.Model` | 2.1.326.1028 |
 | `OxQL.Studio` | 2.1.126.1012 |
 
 - **Restore names one package per run.** Raise it, restore again, and repeat until the restore

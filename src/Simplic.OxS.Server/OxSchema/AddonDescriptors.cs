@@ -50,8 +50,9 @@ namespace Simplic.OxS.Server.OxSchema
 
         /// <summary>
         /// The live definitions as descriptors, in path order: the name is the definition path
-        /// verbatim, the kind is the definition's (an <c>object</c> container has no typing of
-        /// its own and is <c>unknown</c>, as the engine reads it), a value is always readable as
+        /// verbatim, the kind is the one the engine reads the definition as (a <c>date</c>
+        /// definition is <c>dateTime</c>; an <c>object</c> container has no typing of its own
+        /// and is <c>unknown</c>), a value is always readable as
         /// null, and a closed value list travels inline.
         /// </summary>
         public static IReadOnlyList<OxSchemaProperty> Describe(IEnumerable<AddonDefinition> definitions) =>

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using HotChocolate;
 using HotChocolate.Data;
 using MongoDB.Driver;
@@ -138,6 +139,28 @@ namespace Simplic.OxS.Data.MongoDB
         public async Task<IExecutable<TDocument>> GetCollection()
         {
             return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId).AsExecutable();
+        }
+
+        /// <inheritdoc/>
+        public async Task UpdatePropertyByFilter<TProperty>(
+            TFilter filter,
+            Expression<Func<TDocument, TProperty>> selector,
+            TProperty newValue
+        )
+        {
+            var update = Builders<TDocument>.Update.Set(selector, newValue);
+            await Collection.UpdateManyAsync(BuildFilterQuery(filter), update);
+        }
+
+        /// <inheritdoc/>
+        public async Task UpdateProperty<TProperty>(
+            Guid id,
+            Expression<Func<TDocument, TProperty>> selector,
+            TProperty newValue
+        )
+        {
+            var update = Builders<TDocument>.Update.Set(selector, newValue);
+            await Collection.UpdateOneAsync(BuildFilterQuery(new TFilter { Id = id }), update);
         }
     }
 

@@ -42,6 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Simplic.OxS.ABAC\Simplic.OxS.ABAC.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Cache.Redis\Simplic.OxS.Cache.Redis.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Cache.Service\Simplic.OxS.Cache.Service.csproj" />
     <ProjectReference Include="..\Simplic.OxS.Data.MongoDB\Simplic.OxS.Data.MongoDB.csproj" />

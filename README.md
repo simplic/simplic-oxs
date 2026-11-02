@@ -1,5 +1,18 @@
 # simplic-oxs
 
+## The Ox Schema and OxQL
+
+Every service built on `Simplic.OxS.Server` publishes `GET /schema`, a document describing its
+queryable entities, and runs the OxQL query engine. [`OX_SCHEMA.md`](OX_SCHEMA.md) is the
+reference: the wire contract of the document, what a service declares, the
+[configuration keys](OX_SCHEMA.md#4--configuration) (`OxSchema`, `OxQL`, `InternalHosts`,
+`InternalApiVersions`, the internal api key) and
+[what a service gets and has to do when it upgrades](OX_SCHEMA.md#5--upgrading-a-service-to-this-package-version).
+
+The package describes its query and schema routes in every service's OpenAPI document and leaves
+the document of the service's own controllers as it is; a service does nothing for it
+([section 5.3](OX_SCHEMA.md#53-what-changes-in-the-services-swagger)).
+
 
 ## Using GraphQL in Simplic.OxS modules
 

@@ -1,0 +1,130 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace Simplic.OxS.Server.OxSchema
+{
+    /// <summary>
+    /// Writes the startup log of a built registry: one summary line, one line per finding, one
+    /// line that says what to do for each kind of finding a service has to act on, and the
+    /// legacy document's failures.
+    /// </summary>
+    internal static class OxSchemaStartupLogger
+    {
+        /// <summary>Resolves the registry, which builds it if necessary, and logs it once.</summary>
+        public static void Log(IServiceProvider provider)
+        {
+            var registry = provider.GetRequiredService<OxSchemaRegistry>();
+
+            if (!registry.MarkLogged())
+                return;
+
+            var logger = provider.GetRequiredService<ILoggerFactory>().CreateLogger("Simplic.OxS.Server.OxSchema");
+            var document = registry.Document;
+
+            if (provider.GetService<OxSchemaRegistration>()?.Warning() is { } registeredTwice)
+                logger.LogWarning("{Warning}", registeredTwice);
+
+            logger.LogInformation(
+                "Ox schema built: service={Service} api={Api}/{Version} entities={Entities} types={Types} revision={Revision} bytes={Bytes} "
+                + "findings={Findings} maxPageSize={MaxPageSize} defaultPageSize={DefaultPageSize}",
+                document.Service,
+                document.Api.Name,
+                document.Api.Version,
+                document.Types.Values.Count(type => type.Entity),
+                document.Types.Count,
+                registry.Revision,
+                registry.Body.Length,
+                registry.Findings.Count,
+                document.Limits.MaxPageSize,
+                document.Limits.DefaultPageSize);
+
+            if (registry.NoEntitiesDeclared)
+                logger.LogInformation("Ox schema: the service declares no OxQL entities: GetOxQLTypeAssemblies names no assembly.");
+
+            foreach (var finding in registry.Findings)
+                logger.Log(
+                    LevelOf(finding),
+                    "Ox schema finding: {Code} {Target} - {Detail} (refuses={Refuses} published={Published}){ClrDetail}",
+                    finding.Code,
+                    finding.Target,
+                    finding.Detail,
+                    finding.Refuses,
+                    finding.Published,
+                    string.IsNullOrEmpty(finding.ClrDetail) ? "" : $" [{finding.ClrDetail}]");
+
+            LogWhatToDo(logger, registry.Findings);
+
+            if (registry.ModelDefinition is not { } legacy)
+                return;
+
+            logger.LogInformation(
+                "Ox schema model definition: definitions={Definitions} bytes={Bytes} failures={Failures}",
+                legacy.DefinitionCount,
+                legacy.Body.Length,
+                legacy.Failures.Count);
+
+            foreach (var failure in legacy.Failures)
+                logger.LogWarning("Ox schema model definition dropped a controller: {Failure}", failure);
+        }
+
+        /// <summary>
+        /// One error line per kind of finding the service has to act on, after the findings
+        /// themselves: how many there are, what they are about, and what to do.
+        /// </summary>
+        private static void LogWhatToDo(ILogger logger, IReadOnlyList<OxSchemaFinding> findings)
+        {
+            var subtypes = findings.Where(finding => finding.Code == global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered).ToList();
+
+            if (subtypes.Count > 0)
+                logger.LogError(
+                    "Ox schema: {Count} {Subject} no MongoDB class map and {Verb} missing from the schema ({Subtypes}). "
+                    + "Register {Their} in Bootstrap.RegisterBsonClassMaps, or list {Them} in [BsonKnownTypes] on the base type: "
+                    + "a class map registered after the schema is built throws or is not applied.",
+                    subtypes.Count,
+                    subtypes.Count == 1 ? "stored subtype has" : "stored subtypes have",
+                    subtypes.Count == 1 ? "is" : "are",
+                    Listed(subtypes.Select(finding => finding.ClrDetail ?? finding.Target)),
+                    subtypes.Count == 1 ? "its class map" : "their class maps",
+                    subtypes.Count == 1 ? "it" : "them");
+
+            var ids = findings.Where(finding => finding.Code is OxSchemaCodes.EntityIdOffGrammar or OxSchemaCodes.EntityIdForeignService).ToList();
+
+            // A service whose name can prefix no id is told so by a finding of its own, and no rename makes its entities reachable.
+            if (ids.Count > 0 && !findings.Any(finding => finding.Code == OxSchemaCodes.ServiceNameNoIdPrefix))
+                logger.LogError(
+                    "Ox schema: {Count} {Subject} not <service>.<entity> with this service's name as the prefix ({Ids}), so another service cannot reference {Them}. "
+                    + "Rename {Each} in its [OxQLType] and paste the RetireEntityId line of its finding into ConfigureOxSchema: the old id keeps resolving. "
+                    + "The host starts as before.",
+                    ids.Count,
+                    ids.Count == 1 ? "entity id is" : "entity ids are",
+                    Listed(ids.Select(finding => finding.Target)),
+                    ids.Count == 1 ? "it" : "them",
+                    ids.Count == 1 ? "the id" : "each id");
+        }
+
+        /// <summary>The first names of a list, and how many more there are.</summary>
+        private static string Listed(IEnumerable<string> names)
+        {
+            const int shown = 10;
+            var all = names.ToList();
+
+            return all.Count <= shown ? string.Join(", ", all) : $"{string.Join(", ", all.Take(shown))} and {all.Count - shown} more";
+        }
+
+        /// <summary>
+        /// A refusing or published finding is an error of the host, with one exception: a
+        /// service whose startup names no list of entity assemblies still serves every other
+        /// route, so its published <c>entity-assemblies-missing</c> is a warning, not an error
+        /// (a service that names an empty list has no such finding). So is a
+        /// finding the service has to act on (<see cref="OxSchemaCodes.IsActionable"/>); every
+        /// other finding is a warning.
+        /// </summary>
+        private static LogLevel LevelOf(OxSchemaFinding finding)
+        {
+            if (string.Equals(finding.Code, OxSchemaCodes.EntityAssembliesMissing, StringComparison.Ordinal))
+                return LogLevel.Warning;
+
+            return finding.Refuses || finding.Published || OxSchemaCodes.IsActionable(finding.Code) ? LogLevel.Error : LogLevel.Warning;
+        }
+    }
+}

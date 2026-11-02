@@ -1,54 +1,27 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Simplic.OxS.Server.OxSchema;
 
 namespace Simplic.OxS.Server.Controller
 {
     /// <summary>
-    /// Controller for supporting k8s health checks
+    /// Serves the legacy model definition document under <c>GET /ModelDefinition</c>: the same
+    /// frozen bytes for every caller, built once at startup. Nothing is folded in per request.
     /// </summary>
     [ApiController]
     [AllowAnonymous]
-    [Route("/[controller]")]
+    [Route("/ModelDefinition")]
     [ApiExplorerSettings(IgnoreApi = true)]
-    public class ModelDefinitionController : ControllerBase
+    public sealed class ModelDefinitionController(OxSchemaRegistry registry) : OxSController
     {
-        private readonly IWebHostEnvironment env;
-
-        public ModelDefinitionController(IWebHostEnvironment env)
+        /// <summary>The model definition document, or 404 when the host declares no controllers.</summary>
+        [HttpGet]
+        public IActionResult Get(CancellationToken ct)
         {
-            this.env = env;
-        }
-
-        /// <summary>
-        /// Return status code 200
-        /// </summary>
-        /// <returns>Status code 200</returns>
-        public async Task<ActionResult> Get()
-        {
-            var filePath = System.IO.Path.Combine(env.ContentRootPath, "ModelDefinition", "ModelDefinition.json");
-
-            await Console.Out.WriteLineAsync($"{filePath}");
-
-            if (!System.IO.File.Exists(filePath))
+            if (registry.ModelDefinition is not { } document)
                 return NotFound();
 
-            byte[] content;
-
-            try
-            {
-                content = System.IO.File.ReadAllBytes(filePath);
-            }
-            catch (Exception ex)
-            {
-                await Console.Out.WriteLineAsync(ex.ToString());
-                return BadRequest();
-            }
-
-            if (content != null)
-                return base.File(content, "application/json");
-
-            return NotFound();
+            return File(document.Body, "application/json");
         }
     }
 }

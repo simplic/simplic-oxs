@@ -66,6 +66,7 @@ steps:
     inputs:
       command: 'test'
       projects: '**/*.sln'
+      arguments: '--configuration $(buildConfiguration) --no-build'
 
   - task: DotNetCoreCLI@2
     displayName: 'Create nuget packages'

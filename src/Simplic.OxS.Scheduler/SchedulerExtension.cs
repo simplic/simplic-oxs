@@ -5,8 +5,8 @@ using Hangfire.Mongo.Migration.Strategies.Backup;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Simplic.OxS.Data.MongoDB;
-using System.Runtime.CompilerServices;
 
 namespace Simplic.OxS.Scheduler
 {
@@ -27,7 +27,7 @@ namespace Simplic.OxS.Scheduler
 
                 // Add Hangfire services
                 services.AddHangfire(configuration => configuration
-                    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+                    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
                     .UseSimpleAssemblyNameTypeSerializer()
                     .UseRecommendedSerializerSettings()
                     .UseMongoStorage(settings.ConnectionString, settings.Database, new MongoStorageOptions
@@ -48,6 +48,9 @@ namespace Simplic.OxS.Scheduler
                     serverOptions.ServerName = $"Hangfire.Mongo server - {serviceName.ToLower()}";
                     serverOptions.Queues = new[] { serviceName.ToLower() };
                 });
+
+                // Register the failed-job cleanup so it is available for DI in MapScheduler.
+                services.AddScoped<FailedJobCleanup>();
             }
 
             return services;
@@ -55,16 +58,44 @@ namespace Simplic.OxS.Scheduler
 
         public static IEndpointRouteBuilder MapScheduler(this IEndpointRouteBuilder endpoints, string serviceName)
         {
-            endpoints.MapHangfireDashboard(new DashboardOptions
+            var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(nameof(SchedulerExtension));
+
+            try
             {
-                DashboardTitle = $"Hangfire - {serviceName}",
-                AppPath = $"/{serviceName}-api/v1/hangfire",
-                DisplayStorageConnectionString = false,
-                Authorization = new[]
+                endpoints.MapHangfireDashboard(new DashboardOptions
                 {
-                    new DashboardAuthorizationFilter()
-                }
-            });
+                    DashboardTitle = $"Hangfire - {serviceName}",
+                    AppPath = $"/{serviceName}-api/v1/hangfire",
+                    DisplayStorageConnectionString = false,
+                    Authorization = new[]
+                    {
+                        new DashboardAuthorizationFilter()
+                    }
+                });
+
+                logger.LogInformation("Hangfire dashboard mapped successfully");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not map Hangfire dashboard");
+            }
+
+            try
+            {
+                logger.LogInformation("Add cleanup job: cleanup-failed-jobs");
+
+                RecurringJob.AddOrUpdate<FailedJobCleanup>(
+                    recurringJobId: "cleanup-failed-jobs",
+                    methodCall: cleanup => cleanup.DeleteFailedJobsOlderThan(
+                        retentionDays: 7,
+                        batchSize: 500),
+                    cronExpression: Cron.Daily);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not add cleanup job");
+            }
 
             return endpoints;
         }

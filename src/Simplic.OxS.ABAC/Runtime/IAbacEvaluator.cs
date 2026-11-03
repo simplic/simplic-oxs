@@ -10,6 +10,16 @@ public interface IAbacEvaluator
     /// <paramref name="action"/> at all? Resource conditions are not evaluated; use
     /// <see cref="BuildListFilterAsync"/> for list reads or the resource overload for single objects.
     /// </summary>
+    /// <remarks>
+    /// <b>Not sufficient on its own to return resource data.</b> Conditional deny rules (deny rules that
+    /// carry resource conditions) are intentionally ignored here: this overload only answers whether the
+    /// subject may perform the action on <i>some</i> resource, not on a <i>specific</i> one. Using it as the
+    /// sole gate for a data-returning path can leak rows that a conditional deny rule would hide. It MUST
+    /// always be paired with the data-level check — the resource overload
+    /// (<see cref="AuthorizeAsync(Guid, string, IReadOnlyDictionary{string, object?}, CancellationToken)"/>)
+    /// for a single object, or <see cref="BuildListFilterAsync"/> / <see cref="BuildSearchFilterAsync"/> for
+    /// read-many. Standalone use is limited to coarse endpoint-reachability gating (see ABAC concept §7.4).
+    /// </remarks>
     Task<AbacDecisionResult> AuthorizeAsync(Guid organizationId, string action, CancellationToken ct = default);
 
     /// <summary>

@@ -468,6 +468,18 @@ Für Read-Many (Mongo/Search/SignalR Broadcast-Filter).
 
 **Wichtig:** `Authorize` nutzt Kurzschluss-Deny-First; `BuildFilter` nutzt formale Filterkombination.
 
+**Verbindlich — beide Modi kombinieren:** Der parameterlose `Authorize(org, action)`-Aufruf
+(ohne Resource) wertet **keine Resource-Conditions** aus: bedingte Deny-Regeln (Deny mit
+Resource-Bedingung) werden hier bewusst ignoriert. Er beantwortet nur, ob der Subject die Action
+**grundsätzlich** – auf *irgendeiner* Ressource – ausführen darf. Als **alleinige** Absicherung eines
+datenliefernden Pfads ist er damit **unzureichend** und kann Datensätze durchlassen, die eine
+bedingte Deny-Regel verbergen würde. Er **muss** daher immer mit der Datenebenen-Prüfung kombiniert
+werden – der Resource-Überladung `Authorize(org, action, resource)` für Einzelobjekte bzw.
+`BuildListFilterAsync` / `BuildSearchFilterAsync` für Read-Many. Standalone ist der parameterlose
+Aufruf nur für grobes Endpoint-Reachability-Gating zulässig. (Der org-scoped Repository-Basistyp
+nutzt bereits `BuildListFilterAsync` über `IAbacReadFilterProvider` und ist damit korrekt abgesichert,
+§7.6.)
+
 ### 7.5 Response-Semantik bei Deny (verbindlich)
 
 | Operation | Situation | Response |

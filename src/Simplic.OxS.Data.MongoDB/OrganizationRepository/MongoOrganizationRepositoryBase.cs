@@ -194,7 +194,8 @@ namespace Simplic.OxS.Data.MongoDB
         }
 
         /// <summary>
-        /// Returns the count of documents matching the filter. When an ABAC read action is configured,
+        /// Returns the count of documents matching the filter, scoped to the organization like
+        /// <c>FindAsync</c>/<c>GetByFilterAsync</c>. When an ABAC read action is configured,
         /// the ABAC read filter is applied as well.
         /// </summary>
         /// <param name="predicate">The filter predicate</param>
@@ -202,16 +203,21 @@ namespace Simplic.OxS.Data.MongoDB
         /// <returns>Number of expected elements</returns>
         public override async Task<long> CountAsync(TFilter predicate, Collation collation = null)
         {
-            if (string.IsNullOrWhiteSpace(AbacReadAction) || AbacReadFilterProvider == null)
-                return await base.CountAsync(predicate, collation);
-
             await Initialize();
 
             var countOption = new CountOptions();
             if (collation != null)
                 countOption.Collation = collation;
 
-            var query = await ApplyAbacReadFilterAsync(base.BuildFilterQuery(predicate));
+            predicate.OrganizationId = predicate.OrganizationId.HasValue
+                ? predicate.OrganizationId
+                : predicate.QueryAllOrganizations
+                    ? null
+                    : requestContext.OrganizationId
+                        // Using an empty guid to prevent reading data from all Organizations.
+                        ?? Guid.Empty;
+
+            var query = await ApplyAbacReadFilterAsync(BuildFilterQuery(predicate));
             return await Collection.CountDocumentsAsync(query, countOption);
         }
     }

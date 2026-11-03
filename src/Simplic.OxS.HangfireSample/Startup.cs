@@ -1,6 +1,7 @@
 ﻿using Hangfire;
 using Simplic.OxS.Scheduler;
 using Simplic.OxS.Server;
+using System.Reflection;
 
 namespace Simplic.OxS.HangfireSample
 {
@@ -56,6 +57,12 @@ namespace Simplic.OxS.HangfireSample
                 }
             }), "* * * * *");
         }
+
+        /// <summary>
+        /// Get the assemblies containing OxQL types for the gRPC sample
+        /// </summary>
+        /// <returns></returns>
+        protected override IList<Assembly> GetOxQLTypeAssemblies() => [typeof(Startup).Assembly];
 
         protected override void MapEndpoints(IEndpointRouteBuilder builder)
         {

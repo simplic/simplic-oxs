@@ -1,0 +1,111 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Simplic.OxS.Server.OxSchema;
+
+namespace Simplic.OxS.Server.Test.OxSchema
+{
+    /// <summary>The level a finding is logged at when the host starts.</summary>
+    [Collection(SchemaCollection.Name)]
+    public sealed class HardeningStartupLogTests
+    {
+        private const string SubtypeUnregistered = global::OxQL.Model.BuildCodes.PolymorphicSubtypeUnregistered;
+
+        private static HardeningCapturedLog LogOf(OxSchemaBuildOptions options)
+        {
+            var log = new HardeningCapturedLog();
+            var services = new ServiceCollection();
+
+            services.AddLogging(logging => logging.AddProvider(log));
+            services.AddSingleton(OxSchemaRegistry.Build(options));
+
+            using var provider = services.BuildServiceProvider();
+
+            OxSchemaStartupLogger.Log(provider);
+
+            return log;
+        }
+
+        [Fact]
+        public void AServiceWithoutEntities_IsLoggedAsAWarningNotAnError()
+        {
+            var log = LogOf(SchemaBuild.OptionsWithoutAssemblies("Production"));
+
+            log.Entries.Should().ContainSingle(entry => entry.Message.Contains(OxSchemaCodes.EntityAssembliesMissing))
+                .Which.Level.Should().Be(LogLevel.Warning);
+            log.Entries.Should().NotContain(entry => entry.Level >= LogLevel.Error);
+        }
+
+        [Fact]
+        public void AFailedScan_IsStillLoggedAsAnError()
+        {
+            var log = LogOf(SchemaBuild.OptionsWithUnloadableAssembly("Production"));
+
+            log.Entries.Should().Contain(entry => entry.Level == LogLevel.Error && entry.Message.Contains(OxSchemaCodes.EntityScanFailed));
+        }
+
+        [Fact]
+        public void ASubtypeWithoutAClassMap_IsLoggedAsAnErrorWithOneLineThatSaysWhatToDo()
+        {
+            var options = SchemaBuild.Options("Production");
+            var missing = OxSchemaRegistry.Build(options).Findings.Count(finding => finding.Code == SubtypeUnregistered);
+            var log = LogOf(options);
+
+            missing.Should().BePositive("the fixtures hold subtypes without a class map");
+            log.Entries.Where(entry => entry.Message.StartsWith($"Ox schema finding: {SubtypeUnregistered} ", StringComparison.Ordinal))
+                .Should().HaveCount(missing).And.OnlyContain(entry => entry.Level == LogLevel.Error);
+
+            var summary = log.Entries.Should().ContainSingle(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal)).Subject;
+
+            summary.Level.Should().Be(LogLevel.Error);
+            summary.Message.Should().StartWith($"Ox schema: {missing} stored {(missing == 1 ? "subtype has" : "subtypes have")} no MongoDB class map")
+                .And.Contain(typeof(Fixtures.SharedLeaf).FullName);
+        }
+
+        [Fact]
+        public void EntityIdsAnotherServiceCannotReference_AreLoggedAsErrorsWithOneLineThatSaysWhatToDo()
+        {
+            var log = LogOf(SchemaBuild.Options("Production"));
+
+            log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith($"Ox schema finding: {OxSchemaCodes.EntityIdOffGrammar} badid ", StringComparison.Ordinal))
+                .Which.Level.Should().Be(LogLevel.Error);
+            log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith($"Ox schema finding: {OxSchemaCodes.EntityIdForeignService} spare.gadget ", StringComparison.Ordinal))
+                .Which.Level.Should().Be(LogLevel.Error);
+
+            var summary = log.Entries.Should().ContainSingle(entry => entry.Message.StartsWith("Ox schema: 2 entity ids are not <service>.<entity>", StringComparison.Ordinal)).Subject;
+
+            summary.Level.Should().Be(LogLevel.Error);
+            summary.Message.Should().Contain("(spare.gadget, badid)").And.Contain("RetireEntityId").And.Contain("The host starts as before.");
+        }
+
+        [Fact]
+        public void AServiceWhoseNameCanPrefixNoId_IsToldOnceAsAWarning_AndIsNotAskedToRenameItsIdsToIt()
+        {
+            var log = LogOf(SchemaBuild.Options("Production") with { ServiceName = "probe-two" });
+
+            var told = log.Entries.Should().ContainSingle(entry => entry.Message.Contains("cannot be referenced from another service", StringComparison.Ordinal)).Subject;
+
+            told.Level.Should().Be(LogLevel.Warning);
+            told.Message.Should().StartWith($"Ox schema finding: {OxSchemaCodes.ServiceNameNoIdPrefix} probe-two ");
+
+            log.Entries.Should().NotContain(entry => entry.Message.Contains(OxSchemaCodes.EntityIdForeignService, StringComparison.Ordinal)
+                || entry.Message.Contains("this service's name as the prefix", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public void AModelWithNothingToActOn_GetsNoSuchLine()
+        {
+            var log = LogOf(SchemaBuild.OptionsWithoutAssemblies("Production"));
+
+            log.Entries.Should().NotContain(entry => entry.Message.Contains("RegisterBsonClassMaps", StringComparison.Ordinal)
+                || entry.Message.Contains("RetireEntityId", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public void ADroppedEntity_IsStillLoggedAsAnError()
+        {
+            var log = LogOf(SchemaBuild.Options("Production"));
+
+            log.Entries.Should().Contain(entry => entry.Level == LogLevel.Error && entry.Message.Contains(OxSchemaCodes.DuplicateEntityId));
+        }
+    }
+}

@@ -28,6 +28,6 @@ public static class KestrelConfigurationExtensions
                 // listenOptions.UseHttps();
                 listenOptions.Protocols = HttpProtocols.Http2;
             });
-        });
+        }); 
     }
 }

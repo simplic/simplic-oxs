@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Simplic.OxS.Logging.Extension;
 
 namespace Simplic.OxS.Server.Exceptions.Handlers;
 
@@ -17,19 +18,20 @@ namespace Simplic.OxS.Server.Exceptions.Handlers;
 /// </summary>
 public sealed class FallbackExceptionHandler(
     IHostEnvironment environment,
-    ILogger<FallbackExceptionHandler> logger) : IExceptionHandler
+    ILogger<FallbackExceptionHandler> logger
+) : IExceptionHandler
 {
-    private const string GenericDetail = "An unexpected error occurred while processing the request.";
+    private const string GenericDetail =
+        "An unexpected error occurred while processing the request.";
 
     /// <inheritdoc/>
-    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken
+    )
     {
-        logger.LogError(
-            exception,
-            "Unhandled exception on {Method} {Path} ({ExceptionType})",
-            httpContext.Request.Method,
-            httpContext.Request.Path,
-            exception.GetType().Name);
+        logger.LogServerError(httpContext, exception);
 
         // Let the developer exception page own the presentation in dev-facing environments.
         if (IsDeveloperExceptionPageEnvironment())
@@ -40,15 +42,21 @@ public sealed class FallbackExceptionHandler(
             StatusCodes.Status500InternalServerError,
             title: null,
             type: null,
-            GenericDetail);
+            GenericDetail
+        );
 
-        await ProblemDetailsResponseWriter.WriteAsync(httpContext, problemDetails, headers: null, cancellationToken);
+        await ProblemDetailsResponseWriter.WriteAsync(
+            httpContext,
+            problemDetails,
+            headers: null,
+            cancellationToken
+        );
 
         return true;
     }
 
-    private bool IsDeveloperExceptionPageEnvironment()
-        => environment.IsDevelopment()
-           || environment.IsStaging()
-           || environment.IsEnvironment("Local");
+    private bool IsDeveloperExceptionPageEnvironment() =>
+        environment.IsDevelopment()
+        || environment.IsStaging()
+        || environment.IsEnvironment("Local");
 }

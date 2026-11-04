@@ -539,7 +539,11 @@ Out of scope in this version: writes — the document describes read shapes only
 Addon keys are per organisation, so they are not in the document, but they are no longer
 undescribed: `GET /schema/addons` returns the calling organisation's definitions per entity in
 this same descriptor format, and a consumer merges them under the entity's `addon` member. A
-defined key is typed and filterable; an undefined one stays opaque.
+defined key is typed and filterable; an undefined one stays opaque. The engine filters, sorts,
+groups and aggregates a defined key by its value converted to the defined kind, whether the
+value is stored plain or wrapped. A key defined as `date` is published with kind `dateTime`
+(the definition API still answers `date`) and takes timestamps: a bare `YYYY-MM-DD` operand on
+it is refused.
 
 ---
 
@@ -1477,9 +1481,8 @@ Nothing below needs a line of code in the service.
   configured the route with the path base spelled in, so the console answered only under a doubled
   path (`/vehicle-api/v2/vehicle-api/v2/oxql`). Its explain button follows `OxQL:Explain:Enabled`.
   The console is served while `OxQL:Studio:Enabled` is true, which defaults to true in every
-  environment but `Production`: it is an anonymous developer page on the API's origin that loads
-  its editor from a CDN and keeps a pasted bearer in the browser, so a production host serves it
-  only when configured to (`OxQL__Studio__Enabled=true`).
+  environment, `Production` included; a host that should not serve it sets
+  `OxQL__Studio__Enabled=false`.
 
 ### 5.2 What a service has to do
 
@@ -1607,10 +1610,8 @@ Nothing below needs a line of code in the service.
   `OxSchema:RequireAuthorization` is true (section 4.1); a contract 1 `lookup` reads any
   collection of the service's database for the caller's organisation unless
   `OxQL:Compat:Legacy:AllowedLookupSources` names the collections (section 4.3); and the OxQL
-  Studio console is served unless the environment is named `Production`
-  (`OxQL:Studio:Enabled`, section 5.1). The environment name decides that default, not what the
-  deployment is used for: a deployment that runs production under another environment name
-  sets `OxQL__Studio__Enabled=false`.
+  Studio console is served in every environment unless `OxQL:Studio:Enabled` is false
+  (section 5.1).
 - **A local run needs the `Redis` section, and the `MongoDB` section for everything that reads
   data.** Without `Redis` a host in the environment `Development` does not start where its
   builder validates the services (the default builders do), and a host that starts answers 500
@@ -1805,9 +1806,10 @@ server project references: there the higher version is taken without a word.
 | `Simplic.OxS.ModelDefinition.Extension` | 3.0.826.1012 |
 | `Simplic.OxS.ServiceDefinition` | 3.0.1426.1012 |
 | `Simplic.OxS.ServiceDefinition.Repository` | 3.0.926.1012 |
-| `OxQL.AspNetCore`, `OxQL.Core` | 2.1.426.1014, both the same version |
-| `OxQL.Mongo` | 2.1.326.1014 |
-| `OxQL.Model` | 2.1.226.1013 |
+| `OxQL.AspNetCore` | 2.1.426.1014 |
+| `OxQL.Core` | 2.1.626.1028 |
+| `OxQL.Mongo` | 2.1.526.1028 |
+| `OxQL.Model` | 2.1.326.1028 |
 | `OxQL.Studio` | 2.1.126.1012 |
 
 - **Restore names one package per run.** Raise it, restore again, and repeat until the restore
@@ -1846,8 +1848,8 @@ server project references: there the higher version is taken without a word.
    log**: no `Ox schema finding:` line at error level, one `OxQL owner` line per referenced
    service, no exception. What the lines ask for is in sections 3.3 (entity ids, subtypes), 2.4
    and 4.2 (references into other services, `InternalHosts`).
-5. **Check the environment name in every deployment file**, and set `OxQL__Studio__Enabled`
-   explicitly wherever it is not `Production` (section 5.2).
+5. **Check every deployment file** for `OxQL__Studio__Enabled`: the console is served unless it
+   is false (section 5.2).
 6. **Add the schema test** to the service's unit tests (section 3.5), with
    `RunRegisterServices = true` where the startup registers serializers or class maps in
    `RegisterServices`, so a dropped reference, a variant without a class map or an id off the

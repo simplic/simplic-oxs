@@ -124,6 +124,7 @@ namespace Simplic.OxS.Server.Hosting.Test
                 {
                     ["Auth:Token"] = BootstrapHost.SigningSecret,
                     ["Auth:InternalApiKey"] = BootstrapHost.InternalApiKey,
+                    ["Monitoring:Enabled"] = "false",
                     ["Redis:RedisCacheUrl"] = "127.0.0.1:1,abortConnect=false,connectTimeout=300",
                 }))
                 .ConfigureWebHost(web => web.UseTestServer().UseEnvironment("Development").UseStartup<ParcelStartup>())
@@ -150,6 +151,7 @@ namespace Simplic.OxS.Server.Hosting.Test
             {
                 ["Auth:Token"] = BootstrapHost.SigningSecret,
                 ["Auth:InternalApiKey"] = BootstrapHost.InternalApiKey,
+                ["Monitoring:Enabled"] = "false",
             };
 
             if (cache)

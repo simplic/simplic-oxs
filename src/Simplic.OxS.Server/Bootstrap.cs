@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Reflection;
+using AutoMapper;
 using DnsClient.Internal;
 using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.Authentication;
@@ -13,8 +14,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
 using OxQL.AspNetCore;
 using OxQL.Core;
 using OxQL.Core.Engine;
@@ -33,11 +32,9 @@ using Simplic.OxS.Server.OxQL;
 using Simplic.OxS.Server.OxSchema;
 using Simplic.OxS.Server.Service;
 using Simplic.OxS.Server.Services;
-using Simplic.OxS.Server.Settings;
 using Simplic.OxS.ServiceDefinition;
 using Simplic.OxS.ServiceDefinition.Repository;
 using Simplic.OxS.Settings.Abstractions;
-using System.Reflection;
 
 namespace Simplic.OxS.Server
 {
@@ -68,11 +65,17 @@ namespace Simplic.OxS.Server
             services.AddSingleton<ICurrentService>(x => new Implementations.CurrentService
             {
                 ServiceName = ServiceName,
-                ApiVersion = ApiVersion
+                ApiVersion = ApiVersion,
             });
 
             // Add logging and tracing systems
-            services.AddLoggingAndMetricTracing(Configuration, ServiceName, ApiVersion, CurrentEnvironment.EnvironmentName);
+            Logging.Extension.MonitoringExtension.AddLoggingAndMetricTracing(
+                services,
+                Configuration,
+                ServiceName,
+                ApiVersion,
+                CurrentEnvironment.EnvironmentName
+            );
 
             // Add Redis caching
             services.AddRedisCaching(Configuration, out string connection);
@@ -94,7 +97,6 @@ namespace Simplic.OxS.Server
             if (authBuilder != null)
                 ConfigureAuthentication(authBuilder);
 
-
             services.AddAuthorization(options =>
             {
                 options.DefaultPolicy = new AuthorizationPolicyBuilder()
@@ -103,9 +105,13 @@ namespace Simplic.OxS.Server
                     .Build();
 
                 // New policy explicitly forbidding API Key authentication
-                options.AddPolicy("JwtOnly", policy =>
-                    policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme) // Only allow JWT
-                          .RequireAuthenticatedUser());
+                options.AddPolicy(
+                    "JwtOnly",
+                    policy =>
+                        policy
+                            .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme) // Only allow JWT
+                            .RequireAuthenticatedUser()
+                );
             });
 
             // Add organization settings if configured
@@ -131,18 +137,23 @@ namespace Simplic.OxS.Server
             services.AddScoped<IEndpointContractRepository, EndpointContractRepository>();
             services.AddScoped<IAddonFieldRepository, AddonFieldRepository>();
             services.AddScoped<IAddonDefinitionRepository, AddonDefinitionRepository>();
-            services.AddSingleton<ServiceDefinitionService>((x) =>
-            {
-                var f = new ServiceDefinitionService(x, x.GetRequiredService<ILogger<ServiceDefinitionService>>())
+            services.AddSingleton<ServiceDefinitionService>(
+                (x) =>
                 {
-                    ServiceName = ServiceName,
-                    Version = ApiVersion
-                };
+                    var f = new ServiceDefinitionService(
+                        x,
+                        x.GetRequiredService<ILogger<ServiceDefinitionService>>()
+                    )
+                    {
+                        ServiceName = ServiceName,
+                        Version = ApiVersion,
+                    };
 
-                f.Fill();
+                    f.Fill();
 
-                return f;
-            });
+                    return f;
+                }
+            );
 
             // ── OxQL core ───────────────────────────────────────────────────────────
             // Every option of the engine comes from the host's `OxQL` section (compat mode,
@@ -155,7 +166,9 @@ namespace Simplic.OxS.Server
             // source; registered before the core so the engine's empty default does not win.
             // A host that is configured with no database gets a source that needs none, so the
             // routes that are handed one without reading it (the schema document, health) answer.
-            var mongodb = Configuration.GetSection("MongoDB").Get<Data.MongoDB.ConnectionSettings>();
+            var mongodb = Configuration
+                .GetSection("MongoDB")
+                .Get<Data.MongoDB.ConnectionSettings>();
 
             services.AddSingleton<AddonDefinitionCache>();
 
@@ -164,10 +177,16 @@ namespace Simplic.OxS.Server
             else
                 services.AddScoped<IAddonDefinitionSource, NoDatabaseAddonDefinitionSource>();
 
-            services.AddOxQLCore(Configuration.GetSection("OxQL"), options =>
-            {
-                options.Cursor.SigningKey ??= Configuration.GetSection("Auth").Get<OxS.Settings.AuthSettings>()?.Token;
-            });
+            services.AddOxQLCore(
+                Configuration.GetSection("OxQL"),
+                options =>
+                {
+                    options.Cursor.SigningKey ??= Configuration
+                        .GetSection("Auth")
+                        .Get<OxS.Settings.AuthSettings>()
+                        ?.Token;
+                }
+            );
 
             // ── Ox schema ───────────────────────────────────────────────────────────
             // Built while the host starts, held in memory, never written to disk.
@@ -182,7 +201,8 @@ namespace Simplic.OxS.Server
             // the place for a service's schema options).
             services.AddHostOxSchema(
                 schema => FillOxSchema(schema, typeAssemblies),
-                provider => provider.GetRequiredService<IMapper>());
+                provider => provider.GetRequiredService<IMapper>()
+            );
 
             // ── OxQL MongoDB adapter ────────────────────────────────────────────────
             // Change the connection string in appsettings.json (or via environment variable
@@ -196,8 +216,13 @@ namespace Simplic.OxS.Server
                     options.DatabaseName = mongodb.Database;
 
                     // Engine faults carry their message only where a developer reads it.
-                    options.IncludeErrorDetails = CurrentEnvironment.IsDevelopment()
-                        || string.Equals(CurrentEnvironment.EnvironmentName, "local", StringComparison.OrdinalIgnoreCase);
+                    options.IncludeErrorDetails =
+                        CurrentEnvironment.IsDevelopment()
+                        || string.Equals(
+                            CurrentEnvironment.EnvironmentName,
+                            "local",
+                            StringComparison.OrdinalIgnoreCase
+                        );
 
                     // The schema's startup filter hands the engine its model; this list is the
                     // engine's own fallback for a host that never builds a schema.
@@ -296,17 +321,19 @@ namespace Simplic.OxS.Server
                     hubOptions.AddFilter<RequestContextHubFilter>();
                 });
             else
-                services.AddSignalR(hubOptions =>
-                {
-                    hubOptions.AddFilter<RequestContextHubFilter>();
-                }).AddStackExchangeRedis(connection);
+                services
+                    .AddSignalR(hubOptions =>
+                    {
+                        hubOptions.AddFilter<RequestContextHubFilter>();
+                    })
+                    .AddStackExchangeRedis(connection);
         }
 
         /// <summary>
         /// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         /// </summary>
         /// <param name="app">Application context</param>
-        /// <param name="env">Env context</param> 
+        /// <param name="env">Env context</param>
         public virtual void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             // Allow paths like /<service-name>-api/v1
@@ -322,27 +349,45 @@ namespace Simplic.OxS.Server
             // pages, so every error — including ones that never reach MVC — returns a consistent
             // problem+json body. In dev-facing environments the fallback declines, letting the
             // developer exception page above render the stack trace.
+            Logging.Extension.HttpErrorLoggingExtension.UseHttpErrorLogging(app);
             app.UseExceptionHandler();
             app.UseStatusCodePages();
 
             app.UseSwagger(c =>
             {
-                c.PreSerializeFilters.Add((swagger, httpReq) =>
-                {
-                    if (env.IsDevelopment())
+                c.PreSerializeFilters.Add(
+                    (swagger, httpReq) =>
                     {
-                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"{httpReq.Scheme}://{httpReq.Host.Value}{basePath}" } };
+                        if (env.IsDevelopment())
+                        {
+                            swagger.Servers = new List<OpenApiServer>
+                            {
+                                new OpenApiServer
+                                {
+                                    Url = $"{httpReq.Scheme}://{httpReq.Host.Value}{basePath}",
+                                },
+                            };
+                        }
+                        else
+                        {
+                            swagger.Servers = new List<OpenApiServer>
+                            {
+                                new OpenApiServer
+                                {
+                                    Url = $"https://{httpReq.Host.Value}{basePath}",
+                                },
+                            };
+                        }
                     }
-                    else
-                    {
-                        swagger.Servers = new List<OpenApiServer> { new OpenApiServer { Url = $"https://{httpReq.Host.Value}{basePath}" } };
-                    }
-                });
+                );
             });
 
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint($"{basePath}/swagger/{ApiVersion}/swagger.json", $"Simplic.OxS.{ServiceName} {ApiVersion}");
+                c.SwaggerEndpoint(
+                    $"{basePath}/swagger/{ApiVersion}/swagger.json",
+                    $"Simplic.OxS.{ServiceName} {ApiVersion}"
+                );
             });
 
             app.UseHttpsRedirection();
@@ -394,7 +439,11 @@ namespace Simplic.OxS.Server
         {
             var package = typeof(Bootstrap).Assembly;
 
-            if (!builder.PartManager.ApplicationParts.OfType<Microsoft.AspNetCore.Mvc.ApplicationParts.AssemblyPart>().Any(part => part.Assembly == package))
+            if (
+                !builder
+                    .PartManager.ApplicationParts.OfType<Microsoft.AspNetCore.Mvc.ApplicationParts.AssemblyPart>()
+                    .Any(part => part.Assembly == package)
+            )
                 builder.AddApplicationPart(package);
         }
 
@@ -405,19 +454,25 @@ namespace Simplic.OxS.Server
         /// This method is typically called during application startup to define how gRPC services are exposed over
         /// HTTP.</remarks>
         /// <param name="builder">The endpoint route builder used to register gRPC endpoints. Cannot be null.</param>
-        protected virtual void MapGrpcEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+        protected virtual void MapGrpcEndpoints(
+            Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder
+        ) { }
 
         /// <summary>
         /// Method for SignalR hub registration
         /// </summary>
         /// <param name="builder">Builder instance</param>
-        protected virtual void MapHubs(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+        protected virtual void MapHubs(
+            Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder
+        ) { }
 
         /// <summary>
         /// Method for mapping endpoint routings
         /// </summary>
         /// <param name="builder">Builder instance</param>
-        protected virtual void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder) { }
+        protected virtual void MapEndpoints(
+            Microsoft.AspNetCore.Routing.IEndpointRouteBuilder builder
+        ) { }
 
         /// <summary>
         /// Get api information for the current service
@@ -429,19 +484,20 @@ namespace Simplic.OxS.Server
             {
                 Version = ApiVersion,
                 Title = $"`{ServiceName}` service api",
-                Description = "Contains http/https endpoints for working with the Simplic.OxS/Ox apis.",
+                Description =
+                    "Contains http/https endpoints for working with the Simplic.OxS/Ox apis.",
                 TermsOfService = new Uri("https://simplic.biz/datenschutzerklaerung/"),
                 Contact = new OpenApiContact
                 {
                     Name = "SIMPLIC GmbH",
                     Email = "post@simplic.biz",
-                    Url = new Uri("https://simplic.biz/kontakt/")
+                    Url = new Uri("https://simplic.biz/kontakt/"),
                 },
                 License = new OpenApiLicense
                 {
                     Name = "Simplic.OxS OpenAPI-License",
-                    Url = new Uri("https://simplic.biz/ox-api-license")
-                }
+                    Url = new Uri("https://simplic.biz/ox-api-license"),
+                },
             };
         }
 
@@ -455,7 +511,9 @@ namespace Simplic.OxS.Server
         /// <see cref="RegisterBsonClassMaps"/>.
         /// </remarks>
         /// <param name="mapperConfiguration">Mapper configuration instance. Add profiles to this mapping.</param>
-        protected virtual void RegisterMapperProfiles(IMapperConfigurationExpression mapperConfiguration) { }
+        protected virtual void RegisterMapperProfiles(
+            IMapperConfigurationExpression mapperConfiguration
+        ) { }
 
         /// <summary>
         /// The place for the service's MongoDB class maps (<c>BsonClassMap.RegisterClassMap</c>),
@@ -487,7 +545,10 @@ namespace Simplic.OxS.Server
         /// </summary>
         /// <param name="services">Service collection</param>
         /// <param name="settings">MessageBroker settings</param>
-        protected virtual void ConfigureEndpointConventions(IServiceCollection services, MessageBrokerSettings settings) { }
+        protected virtual void ConfigureEndpointConventions(
+            IServiceCollection services,
+            MessageBrokerSettings settings
+        ) { }
 
         /// <summary>
         /// Method that should be used for added additional auth schemes/methods
@@ -514,7 +575,10 @@ namespace Simplic.OxS.Server
         /// Method that should return all controllers that are used to build model definitions
         /// </summary>
         /// <returns></returns>
-        protected virtual IList<Type> ConfigureModelDefinitions() { return new List<Type>(); }
+        protected virtual IList<Type> ConfigureModelDefinitions()
+        {
+            return new List<Type>();
+        }
 
         /// <summary>
         /// Adjusts the inputs of the schema document beyond what the host already declares, for
@@ -540,12 +604,16 @@ namespace Simplic.OxS.Server
 
                 try
                 {
-                    SerializerRegistrationOrder.Explain(nameof(RegisterBsonClassMaps), RegisterBsonClassMaps);
+                    SerializerRegistrationOrder.Explain(
+                        nameof(RegisterBsonClassMaps),
+                        RegisterBsonClassMaps
+                    );
                     ClassMapsRegistered[GetType()] = null;
                 }
                 catch (Exception exception)
                 {
-                    ClassMapsRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+                    ClassMapsRegistered[GetType()] =
+                        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
 
                     throw;
                 }
@@ -553,7 +621,10 @@ namespace Simplic.OxS.Server
         }
 
         /// <summary>The startup types whose hook ran in this process, each with what the hook threw, if it did.</summary>
-        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ClassMapsRegistered = [];
+        private static readonly Dictionary<
+            Type,
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo?
+        > ClassMapsRegistered = [];
 
         /// <summary>
         /// Creates the mapper from <see cref="RegisterMapperProfiles"/>, for a host: every host
@@ -567,7 +638,10 @@ namespace Simplic.OxS.Server
             {
                 try
                 {
-                    var mapper = SerializerRegistrationOrder.Explain(nameof(RegisterMapperProfiles), () => new MapperConfiguration(RegisterMapperProfiles).CreateMapper());
+                    var mapper = SerializerRegistrationOrder.Explain(
+                        nameof(RegisterMapperProfiles),
+                        () => new MapperConfiguration(RegisterMapperProfiles).CreateMapper()
+                    );
 
                     MapperProfilesRegistered[GetType()] = null;
 
@@ -575,7 +649,8 @@ namespace Simplic.OxS.Server
                 }
                 catch (Exception exception)
                 {
-                    MapperProfilesRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+                    MapperProfilesRegistered[GetType()] =
+                        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
 
                     throw;
                 }
@@ -607,14 +682,20 @@ namespace Simplic.OxS.Server
         }
 
         /// <summary>The startup types whose mapper profiles ran in this process, each with what the last run threw, if it did.</summary>
-        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> MapperProfilesRegistered = [];
+        private static readonly Dictionary<
+            Type,
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo?
+        > MapperProfilesRegistered = [];
 
         /// <summary>
         /// Fills the schema's inputs from what the service declares and lets
         /// <see cref="ConfigureOxSchema"/> adjust them: the one definition of what a host hands
         /// the schema build, for the host itself and for <see cref="OxSchemaCheck"/>.
         /// </summary>
-        internal void FillOxSchema(OxSchemaOptionsBuilder schema, IReadOnlyList<Assembly> typeAssemblies)
+        internal void FillOxSchema(
+            OxSchemaOptionsBuilder schema,
+            IReadOnlyList<Assembly> typeAssemblies
+        )
         {
             schema.ServiceName = ServiceName;
             schema.ApiName = ApiName;
@@ -626,9 +707,14 @@ namespace Simplic.OxS.Server
 
             // Whoever requires authorization for the document is heard: the configuration, or a
             // registration of the service that came before the host's. ConfigureOxSchema decides last.
-            schema.RequireAuthorization |= Configuration.GetValue<bool>("OxSchema:RequireAuthorization");
+            schema.RequireAuthorization |= Configuration.GetValue<bool>(
+                "OxSchema:RequireAuthorization"
+            );
 
-            SerializerRegistrationOrder.Explain(nameof(ConfigureOxSchema), () => ConfigureOxSchema(schema));
+            SerializerRegistrationOrder.Explain(
+                nameof(ConfigureOxSchema),
+                () => ConfigureOxSchema(schema)
+            );
         }
 
         /// <summary>
@@ -660,12 +746,16 @@ namespace Simplic.OxS.Server
             {
                 try
                 {
-                    SerializerRegistrationOrder.Explain(nameof(RegisterServices), () => RegisterServices(services));
+                    SerializerRegistrationOrder.Explain(
+                        nameof(RegisterServices),
+                        () => RegisterServices(services)
+                    );
                     ServicesRegistered[GetType()] = null;
                 }
                 catch (Exception exception)
                 {
-                    ServicesRegistered[GetType()] = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+                    ServicesRegistered[GetType()] =
+                        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
 
                     throw;
                 }
@@ -696,7 +786,10 @@ namespace Simplic.OxS.Server
         }
 
         /// <summary>The startup types whose <see cref="RegisterServices"/> ran in this process, each with what the last run threw, if it did.</summary>
-        private static readonly Dictionary<Type, System.Runtime.ExceptionServices.ExceptionDispatchInfo?> ServicesRegistered = [];
+        private static readonly Dictionary<
+            Type,
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo?
+        > ServicesRegistered = [];
 
         /// <summary>
         /// Method that should return all assemblies that contains OxQL types. This is used for scanning and registering the types in the OxQL system.
@@ -709,7 +802,10 @@ namespace Simplic.OxS.Server
         /// Method for configuring organization settings. Return null to disable settings.
         /// </summary>
         /// <returns>Settings configuration action or null</returns>
-        protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings() { return null; }
+        protected virtual Action<IOrganizationSettingsBuilder>? ConfigureOrganizationSettings()
+        {
+            return null;
+        }
 
         /// <summary>
         /// Whether the OxQL Studio console is served: <c>OxQL:Studio:Enabled</c>, which defaults to on
@@ -725,7 +821,10 @@ namespace Simplic.OxS.Server
         /// schema it reads (<c>{pathBase}/schema</c>). Its Explain button follows the engine's
         /// <c>OxQL:Explain:Enabled</c>, which is on unless configured off.
         /// </summary>
-        internal static void ConfigureOxQLStudio(OxQLStudioOptions options, IConfiguration configuration)
+        internal static void ConfigureOxQLStudio(
+            OxQLStudioOptions options,
+            IConfiguration configuration
+        )
         {
             options.RoutePath = "/oxql";
             options.ApiBasePath = "/oxql";
@@ -771,4 +870,3 @@ namespace Simplic.OxS.Server
         private IWebHostEnvironment CurrentEnvironment { get; set; }
     }
 }
-

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Simplic.OxS.Exceptions;
+using Simplic.OxS.Logging.Extension;
 
 namespace Simplic.OxS.Server.Exceptions.Handlers;
 
@@ -15,7 +16,11 @@ namespace Simplic.OxS.Server.Exceptions.Handlers;
 public sealed class OxSExceptionHandler(ILogger<OxSExceptionHandler> logger) : IExceptionHandler
 {
     /// <inheritdoc/>
-    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken
+    )
     {
         if (!ExceptionUnpacker.TryUnpack<OxSException>(exception, out var oxsException))
             return false;
@@ -29,11 +34,17 @@ public sealed class OxSExceptionHandler(ILogger<OxSExceptionHandler> logger) : I
 
     private void Log(HttpContext httpContext, OxSException exception)
     {
+        if (exception.StatusCode >= 500)
+        {
+            logger.LogServerError(httpContext, exception, exception.StatusCode);
+            return;
+        }
+
         var level = exception.StatusCode switch
         {
             >= 500 => LogLevel.Error,
             StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden => LogLevel.Warning,
-            _ => LogLevel.Information
+            _ => LogLevel.Information,
         };
 
         logger.Log(
@@ -43,6 +54,7 @@ public sealed class OxSExceptionHandler(ILogger<OxSExceptionHandler> logger) : I
             httpContext.Request.Method,
             httpContext.Request.Path,
             exception.StatusCode,
-            exception.GetType().Name);
+            exception.GetType().Name
+        );
     }
 }

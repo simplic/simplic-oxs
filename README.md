@@ -1,5 +1,33 @@
 # simplic-oxs
 
+## Logging and monitoring (Server 3.2)
+
+`Simplic.OxS.Server` now imports `Simplic.OxS.Logging.Extension` 1.0.0 from
+[`simplic-oxs-logging`](https://github.com/simplic/simplic-oxs-logging). Bootstrap registers the
+extension and HTTP error-payload middleware. The old framework logging/telemetry names have
+been removed; upgrading services and shared libraries must use the extracted types directly.
+
+| Previous framework type | Extracted type |
+|---|---|
+| `Simplic.OxS.Server.Extensions.LoggingExtension` | `Simplic.OxS.Logging.Extension.LoggingExtension` |
+| `Simplic.OxS.Server.Settings.MonitoringSettings` | `Simplic.OxS.Logging.Extension.MonitoringSettings` |
+| `Simplic.OxS.Server.Telemetry.TelemetryService` | `Simplic.OxS.Logging.Telemetry.TelemetryService` |
+| `Simplic.OxS.Server.Middleware.TelemetryMiddleware` | `Simplic.OxS.Logging.Telemetry.TelemetryMiddleware` |
+| `Simplic.OxS.Server.Themes.ColorUtil` | `Simplic.OxS.Logging.Extension.Themes.ColorUtil` |
+
+Update namespace imports, options/DI registrations and middleware references as needed.
+Rebuild shared libraries that referenced the removed types. Bootstrap still configures
+technical logging automatically; these API changes do not change configuration keys.
+
+All log levels/categories are exported through a single OTLP path.
+The collector forwards logs to CloudWatch while metrics/traces keep their configured upstream.
+HTTP 5xx error records include the incoming JSON request payload, recursively redacted and
+bounded (64 KiB by default); unsafe/oversized/non-JSON bodies have explicit omission metadata.
+
+The logging repository also provides the separate, opt-in
+`Simplic.OxS.Logging.EventLog.Extension` RabbitMQ publisher and customer event storage service.
+Its README describes the public API and event retention.
+
 ## The Ox Schema and OxQL
 
 Every service built on `Simplic.OxS.Server` publishes `GET /schema`, a document describing its

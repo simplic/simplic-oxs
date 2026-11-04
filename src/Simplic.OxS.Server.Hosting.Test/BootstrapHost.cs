@@ -10,8 +10,8 @@ namespace Simplic.OxS.Server.Hosting.Test
     /// <summary>
     /// Builds an in-memory host the way a service does: <c>UseStartup</c> over a
     /// <see cref="Bootstrap"/> subclass, so <c>ConfigureServices</c> and <c>Configure</c> of the
-    /// base run in full. The configuration holds an <c>Auth</c> section and nothing else, which
-    /// leaves MongoDB, RabbitMQ, Redis and the telemetry exporters switched off.
+    /// base run in full. Test authentication is configured, telemetry is explicitly disabled,
+    /// and MongoDB, RabbitMQ and Redis are left unconfigured.
     /// </summary>
     internal static class BootstrapHost
     {
@@ -38,6 +38,7 @@ namespace Simplic.OxS.Server.Hosting.Test
             {
                 ["Auth:Token"] = SigningSecret,
                 ["Auth:InternalApiKey"] = InternalApiKey,
+                ["Monitoring:Enabled"] = "false",
             };
 
             foreach (var (key, value) in settings)

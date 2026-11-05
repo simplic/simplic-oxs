@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <!-- Start at 1.0 — increment the major segment on every breaking contract change. -->
-    <Version>1.0.0.1</Version>
+    <Version>2.0.26.1105</Version>
   </PropertyGroup>
 
   <!-- Zero external dependencies: only the BCL and System.Text.Json (inbox on .NET 10). -->

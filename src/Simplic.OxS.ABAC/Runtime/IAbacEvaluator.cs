@@ -12,8 +12,9 @@ public interface IAbacEvaluator
     /// </summary>
     /// <remarks>
     /// <b>Not sufficient on its own to return resource data.</b> Conditional deny rules (deny rules that
-    /// carry resource conditions) are intentionally ignored here: this overload only answers whether the
-    /// subject may perform the action on <i>some</i> resource, not on a <i>specific</i> one. Using it as the
+    /// carry resource conditions) are intentionally ignored here: an Allow result only means the action
+    /// <i>could potentially</i> be allowed for some resource — it does not imply that any authorized resource
+    /// exists, and it does not authorize a <i>specific</i> resource. Using it as the
     /// sole gate for a data-returning path can leak rows that a conditional deny rule would hide. It MUST
     /// always be paired with the data-level check — the resource overload
     /// (<see cref="AuthorizeAsync(Guid, string, IReadOnlyDictionary{string, object?}, CancellationToken)"/>)

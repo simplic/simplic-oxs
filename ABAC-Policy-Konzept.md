@@ -477,8 +477,9 @@ bedingte Deny-Regel verbergen würde. Er **muss** daher immer mit der Datenebene
 werden – der Resource-Überladung `Authorize(org, action, resource)` für Einzelobjekte bzw.
 `BuildListFilterAsync` / `BuildSearchFilterAsync` für Read-Many. Standalone ist der parameterlose
 Aufruf nur für grobes Endpoint-Reachability-Gating zulässig. (Der org-scoped Repository-Basistyp
-nutzt bereits `BuildListFilterAsync` über `IAbacReadFilterProvider` und ist damit korrekt abgesichert,
-§7.6.)
+wendet `BuildListFilterAsync` über `IAbacReadFilterProvider` nur an, wenn das abgeleitete Repository
+`AbacReadAction` überschreibt **und** ein `IAbacReadFilterProvider` verfügbar ist. Standardmäßig ist
+`AbacReadAction` `null` – ohne dieses Opt-in wird **kein** ABAC-Filter angewendet, §7.6.)
 
 ### 7.5 Response-Semantik bei Deny (verbindlich)
 
@@ -516,9 +517,10 @@ feingranulare Event-Filterung ist spätere Arbeit.
 **Konkretisierung** *(entschieden 2026-10-26)*:
 
 *Data-Layer:* Durchsetzung im Repository-Basistyp von `Simplic.OxS.Data.MongoDB`
-(org-scoped Repository): Lesezugriffe (`Get`, `GetByFilter`, `GetAll`, Paging) ANDen den
-ABAC-Mongo-Filter der jeweiligen `read`-Action automatisch, sobald im Request-Scope ein
-ABAC-Kontext vorhanden ist. Kanäle in der Shared Library:
+(org-scoped Repository): Lesezugriffe (`Get`, `GetByFilter`, `GetAll`, Paging, `Count`) ANDen den
+ABAC-Mongo-Filter der jeweiligen `read`-Action **nur im Opt-in**: Das abgeleitete Repository muss
+`AbacReadAction` überschreiben (Default `null`) und es muss ein `IAbacReadFilterProvider`
+verfügbar sein. Fehlt eines davon, wird **kein** ABAC-Filter angewendet. Kanäle in der Shared Library:
 - **GraphQL:** `GraphQLExtension.UseGraphQL` (HotChocolate + Mongo-Filtering/Paging) — Resolver
   müssen ihre Daten über das Repository bzw. einen ABAC-gefilterten `IExecutable` beziehen.
 - **gRPC:** `GrpcSecurityInterceptor`/`GrpcAuthenticationMiddleware` setzen Subject/Org-Kontext

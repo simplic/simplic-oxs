@@ -73,6 +73,15 @@ public static class AbacCacheKeys
     public static string FieldMappings(Guid orgId)
         => $"abac:mapping:{orgId}";
 
+    // ── Subject attributes (short TTL, Abac:Subject:Ttl) ─────────────────────
+
+    /// <summary>
+    /// Live subject attributes (roles/teams) of a user within an organisation, resolved from Identity.
+    /// The TTL of this entry bounds the revocation lag of role/team changes.
+    /// </summary>
+    public static string SubjectAttributes(Guid orgId, Guid userId)
+        => $"abac:subject:{orgId}:{userId}";
+
     // ── Invalidation patterns ────────────────────────────────────────────────
 
     /// <summary>

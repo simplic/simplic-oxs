@@ -77,7 +77,7 @@ public class AbacEvaluatorTest
         IReadOnlyList<CompiledPolicy> policies)
     {
         var factoryMock = new Mock<IAbacSubjectFactory>();
-        factoryMock.Setup(f => f.BuildSubject()).Returns(subject);
+        factoryMock.Setup(f => f.BuildSubjectAsync(It.IsAny<CancellationToken>())).ReturnsAsync(subject);
 
         var readerMock = new Mock<IAbacPolicyReader>();
         readerMock.Setup(r => r.GetSnapshotAsync(OrgId, It.IsAny<CancellationToken>()))

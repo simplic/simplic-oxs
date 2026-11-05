@@ -27,7 +27,7 @@ public class AbacEvaluatorRuntimeTest
 
     public AbacEvaluatorRuntimeTest()
     {
-        _subjectFactory.Setup(f => f.BuildSubject()).Returns(Subject(OrgId, ["viewer"], (TeamA, "Sales"), (TeamB, "Support")));
+        _subjectFactory.Setup(f => f.BuildSubjectAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Subject(OrgId, ["viewer"], (TeamA, "Sales"), (TeamB, "Support")));
     }
 
     private AbacEvaluator CreateEvaluator(bool withL1 = false)
@@ -329,7 +329,7 @@ public class AbacEvaluatorRuntimeTest
 
         (await evaluator.AuthorizeAsync(OrgId, Action)).Decision.Should().Be(AbacDecision.Deny);
 
-        _subjectFactory.Setup(f => f.BuildSubject()).Returns(Subject(OrgId, ["admin"]));
+        _subjectFactory.Setup(f => f.BuildSubjectAsync(It.IsAny<CancellationToken>())).ReturnsAsync(Subject(OrgId, ["admin"]));
         (await evaluator.AuthorizeAsync(OrgId, Action)).Decision.Should().Be(AbacDecision.Allow);
     }
 

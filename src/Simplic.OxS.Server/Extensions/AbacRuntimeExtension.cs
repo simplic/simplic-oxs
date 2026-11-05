@@ -19,7 +19,9 @@ public static class AbacRuntimeExtension
     /// Registers the runtime ABAC services. Options are bound from the configuration section <c>Abac</c>
     /// (<see cref="AbacRuntimeOptions"/>) of the <see cref="IConfiguration"/> registered in DI.
     /// <list type="bullet">
-    ///   <item><see cref="IAbacSubjectFactory"/> → <see cref="AbacSubjectFactory"/> (scoped)</item>
+    ///   <item><see cref="IAbacSubjectFactory"/> → <see cref="AbacSubjectFactory"/> (scoped; <c>Id</c>/<c>OId</c> from claims, roles/teams via
+    ///   <see cref="IAbacSubjectAttributeProvider"/> → <see cref="AbacSubjectAttributeProvider"/> (scoped, L1 + Redis, TTL <c>Abac:Subject:Ttl</c>)
+    ///   on top of <see cref="IAbacSubjectAttributeClient"/> → <see cref="AbacSubjectAttributeHttpClient"/> (typed HttpClient))</item>
     ///   <item><see cref="IAbacPolicyReader"/> → <see cref="AbacPolicyReader"/> (scoped; Redis → local store → pull → unavailable)</item>
     ///   <item><see cref="IAbacEvaluator"/> → <see cref="AbacEvaluator"/> (scoped; L1 cache via <c>IMemoryCache</c>)</item>
     ///   <item><see cref="IAbacRuleSetClient"/> → <see cref="AbacRuleSetHttpClient"/> (typed HttpClient), <see cref="IAbacRuleSyncService"/> → <see cref="AbacRuleSyncService"/> (scoped)</item>
@@ -66,6 +68,8 @@ public static class AbacRuntimeExtension
         services.TryAddSingleton<AbacSyncBackoff>();
 
         services.TryAddScoped<IAbacSubjectFactory, AbacSubjectFactory>();
+        services.AddHttpClient<IAbacSubjectAttributeClient, AbacSubjectAttributeHttpClient>();
+        services.TryAddScoped<IAbacSubjectAttributeProvider, AbacSubjectAttributeProvider>();
         services.TryAddScoped<IAbacPolicyReader, AbacPolicyReader>();
         services.TryAddScoped<IAbacEvaluator, AbacEvaluator>();
 

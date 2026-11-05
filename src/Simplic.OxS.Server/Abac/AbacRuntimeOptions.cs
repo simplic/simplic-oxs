@@ -15,6 +15,32 @@ public class AbacRuntimeOptions
 
     /// <summary>L1 decision cache settings (<c>Abac:L1:*</c>).</summary>
     public AbacL1Options L1 { get; set; } = new();
+
+    /// <summary>Server-side subject attribute lookup settings (<c>Abac:Subject:*</c>).</summary>
+    public AbacSubjectOptions Subject { get; set; } = new();
+}
+
+/// <summary>
+/// Server-side lookup of the subject's roles/teams from Identity, section <c>Abac:Subject</c>.
+/// Host, scheme and API version are shared with <see cref="AbacSyncOptions"/> (<c>Abac:Sync:Service|Scheme|ApiVersion</c>).
+/// </summary>
+public class AbacSubjectOptions
+{
+    /// <summary>
+    /// <c>Abac:Subject:Ttl</c> — lifetime of a resolved (or "not a member") attribute entry in L1 (<c>IMemoryCache</c>)
+    /// and Redis. Default 30 seconds (same order as <c>Abac:L1:Ttl</c>). Both cache levels expire at the same absolute
+    /// point in time, so this value is the upper bound of the revocation lag of role/team changes.
+    /// </summary>
+    public TimeSpan Ttl { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary><c>Abac:Subject:Timeout</c> — timeout of the Identity lookup on a cache miss. Default 3 seconds.</summary>
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// <c>Abac:Subject:BaseUrl</c> — optional absolute URL override of the attribute endpoint (query string is appended).
+    /// When empty: <c>{Sync:Scheme}://{InternalHosts[Sync:Service]}/{Sync:Service}-api/{Sync:ApiVersion}/internal/AbacSubject/attributes</c>.
+    /// </summary>
+    public string? BaseUrl { get; set; }
 }
 
 /// <summary>

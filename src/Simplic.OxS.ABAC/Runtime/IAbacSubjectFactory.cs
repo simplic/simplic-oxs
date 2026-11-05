@@ -4,15 +4,15 @@ namespace Simplic.OxS.ABAC.Runtime;
 
 /// <summary>
 /// Builds the ABAC subject for the current request.
-/// Implementations extract identity data (user ID, organisation ID, roles, teams)
-/// from the JWT claims carried by the current HTTP context.
+/// Implementations take the identity (user ID, organisation ID) from the JWT claims of the
+/// current HTTP context and resolve roles and teams server-side from Identity (cached).
 /// </summary>
 public interface IAbacSubjectFactory
 {
     /// <summary>
-    /// Builds an <see cref="AbacSubject"/> from the current request context.
-    /// Returns <c>null</c> when no authenticated principal is present
-    /// (anonymous requests are always denied by the evaluator).
+    /// Builds an <see cref="AbacSubject"/> for the current request. Never throws for missing data:
+    /// returns <c>null</c> when no authenticated principal is present or when the subject attributes
+    /// cannot be resolved (the evaluator denies requests without a subject — fail closed).
     /// </summary>
-    AbacSubject? BuildSubject();
+    Task<AbacSubject?> BuildSubjectAsync(CancellationToken ct = default);
 }

@@ -122,7 +122,7 @@ public class AbacEvaluator : IAbacEvaluator
 
         try
         {
-            var subject = _subjectFactory.BuildSubject();
+            var subject = await _subjectFactory.BuildSubjectAsync(ct);
             if (subject == null)
             {
                 _logger.LogWarning("ABAC: No authenticated subject for action '{Action}' in org '{OrgId}' — denying.", action, organizationId);

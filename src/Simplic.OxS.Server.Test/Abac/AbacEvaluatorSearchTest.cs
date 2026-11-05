@@ -54,7 +54,7 @@ public class AbacEvaluatorSearchTest
     private static AbacEvaluator Build(IReadOnlyList<CompiledPolicy> policies, AbacSubject? subject)
     {
         var factory = new Mock<IAbacSubjectFactory>();
-        factory.Setup(f => f.BuildSubject()).Returns(subject);
+        factory.Setup(f => f.BuildSubjectAsync(It.IsAny<CancellationToken>())).ReturnsAsync(subject);
 
         var reader = new Mock<IAbacPolicyReader>();
         reader.Setup(r => r.GetSnapshotAsync(OrgId, It.IsAny<CancellationToken>()))

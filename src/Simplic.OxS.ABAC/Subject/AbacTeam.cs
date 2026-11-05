@@ -1,6 +1,6 @@
 namespace Simplic.OxS.ABAC.Subject;
 
-/// <summary>A team membership embedded in the JWT subject.</summary>
+/// <summary>A team membership of the subject (resolved server-side from Identity).</summary>
 public class AbacTeam
 {
     /// <summary>Team identifier.</summary>

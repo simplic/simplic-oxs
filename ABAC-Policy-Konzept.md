@@ -203,13 +203,19 @@ public class Rule
 ```csharp
 Subject
 ├── User
-│   ├── Id
-│   └── Email
-├── Roles (string[])
-└── Teams (Team[])
+│   ├── Id              // JWT-/API-Key-Claim `Id`
+│   └── Email           // Claim `Email` falls vorhanden, sonst aus dem Identity-Lookup
+├── OrganizationId      // JWT-/API-Key-Claim `OId`
+├── Roles (string[])    // serverseitig: Identity-Lookup (gecacht), NICHT aus dem Token
+└── Teams (Team[])      // serverseitig: Identity-Lookup (gecacht), NICHT aus dem Token
     ├── Id
     └── Name
 ```
+
+**Herkunft der Attribute** *(entschieden 2026-11-05, siehe §17.4)*: Nur `Id` und `OId` (optional
+`Email`) stammen aus dem authentifizierten Kontext. `Roles`/`Teams` werden zur Zugriffszeit über
+den internen Identity-Endpunkt `internal/AbacSubject/attributes` aufgelöst und je
+(`OrganizationId`, `UserId`) gecacht (`Abac:Subject:Ttl`, Default 30 s).
 
 #### Service-lokal gespeicherte Compiled Rules (§12.6)
 
@@ -756,9 +762,15 @@ müssen erfüllt sein:
    `oxs:abac-policy:read`, `oxs:abac-policy:write`, `oxs:abac-policy:activate`
    (analog für Mappings `oxs:abac-mapping:*`).
 
-**Rollen-Quelle** *(entschieden 2026-10-26)*: JWT-Claim `Roles`
-(JSON-Array, wie von `AbacSubjectFactory` gelesen) enthält `owner` oder `admin`
-(Vergleich case-insensitive). Ausnahme: der Rollout-Schalter (§6.4) nur `owner`.
+~~**Rollen-Quelle** *(entschieden 2026-10-26)*: JWT-Claim `Roles`
+(JSON-Array, wie von `AbacSubjectFactory` gelesen) enthält `owner` oder `admin`.~~
+*(abgelöst durch Entscheidung vom 2026-11-05)*
+
+**Rollen-Quelle** *(entschieden 2026-11-05)*: Die **aktuellen** Rollen des Users in der
+Organisation (serverseitiger Identity-Lookup, §17.4: `user.Roles` ∪ Rollen der
+Org-Mitgliedschaft) enthalten `owner` oder `admin` (Vergleich case-insensitive). Ein
+`Roles`-Claim im Token wird ignoriert; Nicht-Mitglied oder Lookup nicht verfügbar → **DENY**.
+Ausnahme: der Rollout-Schalter (§6.4) nur `owner`.
 
 **Audit:** Jede Änderung wird in einer **unveränderlichen Änderungshistorie** in Identity
 abgelegt: wer, wann, Vorher/Nachher-Diff, und welcher `setId` aktiviert wurde.
@@ -1136,7 +1148,8 @@ AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versio
 ### Phase 3: Integration
 - [x] ✅ MongoDB Filter Compiler — `AbacMongoFilterBuilder` mit `MongoDbPath`, fail-closed
 - [x] ✅ Service Middleware — CRUD, Compile/Activate, Auto-Recompile, Admin-Gate, Audit
-- [x] ✅ Subject Extraction (Auth) — `AbacSubjectFactory` aus JWT-Claims
+- [x] ✅ Subject Extraction (Auth) — `AbacSubjectFactory`: `Id`/`OId` aus Claims, `Roles`/`Teams`
+  per serverseitigem Identity-Lookup (`IAbacSubjectAttributeProvider`, L1 + Redis, `Abac:Subject:Ttl`)
 - [ ] ❌ E2E Tests (service-übergreifend inkl. RabbitMQ)
 - [x] ✅ Resource-Condition-Evaluation im `Authorize`-Pfad (Overload mit Resource)
 - [x] ✅ Search-Filter-Pfad inkl. Mapping-Sync aus Identity (Details §18.10)
@@ -1172,12 +1185,13 @@ AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versio
 | # | Thema | Entscheidung | Status | Abschnitt |
 |---|-------|--------------|--------|-----------|
 | 1 | Aufrufer-Identität | Authentifizierung unverändert (JWT/API-Key); intern = extern, kein Service-Subject | ✅ bestätigt | §17.4 |
-| 2 | Admin-Rollen | JWT-Claim `Roles` enthält `owner`/`admin` | ✅ bestätigt | §10.3 |
+| 2 | Admin-Rollen | ~~JWT-Claim `Roles` enthält `owner`/`admin`~~ — abgelöst durch #8 | ⛔ abgelöst (2026-11-05) | §10.3 |
 | 3 | Feld-Mapping-Modell | Ein per-Org-`AbacFieldMappingSet` in Identity, Search-Konfig abgeleitet, Import-Migration | ✅ bestätigt | §12.7 |
 | 4 | Rollout-Schalter | Global `Abac:Rollout:AllowAllWhenEmpty` + Org-Override, nur `owner` | ✅ bestätigt | §6.4 |
 | 5 | Egress-Kanäle | Durchsetzung im `Simplic.OxS.Data.MongoDB`-Repository; Egress-Inventar je Service | ✅ bestätigt | §7.6 |
 | 6 | Message-Bus | Konsumierende Kopien: acken + überspringen; Such-Indexierung ausgenommen | ✅ bestätigt | §7.6 |
 | 7 | Release | NuGet-Release vor weiterer Integration; ProjectReference nicht mergen | ✅ bestätigt | §13.1 P0 |
+| 8 | Subject-Rollen/Teams *(2026-11-05)* | `Roles`/`Teams` nicht aus dem Token, sondern serverseitiger Identity-Lookup (gecacht, `Abac:Subject:Ttl` = 30 s); Grund: Entzug wirkt zeitnah, alter Auth-Endpunkt bleibt unverändert | ✅ bestätigt | §17.4, §10.3 |
 
 ### Umsetzung — Referenz
 
@@ -1515,11 +1529,27 @@ Authentifizierung bleibt unverändert (JWT bzw. API-Key/`InternalApiKey`). Für 
 **unerheblich, ob ein Aufruf intern oder extern ist** — auch externe Aufrufer authentifizieren sich
 über denselben Key-Mechanismus.
 
-- Das Subject wird **immer gleich** aus dem authentifizierten Kontext gebaut (`AbacSubjectFactory`:
-  Claims `Id`, `OId`, `Roles`, `Teams`). Der `ApiKeyAuthenticationHandler` setzt `Id`/`OId` bereits;
-  interne Aufrufe übernehmen Org-/User-Kontext wie bisher über `RequestContextActionFilter`.
+- Das Subject wird **immer gleich** gebaut (`AbacSubjectFactory`): **nur** `Id` und `OId` (optional
+  `Email`) kommen aus den Claims des authentifizierten Kontexts. Der `ApiKeyAuthenticationHandler`
+  setzt `Id`/`OId` bereits; interne Aufrufe übernehmen Org-/User-Kontext wie bisher über
+  `RequestContextActionFilter`. Login-/Token-Endpunkt bleiben **unverändert**.
+- **`Roles`/`Teams` werden serverseitig aufgelöst** *(entschieden 2026-11-05, löst die
+  Claim-basierte Variante ab)*: `IAbacSubjectAttributeProvider` ruft
+  `GET {Scheme}://{InternalHosts:identity}/identity-api/{ApiVersion}/internal/AbacSubject/attributes?userId=…&organizationId=…`
+  (Internal-API-Key, gleiche Verdrahtung wie die Rule-Set-Sync; Override `Abac:Subject:BaseUrl`).
+  Identity liefert die **aktuellen** Werte: Rollen = `user.Roles` ∪ Rollen der Org-Mitgliedschaft
+  (Organization-Service), Teams = Teams des Users in dieser Organisation (Organization-Service).
+  Antwort: `{ "roles": [...], "teams": [{ "id", "name" }], "email" }`; 404 = kein Mitglied,
+  503 = Quelle nicht erreichbar.
+- **Cache:** L1 (`IMemoryCache`) + Redis (`IDistributedCache`), Key `abac:subject:{orgId}:{userId}`,
+  gemeinsame absolute Ablaufzeit `Abac:Subject:Ttl` (**Default 30 s**). Die TTL **begrenzt die
+  Verzögerung beim Entzug** von Rollen/Teams; Fehler werden nicht gecacht. Timeout des Lookups:
+  `Abac:Subject:Timeout` (Default 3 s).
+- Begründung: Rollen/Teams im Token wären bis zum Ablauf unveränderlich (Entzug wirkt verspätet),
+  blähen das Token auf und koppeln die Autorisierung an den Token-Aussteller.
 - Gleiche Engine, gleiche Deny-First-Semantik, **kein** Bypass für interne Aufrufe.
-- Fehlt nach der Authentifizierung ein gültiger Org-/User-Kontext → kein Subject → **DENY**.
+- Fehlt nach der Authentifizierung ein gültiger Org-/User-Kontext, ist der User kein Mitglied der
+  Organisation oder ist der Identity-Lookup nicht verfügbar → kein Subject → **DENY** (fail-closed).
 
 **Anonyme Aufrufe:**
 - Anonym → **immer DENY** auf allen Actions, die Daten ausgeben.
@@ -1701,7 +1731,7 @@ Diese Such-Integration füllt die bereits vorgesehenen, aber noch leeren Baustei
 ### 18.9 Request-Pfad
 
 ```
-User-Attribute (JWT)
+User-Attribute (Id/OId aus JWT/API-Key; Roles/Teams per Identity-Lookup, gecacht)
       │
       ▼
  ABAC-Engine ──► Mongo-Prädikat ──────► MongoDB

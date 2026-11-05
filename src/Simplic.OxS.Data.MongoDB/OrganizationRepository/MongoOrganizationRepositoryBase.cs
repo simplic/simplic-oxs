@@ -1,6 +1,8 @@
 using HotChocolate;
 using HotChocolate.Data;
 using MongoDB.Driver;
+using Simplic.OxS.ABAC.Policy;
+using Simplic.OxS.Data.MongoDB.Abac;
 
 namespace Simplic.OxS.Data.MongoDB
 {
@@ -15,6 +17,50 @@ namespace Simplic.OxS.Data.MongoDB
         {
             this.context = context;
             this.requestContext = requestContext;
+        }
+
+        /// <summary>
+        /// Initializes the repository with an optional ABAC read-filter provider (§7.6).
+        /// </summary>
+        protected MongoOrganizationRepositoryBase(IMongoContext context, IRequestContext requestContext, IAbacReadFilterProvider? abacReadFilterProvider)
+            : this(context, requestContext)
+        {
+            AbacReadFilterProvider = abacReadFilterProvider;
+        }
+
+        /// <summary>
+        /// Opt-in ABAC read action (e.g. <c>oxs:contact:read</c>). When set and an
+        /// <see cref="AbacReadFilterProvider"/> is available, all reads (<c>GetAsync</c>,
+        /// <c>GetByFilterAsync</c>, <c>GetAllAsync</c>, <c>FindAsync</c>, <c>CountAsync</c>,
+        /// <c>GetCollection</c>) AND the ABAC MongoDB filter of this action. A complete deny throws
+        /// <see cref="AbacAccessDeniedException"/> (→ 403); a single document filtered out by resource
+        /// conditions is returned as <c>null</c> (→ 404). Default: <c>null</c> (ABAC disabled).
+        /// </summary>
+        protected virtual string? AbacReadAction => null;
+
+        /// <summary>
+        /// Gets or sets the ABAC read-filter provider. Can be injected via the constructor overload
+        /// or set as property. When <c>null</c>, no ABAC read filter is applied.
+        /// </summary>
+        public IAbacReadFilterProvider? AbacReadFilterProvider { get; set; }
+
+        /// <summary>
+        /// ANDs the ABAC read filter of <see cref="AbacReadAction"/> into <paramref name="filter"/>.
+        /// Returns <paramref name="filter"/> unchanged when ABAC is not configured for this repository
+        /// or suppressed via <see cref="AbacDataScope.SuppressReadFilter"/>.
+        /// </summary>
+        /// <exception cref="AbacAccessDeniedException">The read action is denied entirely.</exception>
+        protected async Task<FilterDefinition<TDocument>> ApplyAbacReadFilterAsync(FilterDefinition<TDocument> filter, CancellationToken ct = default)
+        {
+            var action = AbacReadAction;
+            if (string.IsNullOrWhiteSpace(action) || AbacReadFilterProvider == null || AbacDataScope.IsReadFilterSuppressed)
+                return filter;
+
+            var decision = await AbacReadFilterProvider.GetReadFilterAsync(action, ct);
+            if (decision == null || decision.Decision != AbacDecision.Allow)
+                throw new AbacAccessDeniedException(action);
+
+            return filter.ApplyAbacFilter(decision.MongoDbFilterJson);
         }
 
         public override async Task<TDocument> GetAsync(Guid id)
@@ -66,7 +112,9 @@ namespace Simplic.OxS.Data.MongoDB
             if (collation != null)
                 findOptions.Collation = collation;
 
-            return Collection.Find(BuildFilterQuery(predicate), findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
+            var query = await ApplyAbacReadFilterAsync(BuildFilterQuery(predicate));
+
+            return Collection.Find(query, findOptions).Sort(sort).Skip(skip).Limit(limit).ToList();
         }
 
         public async Task<IEnumerable<TDocument>> GetAllAsync()
@@ -95,7 +143,9 @@ namespace Simplic.OxS.Data.MongoDB
                         // Using an empty guid to prevent reading data from all Organizations.
                         ?? Guid.Empty;
 
-            return (await Collection.FindAsync(BuildFilterQuery(filter)))
+            var query = await ApplyAbacReadFilterAsync(BuildFilterQuery(filter));
+
+            return (await Collection.FindAsync(query))
                     .ToEnumerable();
         }
 
@@ -137,7 +187,38 @@ namespace Simplic.OxS.Data.MongoDB
         /// <inheritdoc/>
         public async Task<IExecutable<TDocument>> GetCollection()
         {
-            return context.GetCollection<TDocument>(GetCollectionName()).Find(x => x.OrganizationId == requestContext.OrganizationId).AsExecutable();
+            var filter = await ApplyAbacReadFilterAsync(
+                Builders<TDocument>.Filter.Where(x => x.OrganizationId == requestContext.OrganizationId));
+
+            return context.GetCollection<TDocument>(GetCollectionName()).Find(filter).AsExecutable();
+        }
+
+        /// <summary>
+        /// Returns the count of documents matching the filter, scoped to the organization like
+        /// <c>FindAsync</c>/<c>GetByFilterAsync</c>. When an ABAC read action is configured,
+        /// the ABAC read filter is applied as well.
+        /// </summary>
+        /// <param name="predicate">The filter predicate</param>
+        /// <param name="collation">Collation options</param>
+        /// <returns>Number of expected elements</returns>
+        public override async Task<long> CountAsync(TFilter predicate, Collation collation = null)
+        {
+            await Initialize();
+
+            var countOption = new CountOptions();
+            if (collation != null)
+                countOption.Collation = collation;
+
+            predicate.OrganizationId = predicate.OrganizationId.HasValue
+                ? predicate.OrganizationId
+                : predicate.QueryAllOrganizations
+                    ? null
+                    : requestContext.OrganizationId
+                        // Using an empty guid to prevent reading data from all Organizations.
+                        ?? Guid.Empty;
+
+            var query = await ApplyAbacReadFilterAsync(BuildFilterQuery(predicate));
+            return await Collection.CountDocumentsAsync(query, countOption);
         }
     }
 

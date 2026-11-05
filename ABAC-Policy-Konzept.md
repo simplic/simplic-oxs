@@ -1,8 +1,8 @@
 # ABAC Policy Engine – Ausgearbeitetes Konzept
 
-**Version:** 1.0  
-**Datum:** Mai 2026  
-**Status:** Ausgearbeitet Konzept
+**Version:** 1.1  
+**Datum:** Oktober 2026  
+**Status:** In Umsetzung
 
 ---
 
@@ -16,6 +16,11 @@ Ein **Attribute-Based Access Control (ABAC)** System mit Policy-Engine für fein
 - **Implizites Deny**: Standardmäßig Zugriff verweigert (Zero-Trust)
 - **Allow-All-Fallback**: Optional Basis-Policy für vollständigen Zugriff
 - **Redis-Caching**: Multi-Level Cache für Policies und Decisions
+- **Service-lokale Persistenz**: Jeder Service hält die für ihn relevanten Compiled Rules
+  durable in seiner eigenen DB (Redis = heißer Cache, §12.6)
+- **Identity = Quelle der Wahrheit**: Policies **und** Feld-Mappings werden zentral in
+  Identity verwaltet und an die Services synchronisiert (§12.6, §12.7)
+- **Durchsetzung im Data-Layer**: Jeder Egress-Kanal erbt die Filter (§7.6)
 
 ---
 
@@ -45,6 +50,14 @@ Ein **Attribute-Based Access Control (ABAC)** System mit Policy-Engine für fein
     │ - typed AST metadata    │
     │ - Pre-built Filters     │
     │ - TTL/Invalidation      │
+    └──────┬──────────────────┘
+           │  Event (Push) + Pull-API (§12.6)
+    ┌──────▼──────────────────┐
+    │ Service-lokaler Rule-   │
+    │ Store (Service-DB)      │
+    │ - relevante Compiled    │
+    │   Rules (durable)       │
+    │ - Sync/Max-Age 1h       │
     └──────┬──────────────────┘
            │
     ┌──────▼─────────────┐
@@ -81,6 +94,13 @@ Kompiliert Raw JSON Policies zu optimierten Compiled Policies:
 - Kanonisches JSON der Conditions
 - Invalidation bei Policy-Änderung
 - TTL: 60 Minuten (or until invalidated)
+
+#### Service-lokaler Rule-Store + Sync (§12.6)
+- Shared-Library-Komponente (`Simplic.OxS.Data.MongoDB/Abac`), von jedem Service nur registriert
+- Persistiert die für den Service relevanten Compiled Rules in dessen eigener MongoDB
+  (Collection `abac.compiled-rules`)
+- Bus-Consumer (Push-Trigger) + Sync-Job (Pull bei Bootstrap, Max-Age, Reconciliation)
+- Durable Quelle für den Runtime-Reader, wenn Redis kalt/nicht verfügbar ist
 
 #### Policy Evaluator
 - Evaluiert Compiled Policies gegen Subject
@@ -183,13 +203,40 @@ public class Rule
 ```csharp
 Subject
 ├── User
-│   ├── Id
-│   └── Email
-├── Roles (string[])
-└── Teams (Team[])
+│   ├── Id              // JWT-/API-Key-Claim `Id`
+│   └── Email           // Claim `Email` falls vorhanden, sonst aus dem Identity-Lookup
+├── OrganizationId      // JWT-/API-Key-Claim `OId`
+├── Roles (string[])    // serverseitig: Identity-Lookup (gecacht), NICHT aus dem Token
+└── Teams (Team[])      // serverseitig: Identity-Lookup (gecacht), NICHT aus dem Token
     ├── Id
     └── Name
 ```
+
+**Herkunft der Attribute** *(entschieden 2026-11-05, siehe §17.4)*: Nur `Id` und `OId` (optional
+`Email`) stammen aus dem authentifizierten Kontext. `Roles`/`Teams` werden zur Zugriffszeit über
+den internen Identity-Endpunkt `internal/AbacSubject/attributes` aufgelöst und je
+(`OrganizationId`, `UserId`) gecacht (`Abac:Subject:Ttl`, Default 30 s).
+
+#### Service-lokal gespeicherte Compiled Rules (§12.6)
+
+Collection `abac.compiled-rules` in der DB **jedes** Fach-Services (Shared-Library-Komponente).
+Gespeichert werden die **vollständigen** Compiled Rules der eigenen Actions — die Filter allein
+reichen nicht, da der Evaluator auch Subject-Conditions/Effect/Action-Patterns benötigt.
+
+```csharp
+public class StoredCompiledRuleSet
+{
+    public Guid OrganizationId { get; set; }        // immer org-scoped
+    public string SetId { get; set; }               // Set aus Identity (§12.5)
+    public string EngineSchemaVersion { get; set; }
+    public bool IsActive { get; set; }              // aktiver vs. vorheriger Set
+    public bool IsConfirmedEmpty { get; set; }      // Identity bestätigt: Org hat KEINE Policies (§6.4)
+    public DateTime SyncedAt { get; set; }          // Basis für Max-Age (1h) / Hard-Limit (24h)
+    public IList<CompiledRule> Rules { get; set; } = []; // nur Rules mit Actions dieses Services
+}
+```
+
+Indizes: `{ OrganizationId: 1, IsActive: 1 }` (unique für aktive Sets), `{ OrganizationId: 1, SetId: 1 }`.
 
 ---
 
@@ -246,6 +293,8 @@ Zugriff nur wenn:
 ### 5.2 Praktische Implikationen
 
 - **Keine Policy definiert** → Zugriff verweigert
+  (*Ausnahme während des Rollouts:* temporärer Allow-All-Fallback bei **von Identity
+  bestätigtem** leerem Policy-Set, siehe §6.4)
 - **Nur Deny-Rules definiert** → Allow nur falls kein Deny matched
 - **Action nicht in Policies genannt** → Implizites Deny
 - **Subject matched keine Bedingungen** → Implizites Deny
@@ -286,6 +335,33 @@ Allow alles, ABER:
   - etc.
 ```
 
+### 6.4 Rollout: Bestehende & neue Organisationen
+
+**Neue Organisationen:** Bei Anlage wird die Allow-All-Basis-Policy (§6.2) automatisch
+geseedet. Die Organisation schränkt sie danach über Deny-/spezifische Allow-Rules ein.
+
+**Bestehende Organisationen (Erst-Rollout):** Statt jede Org vorab zu seeden, gilt ein
+**temporärer impliziter Allow-All-Fallback**, wenn für eine Organisation **keine Policy**
+existiert. Damit bleibt das Verhalten beim Einschalten von ABAC unverändert.
+
+**Sicherheitsregeln (verbindlich):**
+- Der Fallback greift **nur**, wenn Identity für die Org ein **bestätigt leeres** Policy-Set
+  ausgeliefert hat (expliziter Marker `IsConfirmedEmpty` im synchronisierten Set, §3/§12.6).
+- **Fehlende, nicht ladbare oder über das Hard-Limit (24h) veraltete Daten** führen weiterhin
+  zu **DENY** — ein Redis-/Sync-Ausfall darf niemals stillschweigend Vollzugriff gewähren.
+- Sobald die Org mindestens eine Policy besitzt, gilt normales Zero-Trust (§5).
+- Der Fallback ist **übergangsweise**: gesteuert über eine globale bzw. per-Org-Einstellung
+  und wird nach Abschluss des Rollouts entfernt (dann wieder striktes Zero-Trust).
+
+**Steuerung der Einstellung** *(entschieden 2026-10-26)*:
+- **Globaler Default** per App-Konfiguration in Identity: `Abac:Rollout:AllowAllWhenEmpty`
+  (`true` während des Rollouts, danach `false`).
+- **Per-Org-Override** als Organisations-Setting über die bestehende Bibliothek
+  `Simplic.OxS.Settings` (`IOrganizationSettingsProvider`) in Identity.
+- **Schreiben nur mit Rolle `owner`** (sicherheitsrelevanter Fail-Open-Schalter, strenger als §10.3).
+- Identity liefert den effektiven Wert **mit dem Set** aus (Flag neben `IsConfirmedEmpty`); Services
+  lesen die Einstellung nicht selbst, damit Entscheidung und Daten konsistent bleiben.
+
 ---
 
 ## 7. Service ↔ Datenbank Integration
@@ -300,6 +376,7 @@ Service (z.B. ASP.NET Core)
   │
   ├─► Policy Loading (mit Redis Cache)
   │   └─► Policies aus Cache/Config/DB laden
+  │       (durable Quelle je Service = eigene Service-DB, §12.6; Redis = heißer Cache)
   │
   ├─► Action Mapping
   │   └─► HTTP-Request → ABAC-Action
@@ -309,7 +386,7 @@ Service (z.B. ASP.NET Core)
       │
       ├─► Regelauswertung (Subject/Action)
       │
-      ├─► Wenn Deny → 403 Forbidden
+      ├─► Wenn Deny (Action) → 403 Forbidden  (Details §7.5)
       │
       ├─► Wenn Allow → MongoDB-Filter bauen
       │
@@ -396,6 +473,77 @@ Für Read-Many (Mongo/Search/SignalR Broadcast-Filter).
 ```
 
 **Wichtig:** `Authorize` nutzt Kurzschluss-Deny-First; `BuildFilter` nutzt formale Filterkombination.
+
+**Verbindlich — beide Modi kombinieren:** Der parameterlose `Authorize(org, action)`-Aufruf
+(ohne Resource) wertet **keine Resource-Conditions** aus: bedingte Deny-Regeln (Deny mit
+Resource-Bedingung) werden hier bewusst ignoriert. Er beantwortet nur, ob der Subject die Action
+**grundsätzlich** – auf *irgendeiner* Ressource – ausführen darf. Als **alleinige** Absicherung eines
+datenliefernden Pfads ist er damit **unzureichend** und kann Datensätze durchlassen, die eine
+bedingte Deny-Regel verbergen würde. Er **muss** daher immer mit der Datenebenen-Prüfung kombiniert
+werden – der Resource-Überladung `Authorize(org, action, resource)` für Einzelobjekte bzw.
+`BuildListFilterAsync` / `BuildSearchFilterAsync` für Read-Many. Standalone ist der parameterlose
+Aufruf nur für grobes Endpoint-Reachability-Gating zulässig. (Der org-scoped Repository-Basistyp
+wendet `BuildListFilterAsync` über `IAbacReadFilterProvider` nur an, wenn das abgeleitete Repository
+`AbacReadAction` überschreibt **und** ein `IAbacReadFilterProvider` verfügbar ist. Standardmäßig ist
+`AbacReadAction` `null` – ohne dieses Opt-in wird **kein** ABAC-Filter angewendet, §7.6.)
+
+### 7.5 Response-Semantik bei Deny (verbindlich)
+
+| Operation | Situation | Response |
+|-----------|-----------|----------|
+| **List / Search** (Read-Many) | Action für den Subject komplett verweigert (keine passende Allow-Rule / Blanket-Deny) | **403 Forbidden** |
+| **List / Search** | Action erlaubt, aber keine Daten matchen die Resource-Filter | **200** mit **leerer Liste** |
+| **Single Read** | Action verweigert | **403 Forbidden** |
+| **Single Read** | Action erlaubt, Ressource existiert, wird aber durch Resource-Conditions herausgefiltert | **404 Not Found** (kein Existenz-Leak) |
+| **Commands** (Create/Update/Delete) | Deny | **403 Forbidden** |
+
+Anonyme Aufrufe (kein Subject) auf ABAC-geschützten Endpunkten → Deny (§17.4).
+
+### 7.6 Egress-Kanäle – Durchsetzung im Data-Layer
+
+ABAC wird **im gemeinsamen Data-Layer** (Repository / Mongo-Filter-Erweiterung) durchgesetzt,
+sodass **jeder** Kanal, der über das Repository liest, die Filter automatisch erbt.
+Kanal-spezifische Durchsetzung nur dort, wo kein Repository genutzt wird.
+
+Abgedeckte Kanäle:
+- **REST-Controller** (List/Read/Commands)
+- **GraphQL (HotChocolate)** — Queries und Subscriptions
+- **gRPC-Endpunkte**
+- **Exports / Reports / Datei-Downloads**
+- **Internal Client** (Service-zu-Service-Antworten; gleiches Subject wie externe Aufrufer, §17.4)
+- **Suche (Elasticsearch)** — eigener Pfad über `BuildSearchFilterAsync` (§18)
+- **SignalR** — Broadcast-Filter (offen, §13.1)
+
+**Message-Bus-Events (vorläufige Regel):** Events mit Entitätsdaten werden nicht pro
+Empfänger gefiltert. Stattdessen gilt: Hat eine Organisation **irgendeine relevante
+Deny-Regel** für die betroffenen Daten definiert, ist das **Joinen/Konsumieren dieser Daten
+über den Bus für diese Organisation verboten**. Einfachste sichere Lösung für den Start;
+feingranulare Event-Filterung ist spätere Arbeit.
+
+**Konkretisierung** *(entschieden 2026-10-26)*:
+
+*Data-Layer:* Durchsetzung im Repository-Basistyp von `Simplic.OxS.Data.MongoDB`
+(org-scoped Repository): Lesezugriffe (`Get`, `GetByFilter`, `GetAll`, Paging, `Count`) ANDen den
+ABAC-Mongo-Filter der jeweiligen `read`-Action **nur im Opt-in**: Das abgeleitete Repository muss
+`AbacReadAction` überschreiben (Default `null`) und es muss ein `IAbacReadFilterProvider`
+verfügbar sein. Fehlt eines davon, wird **kein** ABAC-Filter angewendet. Kanäle in der Shared Library:
+- **GraphQL:** `GraphQLExtension.UseGraphQL` (HotChocolate + Mongo-Filtering/Paging) — Resolver
+  müssen ihre Daten über das Repository bzw. einen ABAC-gefilterten `IExecutable` beziehen.
+- **gRPC:** `GrpcSecurityInterceptor`/`GrpcAuthenticationMiddleware` setzen Subject/Org-Kontext
+  wie die HTTP-Pipeline; die Daten kommen über das Repository.
+- **Internal Client:** leitet Org-/User-Kontext und Service-Namen weiter (§17.4).
+- **Exports/Reports:** liegen in den einzelnen Fach-Services; sie müssen das Repository nutzen.
+  Jeder Service erstellt beim ABAC-Rollout ein **Egress-Inventar** (Liste aller Endpunkte mit
+  Datenausgabe + Nachweis der Repository-Nutzung).
+
+*Message-Bus:*
+- **Publisher** bleiben unverändert (keine Filterung beim Senden).
+- **Consumer, die ungeschützte Kopien bilden** (Read-Models, Denormalisierung, Joins fremder
+  Domänendaten): prüfen pro Nachricht, ob die Org eine Deny-Rule mit Action-Pattern für die
+  betroffene `read`-Action besitzt (lokaler Rule-Store, §12.6). Wenn ja → Nachricht **acken und
+  überspringen** (nicht verwerfen für andere Consumer), Log + Metrik `abac_bus_skipped`.
+- **Ausgenommen** sind Consumer, deren Ziel ABAC selbst durchsetzt — insbesondere die
+  **Such-Indexierung** (Durchsetzung zur Query-Zeit über `security.*`, §18).
 
 ---
 
@@ -603,6 +751,30 @@ if (errors.Any())
 }
 ```
 
+### 10.3 Policy-Verwaltung: Berechtigung & Audit
+
+**Berechtigung der Admin-Endpunkte** (Policies **und** Feld-Mappings, §12.7) — beide Bedingungen
+müssen erfüllt sein:
+1. **Rollen-Gate (außerhalb von ABAC):** Nur User mit Rolle **`owner`** oder **`admin`** dürfen die
+   Endpunkte überhaupt aufrufen. Das verhindert, dass sich eine Organisation über eine
+   fehlerhafte Policy selbst aussperrt.
+2. **ABAC:** Zusätzlich über eigene Actions geschützt:
+   `oxs:abac-policy:read`, `oxs:abac-policy:write`, `oxs:abac-policy:activate`
+   (analog für Mappings `oxs:abac-mapping:*`).
+
+~~**Rollen-Quelle** *(entschieden 2026-10-26)*: JWT-Claim `Roles`
+(JSON-Array, wie von `AbacSubjectFactory` gelesen) enthält `owner` oder `admin`.~~
+*(abgelöst durch Entscheidung vom 2026-11-05)*
+
+**Rollen-Quelle** *(entschieden 2026-11-05)*: Die **aktuellen** Rollen des Users in der
+Organisation (serverseitiger Identity-Lookup, §17.4: `user.Roles` ∪ Rollen der
+Org-Mitgliedschaft) enthalten `owner` oder `admin` (Vergleich case-insensitive). Ein
+`Roles`-Claim im Token wird ignoriert; Nicht-Mitglied oder Lookup nicht verfügbar → **DENY**.
+Ausnahme: der Rollout-Schalter (§6.4) nur `owner`.
+
+**Audit:** Jede Änderung wird in einer **unveränderlichen Änderungshistorie** in Identity
+abgelegt: wer, wann, Vorher/Nachher-Diff, und welcher `setId` aktiviert wurde.
+
 ---
 
 ## 11. Action Naming Convention
@@ -667,6 +839,26 @@ oxs:*:read     → Does NOT match (Wildcard nicht am Ende)
 ❌ oxs:*:*        (mittleres * ohne Sonderbedeutung)
 ❌ oxs:*:read     (Wildcard nicht am Ende)
 ```
+
+### 11.4 Such-Actions (verbindlich)
+
+Für die Suche gibt es **kein eigenes Verb**. Suchen über einen Datentyp erfordert die
+**Lese-Action** dieses Typs:
+
+```
+Suche mit dataType = X   →  oxs:{X}:read
+```
+
+**Typübergreifende Suche** (kein `dataType` angegeben): Der Filter wird **pro Datentyp**
+gebildet und per OR kombiniert — in **einer** ES-Query:
+
+```
+OR über alle Datentypen X, für die der Subject oxs:{X}:read besitzt:
+    ( dataType = X  AND  ABAC-Filter(oxs:{X}:read) )
+```
+
+Datentypen ohne Leserecht sind damit ausgeschlossen. Hat der Subject für **keinen** Datentyp
+Leserecht → **403** (§7.5).
 
 ---
 
@@ -760,6 +952,18 @@ Policies werden **einmalig kompiliert** und dann **nur in kompilierter Form** ge
 
 2. Alle Decision Caches der Org löschen
    Pattern: abac:decision:{orgX}:*
+
+3. Service-lokale Rule-Stores (§12.6): Org-Löschung wird per Event propagiert;
+   jeder Service löscht alle `abac.compiled-rules`-Einträge der Org
+```
+
+**Service-lokale Rule-Stores bei Policy-Änderung (§12.6)**
+```
+1. Identity publiziert Event "Set aktiviert" (orgId, setId, engineSchemaVersion)
+2. Jeder Service pullt den neuen Set, filtert lokal auf seine Actions,
+   schreibt ihn vollständig und schaltet IsActive atomar um
+3. Ältere Sets als der vorherige werden gelöscht (Retention: aktiv + vorheriger)
+4. Betroffene Decision-Caches der Org invalidieren
 ```
 
 ### 12.4 Compile Contract (wie der Compiler ohne Runtime-Business-Context korrekt baut)
@@ -778,6 +982,8 @@ Nur wenn alle 3 Teile für eine Action vorhanden sind, wird kompiliert.
 **Ownership-Modell:**
 - Der Contract wird zentral im ABAC-Compiler/Policy-Repo versioniert.
 - Fach-Services liefern Änderungen über PRs (neue Actions/Felder/Mapping), aber der zentrale Compiler bleibt die einzige Quelle für das effektive Compile-Verhalten.
+- **Feld-Mappings** sind **per Organisation** in Identity verwaltet (Quelle der Wahrheit, §12.7);
+  die statische Konfig `Abac:CompileContract:FieldMappings` ist nur ein Übergang.
 
 ### 12.5 Versions-Rollout für Reader-Kompatibilität
 
@@ -794,37 +1000,256 @@ Nur wenn alle 3 Teile für eine Action vorhanden sind, wird kompiliert.
 **Grace-Period (Startwert):**
 - Alte Sets bleiben standardmäßig **7 Tage** erhalten.
 
+### 12.6 Service-lokale Persistenz der relevanten Compiled Filter (verbindlich)
+
+**Anforderung:** Jeder Fach-Service **muss** die für ihn relevanten ABAC-Filter
+(die vorkompilierten Mongo-/Search-Filter der Actions, die er bedient) **in seiner
+eigenen Service-Datenbank** persistieren. Redis bleibt der **heiße Cache**, ist aber
+**nicht** die Quelle der Wahrheit für den einzelnen Service — ein flüchtiger Cache
+(Eviction, Cold Start, Redis-Ausfall) darf die Autorisierung nicht unmöglich machen.
+
+**Begründung:**
+- **Fail-Closed-Resilienz.** Ohne durable Kopie würde ein leerer/ausgefallener Redis
+  bei Fail-Closed-Semantik (§5, §18) **alles** auf DENY setzen → faktischer Ausfall
+  des Services. Die Service-DB garantiert, dass der Runtime-Reader auch bei kaltem
+  Cache einen gültigen aktiven Set findet.
+- **Service-Autonomie & Entkopplung.** Der Query-Pfad eines Services hängt zur Laufzeit
+  nicht mehr synchron an Identity/zentralem Store; jeder Service besitzt die Filter,
+  die er zur Durchsetzung braucht.
+- **Nur relevanter Ausschnitt.** Ein Service speichert **ausschließlich** die Filter
+  seiner eigenen Actions/Ressourcen — nicht den gesamten Policy-Bestand der Organisation.
+
+**Modell (Hybrid: Push-Trigger + Pull):**
+```
+Identity (Compiler, Quelle der Wahrheit)
+   │  kompiliert aktiven Set (Version + setId, §12.5)
+   │
+   ├─► PUSH: Event "AbacPolicySetActivated" (orgId, setId, engineSchemaVersion)
+   │         über MassTransit/RabbitMQ (Simplic.OxS.MessageBroker) — nur Trigger
+   │
+   └─◄ PULL-API: liefert den vollständigen aktiven Set der Org
+                  (inkl. Marker IsConfirmedEmpty, wenn die Org keine Policies hat)
+   ▼
+Service X (Shared-Library-Komponente)
+   ├─► Bus-Consumer: Event empfangen → Pull auslösen
+   ├─► Sync-Job: Pull bei Bootstrap/neuer Org, bei Max-Age-Überschreitung,
+   │             periodische Reconciliation
+   ├─► filtert den Org-Set LOKAL auf die eigenen Action-Prefixes
+   ├─► persistiert die relevanten vollständigen Compiled Rules in `abac.compiled-rules`
+   ├─► optional in Redis gespiegelt (heißer Cache)
+   └─► Runtime-Reader: Redis → Service-DB → DENY
+```
+
+**Entscheidungen:**
+- **Propagation: Hybrid.** Das Event ist nur ein Trigger; die Daten kommen immer über die
+  Pull-API. Bootstrap (neuer Service, neue Org, leere DB) und Reconciliation laufen ebenfalls
+  über Pull. Verlorene/doppelte Events sind dadurch unkritisch (Pull ist idempotent).
+- **Relevanz: lokal gefiltert.** Identity liefert den **vollständigen Org-Set**; jeder Service
+  filtert lokal auf die Rules, deren Action-Patterns seine eigenen Actions betreffen. Identity
+  benötigt dafür **kein** Service→Action-Register.
+- **Gespeicherter Inhalt: vollständige Compiled Rules** der eigenen Actions (Action-Patterns,
+  Effect, Subject-Conditions, vorkompilierte Mongo-/Search-Filter, Metadata) — Filter allein
+  reichen für die Evaluierung nicht. Datenmodell: §3.
+- **Aktualität (Max-Age):** Ist der letzte erfolgreiche Sync (`SyncedAt`) älter als **1h**
+  (konfigurierbar), wird **neu gepullt**.
+- **Stale-Fallback:** Schlägt der Re-Pull fehl (Identity nicht erreichbar), arbeitet der Service
+  mit den veralteten Daten weiter (Warn-Log + Alert), **bis zum Hard-Limit von 24h**
+  (konfigurierbar). Danach → **DENY** (Fail-Closed).
+- **Implementierung: Shared Library** (`Simplic.OxS.Data.MongoDB/Abac`): Collection
+  `abac.compiled-rules`, Bus-Consumer und Sync-Job; jeder Service registriert sie nur.
+- **Retention:** Nur **aktiver + vorheriger** Set (schnelles Rollback); ältere Sets werden nach
+  erfolgreicher Aktivierung gelöscht.
+- **Schreibschutz:** Ausschließlich die Sync-Komponente schreibt; **keine** API und kein
+  Repository bietet Schreibzugriff auf die Collection.
+
+**Regeln:**
+- **Set-/Versions-Semantik** wie §12.5: ein neuer Set wird vollständig geschrieben, dann
+  `IsActive` atomar umgeschaltet.
+- **Reader-Reihenfolge:** Redis (heiß) → Service-DB (durable) → DENY, wenn kein gültiger
+  (≤ Hard-Limit) aktiver Set vorliegt. Ein Treffer in der DB **befüllt** den Redis-Cache neu.
+- **Leere Org:** Nur ein Set mit `IsConfirmedEmpty = true` darf den temporären
+  Allow-All-Fallback auslösen (§6.4); fehlende Daten nie.
+- **Invalidation/Update:** Bei neuem Set Decision-Caches der Org invalidieren (§12.3).
+- **Isolation:** Einträge sind **immer** `{orgId}`-scoped (§12.2).
+- **Engine-Version:** Nur bekannte `engineSchemaVersion`; Mismatch ohne Fallback → DENY (§12.5).
+
+> Status: **offen** — derzeit liest der Runtime-Reader (`AbacPolicyReader`) ausschließlich
+> aus Redis. Store, Consumer, Sync-Job und Pull-API sind noch nicht implementiert (§13.1).
+
+### 12.7 Feld-Mappings: Identity als Quelle der Wahrheit (verbindlich)
+
+Feld-Mappings verbinden **Policy-Feld ↔ Security-Key/-Typ ↔ JSON-Pfad (pro `dataType`)**.
+Sie werden **per Organisation in Identity** verwaltet — Identity ist die einzige Quelle der
+Wahrheit, damit Compiler (Query-Seite) und Such-Materialisierung (Index-Seite) nie auseinanderlaufen.
+
+- Der **Compiler** liest die Org-Mappings direkt (ersetzt die statische, globale Konfig
+  `Abac:CompileContract:FieldMappings`).
+- Der **Such-Service** synchronisiert die Org-Mappings auf dem **gleichen Hybrid-Weg** wie
+  Policies (Event + Pull, Max-Age, §12.6) und materialisiert damit `security.*` (§18.11).
+- Eine Mapping-Änderung löst in Identity einen Recompile **und** im Such-Service den Reindex
+  der Org aus.
+- Verwaltung nur über die Admin-API (Rollen-Gate owner/admin + ABAC, Audit, §10.3).
+
+> **Migration:** Die bereits implementierte, search-lokale `SecurityAttributeConfig`-CRUD
+> (§18.11 Schritt 4) wird zur **synchronisierten Kopie** (ohne eigenen Schreib-Endpunkt);
+> CRUD und Konfig-Modell wandern nach Identity (§13.1).
+
+**Zusammengeführtes Modell** *(entschieden 2026-10-26)*:
+
+Heute existieren zwei Modelle: global `AbacFieldMapping` (Identity-Konfig: Feld, `MongoDbPath`,
+`SearchPath`, `SearchValuePrefix`) und per Org `SecurityAttributeConfig` (Search:
+`securityKey`, `jsonPath`, `type`, optional je `DataType`). Ziel ist **ein** per-Org-Modell in Identity:
+
+```
+AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versioniert)
+├── OrganizationId
+├── Version
+└── Mappings[]
+    ├── Field          Policy-Feldname (z.B. "department")
+    ├── Type           principal | classification | attribute
+    ├── SecurityKey    Schlüssel im ES-security-Block (Default = Field)
+    ├── MongoDbPath    Pfad im Fach-Dokument für den Mongo-Filter
+    └── JsonPaths      { dataType → jsonPath }  ("" = Default für alle Typen)
+```
+
+- `SearchPath`/`SearchValuePrefix` werden **abgeleitet**, nicht gepflegt:
+  `attribute` → `security.attributes.{SecurityKey}`; `principal` → `security.principals` mit Präfix
+  `{SecurityKey}:`; `classification` → `security.classification`.
+- Der Such-Service leitet seine `SecurityAttributeConfig` (je `DataType`: `securityKey`, `jsonPath`,
+  `type`) deterministisch aus diesem Modell ab — Compiler und Materialisierung nutzen dieselbe Quelle.
+- **Migration:** einmaliger Job importiert die bestehenden `SecurityAttributeConfig` jeder Org aus
+  dem Such-Service (interner Endpunkt) nach Identity. Bis zur Migration einer Org bleibt die statische
+  Konfig `Abac:CompileContract:FieldMappings` als globaler Fallback aktiv; danach entfällt sie.
+
 ---
 
 ## 13. Implementierungs-Checkliste
 
+> **Stand:** 2026-10-26. Status basiert auf einer Code-Prüfung über beide Repos
+> (`simplic-oxs` = Read-/Runtime-Seite, `simplic-oxs-identity` = Write-/Compiler-Seite)
+> sowie dem Such-Microservice `simplic-oxs-search`.
+> Legende: ✅ fertig · 🟡 teilweise · ❌ offen.
+
 ### Phase 1: Foundation
-- [ ] Policy Engine Core (Validierung, Evaluation)
-- [ ] Domain Models (Subject, Policy, Rule)
-- [ ] ABAC DSL Parser/Evaluator
-- [ ] Unit Tests
+- [x] ✅ Policy Engine Core (Evaluation) — `AbacEvaluator` (deny-first), `simplic-oxs`
+- [x] ✅ Domain Models (Subject, Policy, Rule) — `Simplic.OxS.ABAC/*`
+- [x] ✅ ABAC DSL Parser/Evaluator — `ConditionNodeParser`, `AbacConditionEvaluator`, `AbacResourceConditionEvaluator`
+- [x] ✅ Unit Tests — oxs 184, Identity 126, Search 60 (Stand 2026-10-26, alle grün)
+- [x] ✅ Policy-**Validierung** — `AbacPolicyValidator` (Identity) gegen `IAbacCompileContract`; 400 mit Fehlerliste, `POST AbacPolicy/validate`
 
 ### Phase 2: Caching
-- [ ] Redis Connection Management
-- [ ] L1 Decision Cache
-- [ ] L2 Policy Cache
-- [ ] Cache Invalidation
-- [ ] Integration Tests
+- [x] ✅ Redis Connection Management — `RedisExtension`, `IDistributedCache`
+- [x] ✅ L1 Decision Cache — `IMemoryCache` im `AbacEvaluator` (Key enthält SetId; `Abac:L1:Ttl`, Default 30s)
+- [x] ✅ L2 Policy Cache — Schreiben: Identity-Compile + Service-Sync; Lesen: `AbacPolicyReader`
+- [x] ✅ Cache Invalidation — Auto-Recompile bei CRUD (`Abac:AutoCompile`); neue SetId invalidiert L1 implizit
+- [x] ✅ Service-lokaler Rule-Store (§12.6) — `abac.compiled-rules`, Consumer, Sync-Job, Pull-API, Fallback Redis → DB → DENY
+- [~] 🟡 Integration Tests — Testcontainers-Projekte vorhanden (oxs 4, Identity 3, Search 11); **noch nie gegen Docker gelaufen**
 
 ### Phase 3: Integration
-- [ ] MongoDB Filter Compiler
-- [ ] Service Middleware
-- [ ] Subject Extraction (Auth)
-- [ ] E2E Tests
+- [x] ✅ MongoDB Filter Compiler — `AbacMongoFilterBuilder` mit `MongoDbPath`, fail-closed
+- [x] ✅ Service Middleware — CRUD, Compile/Activate, Auto-Recompile, Admin-Gate, Audit
+- [x] ✅ Subject Extraction (Auth) — `AbacSubjectFactory`: `Id`/`OId` aus Claims, `Roles`/`Teams`
+  per serverseitigem Identity-Lookup (`IAbacSubjectAttributeProvider`, L1 + Redis, `Abac:Subject:Ttl`)
+- [ ] ❌ E2E Tests (service-übergreifend inkl. RabbitMQ)
+- [x] ✅ Resource-Condition-Evaluation im `Authorize`-Pfad (Overload mit Resource)
+- [x] ✅ Search-Filter-Pfad inkl. Mapping-Sync aus Identity (Details §18.10)
+- [x] ✅ SignalR-Broadcast-Filter — Helper `IAbacSignalRFilter.CanReceiveAsync` (Hub-Integration je Service)
 
 ### Phase 4: Operations
-- [ ] Monitoring & Metrics
-- [ ] Audit Logging
-- [ ] Performance Tuning
-- [ ] Documentation
+- [x] ✅ Monitoring & Metrics — Meter `Simplic.OxS.Abac` (§16)
+- [x] ✅ Audit Logging — unveränderliche Collection `abac.audit` in Identity
+- [ ] ❌ Performance Tuning (erst nach Lasttests)
+- [x] ✅ Documentation (dieses Konzept)
 
 ---
 
+## 13.1 Offene Arbeiten (priorisiert)
+
+> **Stand 2026-10-26 (Implementierung):** Alle P1–P3-Punkte sind in `simplic-oxs`,
+> `simplic-oxs-identity` und `simplic-oxs-search` implementiert (uncommittet). Build aller drei
+> Solutions grün; Unit-Tests 184 / 126 / 60 grün; Testcontainers-Tests (4 / 3 / 11) werden ohne
+> Docker übersprungen. Verbleibend sind nur noch die unten mit `[ ]` markierten Punkte.
+
+### P0 — Voraussetzung: Release der ABAC-Runtime
+*(entschieden 2026-10-26)*
+- [ ] **ABAC-Runtime committen und als NuGet veröffentlichen.** `Simplic.OxS.ABAC`,
+  `Simplic.OxS.Server/Abac` und `Simplic.OxS.Data.MongoDB/Abac` sind noch uncommittete lokale Arbeit.
+  Release über `azure-pipelines.yml` (NuGet); danach stellen `simplic-oxs-search` **und**
+  `simplic-oxs-identity` (Identity referenziert `Simplic.OxS.ABAC` per ProjectReference) auf
+  **PackageReference** um, Identity zusätzlich auf eine `Simplic.OxS.Server`-Version mit Runtime.
+  Die ProjectReferences (Geschwister-Pfad) dürfen **nicht** gemergt werden.
+- [ ] **Testcontainers-Tests einmal mit Docker ausführen** (CI-Agent mit Docker oder lokal).
+
+### Entscheidungen zu offenen Punkten (Stand 2026-10-26)
+
+| # | Thema | Entscheidung | Status | Abschnitt |
+|---|-------|--------------|--------|-----------|
+| 1 | Aufrufer-Identität | Authentifizierung unverändert (JWT/API-Key); intern = extern, kein Service-Subject | ✅ bestätigt | §17.4 |
+| 2 | Admin-Rollen | ~~JWT-Claim `Roles` enthält `owner`/`admin`~~ — abgelöst durch #8 | ⛔ abgelöst (2026-11-05) | §10.3 |
+| 3 | Feld-Mapping-Modell | Ein per-Org-`AbacFieldMappingSet` in Identity, Search-Konfig abgeleitet, Import-Migration | ✅ bestätigt | §12.7 |
+| 4 | Rollout-Schalter | Global `Abac:Rollout:AllowAllWhenEmpty` + Org-Override, nur `owner` | ✅ bestätigt | §6.4 |
+| 5 | Egress-Kanäle | Durchsetzung im `Simplic.OxS.Data.MongoDB`-Repository; Egress-Inventar je Service | ✅ bestätigt | §7.6 |
+| 6 | Message-Bus | Konsumierende Kopien: acken + überspringen; Such-Indexierung ausgenommen | ✅ bestätigt | §7.6 |
+| 7 | Release | NuGet-Release vor weiterer Integration; ProjectReference nicht mergen | ✅ bestätigt | §13.1 P0 |
+| 8 | Subject-Rollen/Teams *(2026-11-05)* | `Roles`/`Teams` nicht aus dem Token, sondern serverseitiger Identity-Lookup (gecacht, `Abac:Subject:Ttl` = 30 s); Grund: Entzug wirkt zeitnah, alter Auth-Endpunkt bleibt unverändert | ✅ bestätigt | §17.4, §10.3 |
+
+### Umsetzung — Referenz
+
+**Shared Contracts (`Simplic.OxS.ABAC`)**
+- `Sync.AbacPolicySetActivated`, `Sync.AbacFieldMappingsChanged` (Events = nur Trigger),
+  `Sync.AbacOrganizationRuleSet` (Pull-DTO), `Sync.AbacSyncEndpoints`.
+- `Mapping.AbacFieldMappingSet` / `AbacFieldDefinition` / `AbacFieldType` (abgeleiteter `SearchPath`,
+  `SearchValuePrefix` = `SecurityKey` ohne `:` – der Builder ergänzt den Separator).
+- `Runtime.AbacPolicySnapshot` (Status `Unavailable`/`Loaded`/`ConfirmedEmpty`, Quelle, `IsStale`),
+  `IAbacPolicyReader.GetSnapshotAsync`, `IAbacEvaluator.AuthorizeAsync(…, resource)`,
+  `HasDenyRulesForActionAsync`, `AbacSubjectVariables`, `AbacResourceConditionEvaluator`.
+- `AbacAdminActions`, `AbacRolloutSettings`, `AbacMetrics`; Cache-Keys `Flags(org,setId)`
+  (`abac:policy:{org}:flags:{setId}` → `{"isConfirmedEmpty","allowAllWhenEmpty"}`), `FieldMappings(org)`.
+
+**Runtime (`simplic-oxs`)**
+- Rule-Store `MongoAbacRuleStore` (`abac.compiled-rules`, Retention aktiv + vorheriger),
+  `IAbacRuleSyncService`/`IAbacRuleSetClient` (Pull `GET /identity-api/v1/internal/AbacPolicySync/rule-set`,
+  `i-api-key` + `OrganizationId`-Header), `AbacPolicySetActivatedConsumer` (**nicht** auto-registriert –
+  Service leitet mit `[Consumer]` im eigenen Assembly ab), `AbacRuleSyncBackgroundService`.
+- Konfig: `Abac:Sync:{Enabled, Interval=5m, MaxAge=1h, HardLimit=24h, PullTimeout=3s, FailureBackoff=30s,
+  RedisTtl=60m, ActionPrefixes, Service, BaseUrl, Scheme, ApiVersion}`, `Abac:L1:{Enabled, Ttl=30s}`.
+- `AbacEvaluator`: Snapshot-basiert, Rollout-Fallback, Authorize (Action-Ebene) getrennt von
+  `BuildListFilterAsync` (Allow → `$or`, Deny mit Resource → `$nor`, nicht übersetzbar → fail-closed),
+  Resource-Overload, `{subject.xxx}`-Substitution (`$eq` mit Mehrfachwert → `$in`/`terms`), L1-Cache, Metriken.
+- Egress: `MongoOrganizationRepositoryBase` opt-in über `AbacReadAction` + `IAbacReadFilterProvider`
+  (auch `GetCollection()` für GraphQL); Deny bei Listen → `AbacAccessDeniedException` →
+  `AbacAccessDeniedExceptionFilter` (403); gefilterter Single-Read → `null` → 404.
+- `AbacBusGuard.ShouldSkipAsync` (§7.6), `IAbacSignalRFilter.CanReceiveAsync`.
+- Registrierung: `AddAbacRuntime()` / `AddAbacRuntime(IConfiguration)`.
+
+**Identity (`simplic-oxs-identity`)**
+- `AbacPolicyValidator`, `AbacMongoFilterBuilder`, PolicyId-Eindeutigkeit (409), Auto-Recompile,
+  Confirmed-Empty-Set statt Fehler, `abac.compiled-sets` (Quelle der Pull-API), Event-Publish.
+- Admin-Gate (`AbacAdminAuthorizer` + `AbacAdminAuthorizeAttribute`): Rolle owner/admin **und**
+  ABAC-Action; Bootstrap: bei leerem Set genügt die Rolle. Rollout-PUT nur `owner`.
+- Endpunkte: `AbacPolicy` (CRUD, `validate`, `compile`, `audit`, `rollout`), `AbacFieldMapping`
+  (`GET`, `PUT`, `POST import`), `internal/AbacPolicySync` (`rule-set`, `field-mappings`; Internal-Key).
+- Collections: `abac.compiled-sets`, `abac.audit` (append-only), `abac.field-mappings`, `abac.rollout-settings`.
+
+**Search (`simplic-oxs-search`)**
+- `AbacFieldMappingSyncService` (Versions-Skip, Version 0 = nicht migriert → kein Überschreiben,
+  Reindex nur bei Änderung), `AbacFieldMappingsChangedConsumer`, `SearchAbacPolicySetActivatedConsumer`.
+- `SecurityAttributeConfig` ist synchronisierte Kopie: nur `GET` + `POST sync` (owner/admin);
+  `Abac:Sync:ActionPrefixes = ["oxs:"]`.
+
+### Verbleibende Punkte
+- [ ] **Seeding Allow-All für neue Orgs verdrahten** — `IAbacPolicyService.SeedDefaultPolicyAsync(orgId)`
+  existiert; Identity hat keinen Organization-Created-Hook → Consumer ergänzen, sobald das Event existiert.
+- [ ] **Rollout-Override in `Simplic.OxS.Settings` statt `abac.rollout-settings`** — bewusst abweichend
+  umgesetzt, da der generische Settings-Controller Owner-Gate und Recompile umgehen würde. Entscheidung bestätigen.
+- [ ] **Egress-Inventar je Fach-Service** — Repositories mit `AbacReadAction` versehen, Consumer
+  mit `AbacBusGuard`, Hubs mit `IAbacSignalRFilter`, `IAbacCompileContract`-Katalog je Service.
+- [ ] **Periodischer Mapping-Resync in Search** (heute nur Event + `POST sync`); Reindex ohne verteiltes Lock.
+- [ ] **Bereichsoperatoren mit mehrwertigen `{subject.xxx}`-Variablen** (nur `$eq` → `$in` umgesetzt).
+- [ ] **Migration bestehender Search-`SecurityAttributeConfig` nach Identity** (Import nutzt bisher nur die statische Identity-Konfig).
+- [ ] **E2E-Tests** über RabbitMQ (Activate → Event → Service-Sync) und Performance-Tuning.
+
+---
 ## 14. Performance-Überlegungen
 
 ### 14.1 Latenz-Breakdown
@@ -849,7 +1274,19 @@ Request 3 (within 30 min): Policy Cache Hit
   ├─ Filter Building: 2-3ms
   ├─ MongoDB Query: 50-200ms
   └─ Total: ~100ms
+
+Request 4: Redis kalt/ausgefallen → Service-DB-Fallback (§12.6)
+  ├─ Redis GET (miss/timeout): 1-5ms
+  ├─ MongoDB `abac.compiled-rules` (Index orgId+IsActive): 2-10ms
+  ├─ Redis-Rehydrierung (async, nicht im kritischen Pfad)
+  ├─ Policy Engine Evaluation + Filter Building: 7-13ms
+  ├─ MongoDB Query: 50-200ms
+  └─ Total: ~110ms
 ```
+
+**Sync-Pfad (nicht im Request-Pfad):** Pull eines Org-Sets aus Identity erfolgt asynchron
+(Event, Max-Age-Ablauf, Reconciliation). Der Request wartet nie auf Identity — ist kein gültiger
+Set (≤ Hard-Limit 24h) lokal vorhanden, gilt DENY.
 
 ### 14.2 Redis Memory Usage
 
@@ -861,6 +1298,9 @@ Per 1000 Policies:
   
 Total: ~30 MB per 1000 policies
 ```
+
+**Service-DB (`abac.compiled-rules`, §12.6):** pro Org max. 2 Sets (aktiv + vorheriger), nur die
+Rules der eigenen Actions → typischerweise wenige KB–MB je Org und Service; vernachlässigbar.
 
 ### 14.3 Datenbank-Optimierung
 
@@ -875,36 +1315,51 @@ db.documents.createIndex({ "owner": 1 });
 
 ## 15. Testing-Strategie
 
+**Framework:** xUnit (`[Fact]`/`[Theory]`, immer `async Task`, nie `async void`).
+**Infrastruktur:** Integrationstests laufen gegen echte Abhängigkeiten via **Testcontainers**
+(Redis, MongoDB, RabbitMQ, Elasticsearch) — keine Mocks für Store/Cache/Bus/Index.
+
 ### 15.1 Unit Tests
 
 ```csharp
-[Test]
+[Fact]
 public void WhenDenyAndAllowMatch_ShouldReturnDeny()
 {
     var subject = CreateTestSubject();
     var policies = CreateTestPolicies(hasDeny: true, hasAllow: true);
-    
+
     var result = PolicyEngine.GetMatchingRules(subject, policies, "oxs:doc:read");
-    
-    Assert.That(result, Has.Some.Matches<Rule>(r => r.Effect == "deny"));
+
+    Assert.Contains(result, r => r.Effect == "deny");
 }
 ```
 
-### 15.2 Integration Tests
+### 15.2 Integration Tests (Testcontainers)
 
 ```csharp
-[Test]
-public async Task CompleteFlow_ShouldFilterDocumentsCorrectly()
+public class AbacMongoFilterTests : IClassFixture<MongoContainerFixture>
 {
-    var policy = LoadPolicyFromJson(policyJson);
-    var filter = PolicyEngine.BuildMongoFilterFromRules<Document>(rules);
-    
-    var docs = await collection.Find(filter).ToListAsync();
-    
-    Assert.That(docs, Is.Not.Empty);
-    Assert.That(docs, All.Matches<Document>(d => d.Department == "HR"));
+    [Fact]
+    public async Task CompleteFlow_ShouldFilterDocumentsCorrectly()
+    {
+        var policy = LoadPolicyFromJson(policyJson);
+        var filter = PolicyEngine.BuildMongoFilterFromRules<Document>(rules);
+
+        var docs = await collection.Find(filter).ToListAsync();
+
+        Assert.NotEmpty(docs);
+        Assert.All(docs, d => Assert.Equal("HR", d.Department));
+    }
 }
 ```
+
+**Pflicht-Szenarien:**
+- **Mongo:** Allow/Deny-Kombinationen, Org-Isolation, Seeding der 3 Key-Tiers.
+- **Sync (§12.6):** Event → Pull → Store; Redis kalt → DB-Fallback; Max-Age-Re-Pull;
+  Identity down → Stale-Nutzung bis Hard-Limit → DENY; `IsConfirmedEmpty` vs. fehlende Daten.
+- **Elasticsearch:** materialisierte `security.*`-Felder + ABAC-`filter` liefern exakt die erlaubten
+  Treffer; Deny-First; Pagination/Hit-Counts korrekt; typübergreifendes OR (§11.4).
+- **Response-Semantik (§7.5):** 403 / 404 / 200-leer je Fall.
 
 ---
 
@@ -919,6 +1374,12 @@ public async Task CompleteFlow_ShouldFilterDocumentsCorrectly()
 - Validation Errors
 - MongoDB Query Time nach Filter
 - Redis Connection Health
+- Sync-Lag je Org/Service (jetzt − SyncedAt)
+- Sync-Fehler (Pull/Consumer) je Org/Service
+- Service-DB-Fallback-Rate (Redis miss → DB hit)
+- Stale-Nutzung (Requests mit Set älter als Max-Age)
+- Hard-Limit-DENYs (Set älter als 24h)
+- Allow-All-Rollout-Fallback-Nutzung (§6.4)
 ```
 
 ### 16.2 Logging
@@ -938,6 +1399,10 @@ logger.LogInformation(
 - ⚠️ Cache Hit Rate < 50%
 - ⚠️ Policy Evaluation > 100ms
 - ⚠️ MongoDB Query > 500ms
+- ❌ Hard-Limit erreicht (Org/Service fällt auf DENY)
+- ❌ Engine-Schema-Version-Mismatch ohne Fallback
+- ⚠️ Stale-Daten in Nutzung (Re-Pull fehlgeschlagen, Max-Age überschritten)
+- ⚠️ Sync-Fehlerrate erhöht / Consumer-Lag auf RabbitMQ
 
 ---
 
@@ -1057,9 +1522,392 @@ var resourceMatch = EvaluateResource(resource, resourceWithVariables);
 - `{resource.xyz}` (nur Subject-Referenzen)
 - Funktionen/Transformationen (z.B. `{subject.email.toLowerCase()}`)
 
+### 17.4 Subjects: interne/externe Aufrufer & Anonym
+
+**Entschieden (2026-10-26):** Es gibt **keinen eigenen Service-Account-Subject-Typ**. Die
+Authentifizierung bleibt unverändert (JWT bzw. API-Key/`InternalApiKey`). Für den Server ist es
+**unerheblich, ob ein Aufruf intern oder extern ist** — auch externe Aufrufer authentifizieren sich
+über denselben Key-Mechanismus.
+
+- Das Subject wird **immer gleich** gebaut (`AbacSubjectFactory`): **nur** `Id` und `OId` (optional
+  `Email`) kommen aus den Claims des authentifizierten Kontexts. Der `ApiKeyAuthenticationHandler`
+  setzt `Id`/`OId` bereits; interne Aufrufe übernehmen Org-/User-Kontext wie bisher über
+  `RequestContextActionFilter`. Login-/Token-Endpunkt bleiben **unverändert**.
+- **`Roles`/`Teams` werden serverseitig aufgelöst** *(entschieden 2026-11-05, löst die
+  Claim-basierte Variante ab)*: `IAbacSubjectAttributeProvider` ruft
+  `GET {Scheme}://{InternalHosts:identity}/identity-api/{ApiVersion}/internal/AbacSubject/attributes?userId=…&organizationId=…`
+  (Internal-API-Key, gleiche Verdrahtung wie die Rule-Set-Sync; Override `Abac:Subject:BaseUrl`).
+  Identity liefert die **aktuellen** Werte: Rollen = `user.Roles` ∪ Rollen der Org-Mitgliedschaft
+  (Organization-Service), Teams = Teams des Users in dieser Organisation (Organization-Service).
+  Antwort: `{ "roles": [...], "teams": [{ "id", "name" }], "email" }`; 404 = kein Mitglied,
+  503 = Quelle nicht erreichbar.
+- **Cache:** L1 (`IMemoryCache`) + Redis (`IDistributedCache`), Key `abac:subject:{orgId}:{userId}`,
+  gemeinsame absolute Ablaufzeit `Abac:Subject:Ttl` (**Default 30 s**). Die TTL **begrenzt die
+  Verzögerung beim Entzug** von Rollen/Teams; Fehler werden nicht gecacht. Timeout des Lookups:
+  `Abac:Subject:Timeout` (Default 3 s).
+- Begründung: Rollen/Teams im Token wären bis zum Ablauf unveränderlich (Entzug wirkt verspätet),
+  blähen das Token auf und koppeln die Autorisierung an den Token-Aussteller.
+- Gleiche Engine, gleiche Deny-First-Semantik, **kein** Bypass für interne Aufrufe.
+- Fehlt nach der Authentifizierung ein gültiger Org-/User-Kontext, ist der User kein Mitglied der
+  Organisation oder ist der Identity-Lookup nicht verfügbar → kein Subject → **DENY** (fail-closed).
+
+**Anonyme Aufrufe:**
+- Anonym → **immer DENY** auf allen Actions, die Daten ausgeben.
+- `[AllowAnonymous]` ist auf Endpunkten mit Datenausgabe **verboten** (im `SearchController`
+  bereits entfernt, §13.1).
+
 ---
 
-## 18. Zusammenfassung
+## 18. Such-Integration (Elasticsearch) – ABAC Enforcement
+
+**Status:** 🟡 Übersetzungs-Schicht + ES-`security`-Mapping + Index-Zeit-Materialisierung
+(Konfig je Organisation + CRUD + Reindex-Trigger, §18.11) + **Feld-Pfad-Mapping**
+(`AbacFieldMapping.SearchPath`/`SearchValuePrefix`, fail-closed, in den Compiler verdrahtet)
++ **Such-Consumer** (`SearchController` → `BuildSearchFilterAsync` → ES-`filter`-Klausel;
+`simplic-oxs-search` auf net10 gehoben; Action `oxs:{X}:read`, Deny → 403, typübergreifendes OR,
+`[AllowAnonymous]` entfernt) implementiert & (Unit-)getestet. Offen: ES-Integrationstest und
+Feld-Mapping-Sync aus Identity (§12.7). Detaillierter Done/Offen-Stand
+in §18.10, priorisierte Restliste in §13.1.
+
+Für MongoDB ist das Resource-Filtering unkompliziert, weil die Policy-Felder direkt
+im Dokument liegen. In Elasticsearch ist die Situation schwieriger: Ein Suchdokument
+besteht typischerweise aus `searchText` (Volltext), `dataType` (keyword) und `data`
+(die fachlichen Daten als serialisierter JSON-String). **ABAC darf niemals gegen den
+`data`-String zur Query-Zeit ausgewertet werden** — das wäre bei Millionen Dokumenten
+nicht performant und verhindert korrekte Pagination/Aggregation/Hit-Counts.
+
+### 18.1 Grundprinzip: Autorisierungs-Attribute zur Index-Zeit materialisieren
+
+Autorisierungs-relevante Attribute werden **beim Indexieren** aus den Fachdaten
+abgeleitet und als **indexierte, getypte Felder** gespeichert — getrennt von den
+Fachdaten. Der `data`-String bleibt nur zur Rückgabe erhalten (`_source`, nicht
+indexiert), wenn `searchText` bereits alles Suchrelevante enthält.
+
+```
+Dokument
+├── searchText        text        (Volltextsuche)
+├── dataType          keyword
+├── data              _source only, index:false   (nur Retrieval)
+└── security          ← zur Index-Zeit abgeleitet, NICHT zur Query-Zeit
+    ├── tenantId      keyword      (= OrganizationId, defensiv; Isolation über Index-Namen)
+    ├── principals    keyword[]    (z.B. "department:finance")
+    ├── classification integer     (für range-Vergleiche)
+    └── attributes    flattened    (seltene/dynamische Attribute)
+```
+
+> **Hinweis (Deployment `simplic-oxs-search`):** Kein `owner`-Feld — die Daten sind
+> organisationsverwaltet, es gibt keine Datensatz-Ownership. Die Tenant-Isolation erfolgt
+> bereits über den organisationsspezifischen Index-Namen; `tenantId` ist nur defensiv.
+
+### 18.2 Hybrid-Mapping gegen Mapping-Explosion
+
+Nicht jedes mögliche ABAC-Attribut als eigenes Mapping-Feld anlegen — dynamisches
+JSON kann zu tausenden Feldnamen führen (Default-Limit:
+`index.mapping.total_fields.limit = 1000`). Stattdessen:
+
+- **Häufig gefilterte, stark getypte** ABAC-Dimensionen → **dedizierte Felder**
+  (`security.tenantId`, `security.classification`, `security.principals`).
+- **Seltene/dynamische** Attribute → ein einziges **`flattened`-Feld**
+  (`security.attributes`), das den gesamten Objektbaum als ein Mapping-Feld abbildet.
+
+**Wichtige Einschränkung:** `flattened` behandelt alle Werte als Keywords — kein
+Numerik-/Range-/Datums-Verhalten. ABAC-Dimensionen, die `$gt/$gte/$lt/$lte` benötigen
+(z.B. `classification`), **müssen** dedizierte getypte Felder sein, niemals `flattened`.
+
+### 18.3 ABAC-DSL → Elasticsearch Query DSL (Operator-Mapping)
+
+Wie bei MongoDB bleibt die **Subject-Evaluation in-process (C#)**: Zur Query-Zeit ist
+bekannt, welche Regeln für den aktuellen Subject greifen. Nur die **Resource-Conditions**
+der passenden Regeln werden in ES-Filter übersetzt (analog zu `BuildListFilterAsync`).
+
+| DSL-Operator | ES-Filter | Hinweis |
+|--------------|-----------|---------|
+| `$eq`  | `term`                 | exakt (keyword/numeric) |
+| `$ne`  | `bool.must_not` + `term`  | |
+| `$in`  | `terms`                | Posting-List-Intersektion (schnell) |
+| `$nin` | `bool.must_not` + `terms` | |
+| `$gt` `$gte` `$lt` `$lte` | `range` | nur getypte Felder, **nicht** `flattened` |
+| `$contains` `$ncontains` | ❌ nicht übersetzbar | per `SupportsSearch=false` sperren (s.u.) |
+
+Das Feld-Mapping (`department` → `security.attributes.department` bzw.
+`security.classification`) kommt aus `AbacFieldMapping.SearchPath` des Compile-Contracts
+(§12.4). Cross-Attribute-Variablen (`{subject.xxx}`, §17.3) werden beim Compilieren der
+Query aus den Subject-Werten eingesetzt und sind damit in ES unkompliziert.
+
+### 18.4 Deny-First in Elasticsearch
+
+Die Deny-First-Semantik (§4, §17.1) muss der ES-Compiler **explizit** abbilden:
+`finalFilter = OR(Allow-Resource-Filter) AND NOT(OR(Deny-Resource-Filter))`.
+
+```json
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "searchText": "ACME contract" } }
+      ],
+      "filter": [
+        { "term": { "security.tenantId": "{orgId}" } },
+
+        { "bool": {
+            "should": [
+              { "terms": { "security.attributes.department": ["finance", "legal"] } },
+              { "term":  { "security.owner": "user-123" } }
+            ],
+            "minimum_should_match": 1
+        }},
+
+        { "bool": {
+            "must_not": [
+              { "term": { "security.attributes.status": "archived" } }
+            ]
+        }}
+      ]
+    }
+  }
+}
+```
+
+Regeln für den Aufbau:
+- `security.tenantId` (OrganizationId) ist **immer** als `term`-Filter gesetzt —
+  Cross-Org-Zugriff ist strukturell unmöglich.
+- `should`-Gruppe = OR aller Allow-Resource-Filter; `minimum_should_match: 1`.
+- Hat eine passende Allow-Regel **keine** Resource-Condition → unbeschränkter Allow
+  für diese Action → die `should`-Gruppe entfällt (Analog zu `allowAllResources`).
+- Matched **keine** Allow-Regel → Match-Nothing-Filter (`match_none`) = implizites Deny.
+- `must_not`-Gruppe = OR aller Deny-Resource-Filter.
+
+### 18.5 Operator-Gating & Fallback
+
+Nicht jeder DSL-Operator ist in ES sinnvoll (z.B. `$contains` = Substring auf keyword
+→ nur via teurem `wildcard`). Das wird über
+`AbacOperatorCapabilities.SupportsSearch` gesteuert:
+
+- `SupportsSearch = true` → Operator wird in einen ES-Filter übersetzt.
+- `SupportsSearch = false` → Regel ist **nicht** vollständig in ES erzwingbar. Optionen:
+  1. Policy-Validierung lehnt die Regel für search-Actions ab (bevorzugt), **oder**
+  2. definierter In-Process-Nachfilter auf der (kleinen) Treffermenge — nur zulässig,
+     wenn dadurch keine unautorisierten Treffer in Counts/Aggregationen gelangen.
+
+Der sichere Default ist Option 1: lieber bei Compile-Zeit ablehnen als zur Laufzeit
+unsicher nachfiltern.
+
+### 18.6 Index-Zeit-Ableitung bewusst minimal halten (Reindex-Kosten)
+
+Der zentrale Trade-off gegenüber MongoDB:
+- **MongoDB** wertet zur Query-Zeit gegen Live-Felder aus → Policy-Änderungen wirken sofort.
+- **Elasticsearch** filtert gegen index-zeitlich abgeleitete `security.*`-Felder.
+
+Daher gilt:
+- **Rohe Attribut-Projektion** (`department`, `classification`, `owner`) ist
+  policy-agnostisch — ändert sich nur das Dokument, wird nur dieses Dokument reindexiert. ✅
+- **Materialisierte `principals`/Autorisierungs-Dimensionen** koppeln den Index an
+  Policy-Logik. Ändert sich die Policy, kann ein **Voll-Reindex über Millionen
+  Dokumente** nötig werden. Diese Optimierung nur einsetzen, wenn das Policy-Set stabil
+  ist; die Reindex-Kosten explizit einplanen.
+
+Empfehlung: **rohe, policy-agnostische** Security-Attribute indexieren und die
+**Policy in die Query** compilieren. So bleibt das Mapping stabil, auch wenn neue
+`dataType`s hinzukommen, und Policy-Änderungen erfordern keinen Reindex.
+
+### 18.7 Keine native ES-DLS / keine gefilterten Aliase als Sicherheitsgrenze
+
+- **Native Document-Level-Security** von Elasticsearch wird **nicht** genutzt: Die
+  ABAC-Engine ist die einzige Quelle der Wahrheit (ein Autorisierungsmodell, pro Backend
+  ein Compiler — Mongo **und** ES). Keine doppelte, unabhängige Autorisierung im Store.
+- **Gefilterte Aliase** sind laut Elastic **kein** sicherer Mechanismus zur
+  Zugriffsbeschränkung und werden nicht als Sicherheitsgrenze verwendet.
+
+### 18.8 Einordnung in den Compile-Contract
+
+Diese Such-Integration füllt die bereits vorgesehenen, aber noch leeren Bausteine:
+- `AbacFieldMapping.SearchPath` — Policy-Feld → ES-Zielpfad.
+- `AbacOperatorCapabilities.SupportsSearch` — Operator-Gating (§18.5).
+- `CompiledRule.SearchFilter` — der vorcompilierte ES-Filter (als JSON-String), analog
+  zu `MongoDbFilterJson`.
+- Laufzeit-seitig fehlen noch ein `BuildSearchFilterAsync` auf `IAbacEvaluator` sowie
+  eine Apply-Extension analog zu `ApplyAbacFilter` (siehe §13.1 P2).
+
+### 18.9 Request-Pfad
+
+```
+User-Attribute (Id/OId aus JWT/API-Key; Roles/Teams per Identity-Lookup, gecacht)
+      │
+      ▼
+ ABAC-Engine ──► Mongo-Prädikat ──────► MongoDB
+      │
+      └────────► ES-Filter (bool/term/terms/range + must_not)
+                        │
+                 Suchquery + Security-Filter
+                        │
+                        ▼
+                 Elasticsearch ──► nur autorisierte Treffer
+```
+
+Elasticsearch gibt so **nie** unautorisierte Dokumente an die Anwendung zurück;
+Pagination, `total hits` und Aggregationen bleiben korrekt.
+
+**Ziel-Semantik (verbindlich, §7.5/§11.4):**
+- Action ist `oxs:{dataType}:read` (keine eigene `:search`-Action).
+- Typübergreifende Suche: **ein** ES-Query mit `bool.should` über alle für den Subject lesbaren
+  Typen, je Typ `dataType = X AND filter(oxs:X:read)`; Typen mit Action-Deny entfallen.
+- Kein lesbarer Typ bzw. Action-Deny → **403**; erlaubt ohne Treffer → 200 mit leerem Ergebnis.
+- Anonym → DENY/401 (`[AllowAnonymous]` entfällt, §17.4).
+
+### 18.10 Implementierungs-Stand (Done / Offen)
+
+Die **Übersetzungs-Schicht** (ABAC-DSL → ES Query DSL, geteilte Bibliothek + Compiler)
+ist implementiert und mit Unit-Tests abgesichert. Das **Elasticsearch-Mapping** (getyptes
+`security`-Objekt + `flattened`) ist im Such-Microservice `simplic-oxs-search` implementiert.
+Die **Index-Zeit-Materialisierung** der `security.*`-Felder (§18.11) und das **Feld-Pfad-Mapping**
+im Übersetzer sind ebenfalls erledigt. Auch der **Such-Consumer** (Query-Seite) ist verdrahtet:
+`SearchController` evaluiert pro Request über `IAbacEvaluator.BuildSearchFilterAsync` und hängt
+den Filter in die ES-Query ein — gemäß Ziel-Semantik §18.9 (`oxs:{X}:read`, 403, typübergreifendes
+OR, kein `[AllowAnonymous]`). Offen sind der **ES-Integrationstest** und der Mapping-Sync aus
+Identity (§12.7).
+
+**✅ Erledigt (geteilte Bibliothek + Compiler, getestet):**
+- [x] **AST → ES Query DSL Übersetzer** — `AbacSearchFilterBuilder` (§18.3): `$eq`→term,
+  `$ne`→must_not+term, `$in`→terms, `$nin`→must_not+terms, `$gt/$gte/$lt/$lte`→range,
+  `$and`→bool.filter, `$or`→bool.should (`minimum_should_match:1`). → `Simplic.OxS.ABAC/Search/AbacSearchFilterBuilder.cs`
+- [x] **Operator-Gating** — `$contains`/`$ncontains` werfen `AbacUnsupportedSearchOperatorException`;
+  Compiler fängt ab → `SearchFilter = null` (§18.5). → `Simplic.OxS.ABAC/Search/AbacUnsupportedSearchOperatorException.cs`
+- [x] **Deny-First-Komposition** — `EvaluateSearchAsync`: Allow-Rules → `should`-Gruppe,
+  Deny-Rules → `must_not`; Fail-Closed, wenn Resource-Conditions nicht ausdrückbar (§18.4).
+  → `Simplic.OxS.Server/Abac/AbacEvaluator.cs`
+- [x] **Contract-Erweiterung** — `IAbacEvaluator.BuildSearchFilterAsync` +
+  `AbacDecisionResult.SearchFilterJson`. → `Simplic.OxS.ABAC/Runtime/`
+- [x] **Query-Combiner** — `AbacSearchQuery.Apply(userQueryJson, abacFilterJson)`
+  (User-Query in `must`, ABAC in `filter`). → `Simplic.OxS.ABAC/Search/AbacSearchQuery.cs`
+- [x] **Compiler füllt `CompiledRule.SearchFilter`** analog zu `MongoDbFilterJson` (§18.8).
+  → `simplic-oxs-identity/.../AbacPolicyService.cs`
+- [x] **Unit-Tests** — Builder (eq/ne/in/nin/range/and/or/unsupported) +
+  11 Evaluator-Such-Pfad-Szenarien inkl. Fail-Closed. → `Simplic.OxS.Server.Test/Abac/`
+- [x] **Feld-Pfad-Mapping** — `AbacFieldMapping.SearchPath` (z.B. `department` →
+  `security.attributes.department`) + `SearchValuePrefix` (Principal-Felder →
+  `security.principals` mit `key:value`-Präfix, spiegelt die Materialisierung) werden im
+  Übersetzer angewendet. **Fail-closed:** unbekanntes Feld, fehlender `SearchPath` oder
+  Range-Operator auf einem Principal-Feld werfen; ohne Mappings (Standalone) bleibt der
+  Rohfeld-Passthrough. Verdrahtet über den Compile-Contract (`IAbacCompileContract.FieldMappings`,
+  konkrete `ConfiguredAbacCompileContract` + `AbacCompileContractOptions`, DI in der Identity).
+  → `Simplic.OxS.ABAC/Search/AbacSearchFilterBuilder.cs`,
+  `Simplic.OxS.ABAC/Contract/AbacFieldMapping.cs`,
+  `simplic-oxs-identity/.../ConfiguredAbacCompileContract.cs`, `AbacCompileContractOptions.cs`,
+  `AbacPolicyService.cs`
+
+**✅ Erledigt (Such-Microservice `simplic-oxs-search`):**
+- [x] **ES-Index-Mapping / `security`-Schema** — `DocumentSecurity` (getyptes `tenantId`
+  keyword, `principals` keyword[], `classification` integer, `attributes` **flattened**);
+  `IndexDocument.Security` ergänzt; zentraler Mapping-Helper `ElasticSearchProvider.MapIndexDocument`
+  an allen drei Index-Erzeugungsstellen (Live-Index + beide Reindex-Pfade). **Ohne `owner`**
+  (organisationsverwaltete Daten, keine Datensatz-Ownership). Bestehende Indizes erhalten das
+  Mapping erst beim Reindex. → `Simplic.OxS.Search/Model/DocumentSecurity.cs`,
+  `Simplic.OxS.Search.Service/ElasticSearchProvider.cs`
+- [x] **Index-Zeit-Materialisierung** (§18.1, §18.11) — `security.*`-Felder werden in
+  `DefaultFactory.Create` aus den Fachdaten (`DataJson`) abgeleitet. Konfig-Store +
+  `ISecurityAttributeProvider` (Schritt 1–2), Extraktion via `SecurityAttributeMaterializer`
+  (Schritt 3), sowie Konfig-CRUD + Reindex-Trigger mit Re-Materialisierung (Schritt 4) —
+  alle unit-getestet. → `Simplic.OxS.Search.Service/DefaultFactory.cs`,
+  `SecurityAttributeMaterializer.cs`, `SecurityAttributeConfigService.cs`,
+  `Simplic.OxS.Search.Server/Controllers/SecurityAttributeConfigController.cs`
+
+**✅ Erledigt (Such-Consumer, Query-Seite):**
+- [x] **Such-Consumer verdrahtet** — `SearchController.Search` ruft
+  `IAbacEvaluator.BuildSearchFilterAsync(orgId, action, ct)` auf und übergibt den
+  resultierenden `SearchFilterJson` an den `ISearchProvider`. `ElasticSearchProvider.Search`
+  hängt ihn als `filter`-Klausel (Raw-Query) neben der User-Query (`must`:
+  `searchText` + optionaler `dataType`-Term) in die ES-Query ein (§18.4/§18.9).
+  **Deny ⇒ 403**, `Allow` ohne Filter ⇒ unbeschränkt, `Allow` mit Filter ⇒ eingehängt.
+  Action: `oxs:{dataType}:read` (§11.4). **Ohne `dataType`** (typübergreifend): Datentypen des
+  Org-Index per Terms-Aggregation (`ISearchProvider.GetDataTypes`), je Typ `oxs:{X}:read` evaluiert,
+  erlaubte Typen per `SearchAbacFilterComposer.ComposeCrossType` zu einem `bool.should` aus
+  `(dataType = X AND filter)` komponiert (nicht gelistete Typen matchen nie — fail-closed);
+  kein lesbarer Typ ⇒ 403, leerer Index ⇒ 200 leer. `[AllowAnonymous]` entfernt.
+  → `simplic-oxs-search/.../SearchController.cs`, `ElasticSearchProvider.cs`,
+  `ISearchProvider.cs`, `SearchAbacFilterComposer.cs` (+ 5 Unit-Tests), `Startup.cs`
+  (`services.AddAbacRuntime()`)
+- [x] **net10-Angleichung** — `simplic-oxs-search` von net8.0 auf net10.0 gehoben;
+  `Simplic.OxS.Server` wird als **ProjectReference** auf das Geschwister-Repo bezogen
+  (die ABAC-Runtime ist noch nicht im veröffentlichten NuGet-Paket), zusätzlich
+  `Simplic.OxS.ABAC`-ProjectReference. Build + bestehende Tests grün.
+
+**⚠️ Hinweise:**
+- Such-Aufrufe ohne gültigen Org-/User-Kontext (weder JWT noch API-Key) erhalten jetzt 401/403;
+  key-authentifizierte Aufrufe werden wie alle anderen über ihr Subject ausgewertet (§17.4).
+- Typübergreifende Suche evaluiert eine Action je Datentyp im Index (max. 1000 Typen per
+  Aggregation); bei sehr vielen Typen ggf. Decision-Cache nötig (§13.1 L1-Cache).
+- Feld-Mappings: Identity ist Quelle der Wahrheit; der Such-Service synchronisiert sie (§12.7).
+  Organisationen ohne migriertes Mapping-Set (Version 0) behalten ihre lokale Konfiguration.
+
+**⛔ Offen:**
+- [~] **Integrationstest gegen echtes Elasticsearch** (Testcontainers, §15) — Projekt
+  `Simplic.OxS.Search.IntegrationTest` (11 Tests inkl. typübergreifender Suche) vorhanden;
+  wird ohne Docker übersprungen, muss noch einmal mit Docker laufen.
+- [x] **Mapping-Sync aus Identity** (§12.7): `SecurityAttributeConfig` ist synchronisierte Kopie
+  (`AbacFieldMappingSyncService`, Event + `POST SecurityAttributeConfig/sync`).
+
+### 18.11 Index-Zeit-Materialisierung – Konfiguration je Organisation (Design)
+
+Der Such-Index erhält über `IndexDataCommand` nur `Id`, `DataType` und `DataJson` — **keine
+Autorisierungs-Attribute**. Diese müssen daher beim Indexieren aus `DataJson` abgeleitet werden.
+Welche JSON-Pfade autorisierungsrelevant sind, ist **pro Organisation (optional pro `DataType`)
+unterschiedlich** und nicht statisch bekannt. Deshalb braucht es eine Konfiguration plus einen
+Reindex, wenn sie sich ändert.
+
+**Geplante Bausteine:**
+1. **Konfigurationsmodell & -speicher** — ✅ *erledigt.* Pro Organisation (optional pro `DataType`)
+   eine Liste von `{ securityKey, jsonPath, type: principal | classification | attribute }`.
+   Mongo-gestützt, analog zu `SummaryTemplate`. → `Simplic.OxS.Search/Model/SecurityAttributeConfig.cs`,
+   `SecurityAttributeMapping.cs`, `SecurityAttributeType.cs`, `SecurityAttributeConfigFilter.cs`;
+   Repository `Simplic.OxS.Search.Data.DB/SecurityAttributeConfigRepository.cs` (Collection
+   `search.security-attribute-config`).
+2. **`ISecurityAttributeProvider`** — ✅ *erledigt.* Lädt die Konfiguration der Organisation und
+   merged die Mappings für einen `DataType` (globale Config mit leerem `UsedForDataType` +
+   DataType-spezifische). Default = leer ⇒ sicherer No-Op. Unit-getestet (7 Fälle). Provider-seitiges
+   Caching + Invalidierung bleibt bewusst offen (koppelt an Cache-Invalidierung); der Reindex nutzt
+   stattdessen einen lokalen Mapping-Cache pro `DataType`.
+   → `Simplic.OxS.Search.Service/SecurityAttributeProvider.cs`,
+   `Simplic.OxS.Search.Test/SecurityAttributeProviderTest.cs`
+3. **Extraktion in `DefaultFactory.Create`** — ✅ *erledigt.* `DefaultFactory` bezieht die Mappings
+   über `ISecurityAttributeProvider`, löst die `JsonPath`-Werte per Dot-Notation (`SelectToken`)
+   aus `DataJson` auf und füllt `security.attributes.*`, `security.classification` bzw.
+   `security.principals` (`SecurityAttributeType`); `tenantId` wird defensiv gesetzt. Array-Werte
+   ergeben mehrere Principals bzw. eine Liste im Attribut; fehlende/ungültige Pfade und
+   Nicht-Objekt-JSON werden übersprungen (fail-open beim Indexieren, Leer-Default sicher).
+   Unit-getestet (12 Fälle). → `Simplic.OxS.Search.Service/SecurityAttributeMaterializer.cs`,
+   `DefaultFactory.cs`, `Simplic.OxS.Search.Test/SecurityAttributeMaterializerTest.cs`
+4. **Reindex-Trigger & Konfig-CRUD** — ✅ *erledigt.* `SecurityAttributeConfigService`
+   (CRUD, `OrganizationServiceBase`) + `SecurityAttributeConfigController` (GET/GET-ALL/POST/
+   PATCH/DELETE, analog `TemplateController`). Nach Create/Update/Delete wird der bestehende
+   Reindex der betroffenen Organisation im Hintergrund angestoßen. Der Reindex selbst
+   **re-materialisiert** jetzt den `security`-Block jedes Dokuments aus dessen `Original`-Fachdaten
+   (via `ISecurityAttributeProvider` + `SecurityAttributeMaterializer`, Mappings pro `DataType`
+   gecacht) — zuvor kopierte er nur Felder und hätte die Konfig-Änderung nicht übernommen.
+   → `Simplic.OxS.Search.Service/SecurityAttributeConfigService.cs`,
+   `Simplic.OxS.Search.Service/ElasticSearchProvider.cs` (Reindex-Schleife + `MaterializeSecurityAsync`),
+   `Simplic.OxS.Search.Server/Controllers/SecurityAttributeConfigController.cs`
+5. **Feld-Pfad-Mapping** (§18.10) — ✅ *erledigt.* `AbacFieldMapping.SearchPath` +
+   `SearchValuePrefix` werden im `AbacSearchFilterBuilder` angewendet (Attribute →
+   `security.attributes.*`, Principals → `security.principals` mit `key:value`-Präfix,
+   `classification` → getyptes `security.classification` mit Range-Support). Fail-closed bei
+   unbekanntem Feld / fehlendem `SearchPath` / Range auf Principal. Verdrahtet über den
+   Compile-Contract (`IAbacCompileContract.FieldMappings` → `ConfiguredAbacCompileContract` +
+   `AbacCompileContractOptions`, Konfig-Sektion `Abac:CompileContract`, DI in der Identity).
+   **Hinweis:** Die `FieldMappings` der Identity müssen mit den per-Organisation
+   `SecurityAttributeConfig`-Pfaden des Such-Repos übereinstimmen.
+
+**Reihenfolge-Abhängigkeit:** Der Such-Consumer (Query-Seite) liefert erst dann korrekte
+Ergebnisse, wenn die Dokumente die `security.*`-Felder tragen (Materialisierung) **und** die
+Filter auf deren Pfade zeigen (Feld-Pfad-Mapping).
+
+> **Zielbild (§12.7):** Die Konfiguration aus Schritt 1/4 wird nach Identity verlagert (per Org,
+> Quelle der Wahrheit). Der Such-Service hält `SecurityAttributeConfig` nur noch als
+> **synchronisierte Kopie** (Event + Pull); der eigene CRUD-Endpunkt entfällt, der Reindex wird
+> durch den Sync ausgelöst.
+
+---
+
+## 19. Zusammenfassung
 
 ### Kernmerkmale
 
@@ -1067,13 +1915,17 @@ var resourceMatch = EvaluateResource(resource, resourceWithVariables);
 |---------|------|
 | **Ansatz** | Policy-basiert, Deny > Allow |
 | **Standard** | Implizites Deny |
-| **Fallback** | Allow-All möglich |
+| **Fallback** | Allow-All nur temporär im Rollout bei bestätigt leerem Set (§6.4) |
 | **Bedingungen** | Standard Condition Operators |
 | **Subject & Resource** | Implicit AND (beide müssen matchen) |
+| **Subjects** | Ein Subject-Modell für alle Aufrufer (JWT/API-Key, intern = extern); anonym immer DENY (§17.4) |
 | **Variablenersetzung** | `{subject.xxx}` in Resource-Bedingungen |
-| **Integration** | Middleware zwischen Service & DB |
+| **Integration** | Durchsetzung in der Shared-Data-Layer, alle Egress-Kanäle (§7.6) |
+| **Response-Semantik** | Action-Deny → 403, gefilterter Einzelzugriff → 404, kein Treffer → 200 leer (§7.5) |
+| **Such-Backend** | Elasticsearch: Security-Attribute zur Index-Zeit, Filter zur Query-Zeit (§18) |
 | **Filter-Aufbau** | Dynamisch pro Request |
-| **Caching** | Multi-Level Redis Cache (Organization-scoped) |
+| **Quelle der Wahrheit** | Identity (Policies + Feld-Mappings, per Org; §12.6/§12.7) |
+| **Caching/Persistenz** | Redis (heiß) + service-lokaler Rule-Store in der Service-DB (§12.6) |
 
 ### Vorteil
 
@@ -1082,6 +1934,7 @@ var resourceMatch = EvaluateResource(resource, resourceWithVariables);
 ✅ **Flexibel**: Komplexe Bedingungen kombinierbar  
 ✅ **Wartbar**: Zentrale Policy-Verwaltung  
 ✅ **Hochperformant**: Redis Multi-Level Caching  
+✅ **Resilient**: Service-lokaler Rule-Store, keine Laufzeit-Abhängigkeit zu Identity  
 ✅ **Isoliert**: Organization-scoped  
 
 ---

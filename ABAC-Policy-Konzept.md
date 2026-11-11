@@ -1087,7 +1087,9 @@ Wahrheit, damit Compiler (Query-Seite) und Such-Materialisierung (Index-Seite) n
 - Der **Such-Service** synchronisiert die Org-Mappings auf dem **gleichen Hybrid-Weg** wie
   Policies (Event + Pull, Max-Age, §12.6) und materialisiert damit `security.*` (§18.11).
 - Eine Mapping-Änderung löst in Identity einen Recompile **und** im Such-Service den Reindex
-  der Org aus.
+  der Org aus. Der Reindex wird **dauerhaft eingeplant** (persistierter Auftrag je Org, Abarbeitung
+  mit Retry durch einen Hintergrunddienst, §18.11 Schritt 4) — ein Absturz oder Fehler darf
+  `security.*` nicht stillschweigend veraltet zurücklassen.
 - Verwaltung nur über die Admin-API (Rollen-Gate owner/admin + ABAC, Audit, §10.3).
 
 > **Migration:** Die bereits implementierte, search-lokale `SecurityAttributeConfig`-CRUD
@@ -1127,14 +1129,15 @@ AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versio
 
 > **Stand:** 2026-10-26. Status basiert auf einer Code-Prüfung über beide Repos
 > (`simplic-oxs` = Read-/Runtime-Seite, `simplic-oxs-identity` = Write-/Compiler-Seite)
-> sowie dem Such-Microservice `simplic-oxs-search`.
+> sowie dem Such-Microservice `simplic-oxs-search-v2` (Port aus `simplic-oxs-search` v1,
+> das abgeschaltet und nicht gemergt wird; Stand 2026-11-10).
 > Legende: ✅ fertig · 🟡 teilweise · ❌ offen.
 
 ### Phase 1: Foundation
 - [x] ✅ Policy Engine Core (Evaluation) — `AbacEvaluator` (deny-first), `simplic-oxs`
 - [x] ✅ Domain Models (Subject, Policy, Rule) — `Simplic.OxS.ABAC/*`
 - [x] ✅ ABAC DSL Parser/Evaluator — `ConditionNodeParser`, `AbacConditionEvaluator`, `AbacResourceConditionEvaluator`
-- [x] ✅ Unit Tests — oxs 184, Identity 126, Search 60 (Stand 2026-10-26, alle grün)
+- [x] ✅ Unit Tests — oxs 184, Identity 126, Search 60 (Stand 2026-10-26, alle grün); Search-v2 66 (Stand 2026-11-10)
 - [x] ✅ Policy-**Validierung** — `AbacPolicyValidator` (Identity) gegen `IAbacCompileContract`; 400 mit Fehlerliste, `POST AbacPolicy/validate`
 
 ### Phase 2: Caching
@@ -1169,15 +1172,18 @@ AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versio
 > `simplic-oxs-identity` und `simplic-oxs-search` implementiert (uncommittet). Build aller drei
 > Solutions grün; Unit-Tests 184 / 126 / 60 grün; Testcontainers-Tests (4 / 3 / 11) werden ohne
 > Docker übersprungen. Verbleibend sind nur noch die unten mit `[ ]` markierten Punkte.
+>
+> **Stand 2026-11-10:** `simplic-oxs` und `simplic-oxs-identity` sind gemergt, die Pakete
+> veröffentlicht. Die Such-Änderungen wurden nach `simplic-oxs-search-v2` portiert (v1 ist
+> abgeschaltet); dort ersetzt ABAC im Suchpfad das bisherige DataAccess-Rollenfilter-Feature
+> (dessen API bleibt bestehen, wird in der Suche aber nicht mehr angewendet).
 
 ### P0 — Voraussetzung: Release der ABAC-Runtime
 *(entschieden 2026-10-26)*
-- [ ] **ABAC-Runtime committen und als NuGet veröffentlichen.** `Simplic.OxS.ABAC`,
-  `Simplic.OxS.Server/Abac` und `Simplic.OxS.Data.MongoDB/Abac` sind noch uncommittete lokale Arbeit.
-  Release über `azure-pipelines.yml` (NuGet); danach stellen `simplic-oxs-search` **und**
-  `simplic-oxs-identity` (Identity referenziert `Simplic.OxS.ABAC` per ProjectReference) auf
-  **PackageReference** um, Identity zusätzlich auf eine `Simplic.OxS.Server`-Version mit Runtime.
-  Die ProjectReferences (Geschwister-Pfad) dürfen **nicht** gemergt werden.
+- [x] **ABAC-Runtime committen und als NuGet veröffentlichen.** ✅ *erledigt (2026-11-10).*
+  `Simplic.OxS.ABAC` 2.0.26.1105, `Simplic.OxS.Server` / `Simplic.OxS.Data.MongoDB` 4.0.226.1105
+  veröffentlicht; `simplic-oxs-search-v2`, `simplic-oxs-identity` und `simplic-oxs-logistics-v2`
+  nutzen **PackageReference** (keine Geschwister-ProjectReferences).
 - [ ] **Testcontainers-Tests einmal mit Docker ausführen** (CI-Agent mit Docker oder lokal).
 
 ### Entscheidungen zu offenen Punkten (Stand 2026-10-26)
@@ -1231,9 +1237,13 @@ AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versio
   (`GET`, `PUT`, `POST import`), `internal/AbacPolicySync` (`rule-set`, `field-mappings`; Internal-Key).
 - Collections: `abac.compiled-sets`, `abac.audit` (append-only), `abac.field-mappings`, `abac.rollout-settings`.
 
-**Search (`simplic-oxs-search`)**
+**Search (`simplic-oxs-search-v2`; aus v1 portiert, v1 ist abgeschaltet)**
 - `AbacFieldMappingSyncService` (Versions-Skip, Version 0 = nicht migriert → kein Überschreiben,
   Reindex nur bei Änderung), `AbacFieldMappingsChangedConsumer`, `SearchAbacPolicySetActivatedConsumer`.
+- Dauerhafter Reindex: `ISearchReindexTrigger` → `DurableSearchReindexTrigger` →
+  `search.abac-reindex-requests`; abgearbeitet von `SearchReindexBackgroundService` (Lease, Retry
+  mit Backoff, Konfig `Abac:Reindex`). Der Auftrag wird **vor** dem Schreiben der Mappings
+  persistiert; schlägt das fehl, schlägt der Sync fehl (Event-Retry).
 - `SecurityAttributeConfig` ist synchronisierte Kopie: nur `GET` + `POST sync` (owner/admin);
   `Abac:Sync:ActionPrefixes = ["oxs:"]`.
 
@@ -1244,7 +1254,9 @@ AbacFieldMappingSet (Collection abac.field-mappings, je Org ein Dokument, versio
   umgesetzt, da der generische Settings-Controller Owner-Gate und Recompile umgehen würde. Entscheidung bestätigen.
 - [ ] **Egress-Inventar je Fach-Service** — Repositories mit `AbacReadAction` versehen, Consumer
   mit `AbacBusGuard`, Hubs mit `IAbacSignalRFilter`, `IAbacCompileContract`-Katalog je Service.
-- [ ] **Periodischer Mapping-Resync in Search** (heute nur Event + `POST sync`); Reindex ohne verteiltes Lock.
+- [ ] **Periodischer Mapping-Resync in Search** (heute nur Event + `POST sync`). Der Reindex ist
+  dauerhaft und über eine Lease je Org koordiniert (§18.11 Schritt 4); nach Lease-Ablauf kann ein
+  zweiter Lauf parallel starten (idempotent, nur Mehraufwand).
 - [ ] **Bereichsoperatoren mit mehrwertigen `{subject.xxx}`-Variablen** (nur `$eq` → `$in` umgesetzt).
 - [ ] **Migration bestehender Search-`SecurityAttributeConfig` nach Identity** (Import nutzt bisher nur die statische Identity-Konfig).
 - [ ] **E2E-Tests** über RabbitMQ (Activate → Event → Service-Sync) und Performance-Tuning.
@@ -1564,9 +1576,9 @@ Authentifizierung bleibt unverändert (JWT bzw. API-Key/`InternalApiKey`). Für 
 (Konfig je Organisation + CRUD + Reindex-Trigger, §18.11) + **Feld-Pfad-Mapping**
 (`AbacFieldMapping.SearchPath`/`SearchValuePrefix`, fail-closed, in den Compiler verdrahtet)
 + **Such-Consumer** (`SearchController` → `BuildSearchFilterAsync` → ES-`filter`-Klausel;
-`simplic-oxs-search` auf net10 gehoben; Action `oxs:{X}:read`, Deny → 403, typübergreifendes OR,
-`[AllowAnonymous]` entfernt) implementiert & (Unit-)getestet. Offen: ES-Integrationstest und
-Feld-Mapping-Sync aus Identity (§12.7). Detaillierter Done/Offen-Stand
+`simplic-oxs-search-v2` (net10); Action `oxs:{X}:read`, Deny → 403, typübergreifendes OR,
+`[AllowAnonymous]` entfernt) implementiert & (Unit-)getestet. Offen: ES-Integrationstest gegen
+Docker (Feld-Mapping-Sync aus Identity, §12.7, ist umgesetzt). Detaillierter Done/Offen-Stand
 in §18.10, priorisierte Restliste in §13.1.
 
 Für MongoDB ist das Resource-Filtering unkompliziert, weil die Policy-Felder direkt
@@ -1595,9 +1607,10 @@ Dokument
     └── attributes    flattened    (seltene/dynamische Attribute)
 ```
 
-> **Hinweis (Deployment `simplic-oxs-search`):** Kein `owner`-Feld — die Daten sind
+> **Hinweis (Deployment `simplic-oxs-search-v2`):** Kein `owner`-Feld — die Daten sind
 > organisationsverwaltet, es gibt keine Datensatz-Ownership. Die Tenant-Isolation erfolgt
-> bereits über den organisationsspezifischen Index-Namen; `tenantId` ist nur defensiv.
+> bereits über den organisationsspezifischen Index-Namen (`v2-{orgId}`); `tenantId` ist nur defensiv.
+> `Original` ist in v2 nicht indexiert (`enabled: false`, nur `_source`).
 
 ### 18.2 Hybrid-Mapping gegen Mapping-Explosion
 
@@ -1758,7 +1771,7 @@ Pagination, `total hits` und Aggregationen bleiben korrekt.
 
 Die **Übersetzungs-Schicht** (ABAC-DSL → ES Query DSL, geteilte Bibliothek + Compiler)
 ist implementiert und mit Unit-Tests abgesichert. Das **Elasticsearch-Mapping** (getyptes
-`security`-Objekt + `flattened`) ist im Such-Microservice `simplic-oxs-search` implementiert.
+`security`-Objekt + `flattened`) ist im Such-Microservice `simplic-oxs-search-v2` implementiert.
 Die **Index-Zeit-Materialisierung** der `security.*`-Felder (§18.11) und das **Feld-Pfad-Mapping**
 im Übersetzer sind ebenfalls erledigt. Auch der **Such-Consumer** (Query-Seite) ist verdrahtet:
 `SearchController` evaluiert pro Request über `IAbacEvaluator.BuildSearchFilterAsync` und hängt
@@ -1795,13 +1808,13 @@ Identity (§12.7).
   `simplic-oxs-identity/.../ConfiguredAbacCompileContract.cs`, `AbacCompileContractOptions.cs`,
   `AbacPolicyService.cs`
 
-**✅ Erledigt (Such-Microservice `simplic-oxs-search`):**
+**✅ Erledigt (Such-Microservice `simplic-oxs-search-v2`):**
 - [x] **ES-Index-Mapping / `security`-Schema** — `DocumentSecurity` (getyptes `tenantId`
   keyword, `principals` keyword[], `classification` integer, `attributes` **flattened**);
   `IndexDocument.Security` ergänzt; zentraler Mapping-Helper `ElasticSearchProvider.MapIndexDocument`
-  an allen drei Index-Erzeugungsstellen (Live-Index + beide Reindex-Pfade). **Ohne `owner`**
+  bei der Index-Erzeugung (`v2-{orgId}`). **Ohne `owner`**
   (organisationsverwaltete Daten, keine Datensatz-Ownership). Bestehende Indizes erhalten das
-  Mapping erst beim Reindex. → `Simplic.OxS.Search/Model/DocumentSecurity.cs`,
+  `security`-Mapping beim ersten Schreibzugriff per `PutMapping` (`EnsureSecurityMappingAsync`). → `Simplic.OxS.Search/Model/DocumentSecurity.cs`,
   `Simplic.OxS.Search.Service/ElasticSearchProvider.cs`
 - [x] **Index-Zeit-Materialisierung** (§18.1, §18.11) — `security.*`-Felder werden in
   `DefaultFactory.Create` aus den Fachdaten (`DataJson`) abgeleitet. Konfig-Store +
@@ -1823,13 +1836,18 @@ Identity (§12.7).
   erlaubte Typen per `SearchAbacFilterComposer.ComposeCrossType` zu einem `bool.should` aus
   `(dataType = X AND filter)` komponiert (nicht gelistete Typen matchen nie — fail-closed);
   kein lesbarer Typ ⇒ 403, leerer Index ⇒ 200 leer. `[AllowAnonymous]` entfernt.
-  → `simplic-oxs-search/.../SearchController.cs`, `ElasticSearchProvider.cs`,
+  → `simplic-oxs-search-v2/.../SearchController.cs`, `ElasticSearchProvider.cs`,
   `ISearchProvider.cs`, `SearchAbacFilterComposer.cs` (+ 5 Unit-Tests), `Startup.cs`
   (`services.AddAbacRuntime()`)
-- [x] **net10-Angleichung** — `simplic-oxs-search` von net8.0 auf net10.0 gehoben;
-  `Simplic.OxS.Server` wird als **ProjectReference** auf das Geschwister-Repo bezogen
-  (die ABAC-Runtime ist noch nicht im veröffentlichten NuGet-Paket), zusätzlich
-  `Simplic.OxS.ABAC`-ProjectReference. Build + bestehende Tests grün.
+- [x] **net10 & Pakete** — `simplic-oxs-search-v2` läuft auf net10.0 (Pipeline `dotNetVersion
+  10.0.x`, Docker-Images `aspnet`/`sdk:10.0`) und bezieht `Simplic.OxS.Server` 4.0.226.1105,
+  `Simplic.OxS.Data.MongoDB` 4.0.226.1105, `Simplic.OxS.Data` 3.1.126.1105 und
+  `Simplic.OxS.ABAC` 2.0.26.1105 als **PackageReference**. Build + 66 Unit-Tests grün.
+- [x] **Port v1 → v2** — ABAC ersetzt im Suchpfad das DataAccess-Rollenfilter-Feature (Post-Filter
+  auf JWT-Rollen-Claims, widerspricht dem Live-Lookup §17.4); dessen API/Daten bleiben bestehen.
+  v2-Index `v2-{orgId}`; statt des v1-Voll-Reindex (temporärer Index) re-materialisiert
+  `RematerializeSecurity` den `security`-Block in-place (§18.11 Schritt 4); `MigrateIndex`
+  re-materialisiert die übernommenen Legacy-Dokumente.
 
 **⚠️ Hinweise:**
 - Such-Aufrufe ohne gültigen Org-/User-Kontext (weder JWT noch API-Key) erhalten jetzt 401/403;
@@ -1876,16 +1894,36 @@ Reindex, wenn sie sich ändert.
    Nicht-Objekt-JSON werden übersprungen (fail-open beim Indexieren, Leer-Default sicher).
    Unit-getestet (12 Fälle). → `Simplic.OxS.Search.Service/SecurityAttributeMaterializer.cs`,
    `DefaultFactory.cs`, `Simplic.OxS.Search.Test/SecurityAttributeMaterializerTest.cs`
-4. **Reindex-Trigger & Konfig-CRUD** — ✅ *erledigt.* `SecurityAttributeConfigService`
-   (CRUD, `OrganizationServiceBase`) + `SecurityAttributeConfigController` (GET/GET-ALL/POST/
-   PATCH/DELETE, analog `TemplateController`). Nach Create/Update/Delete wird der bestehende
-   Reindex der betroffenen Organisation im Hintergrund angestoßen. Der Reindex selbst
-   **re-materialisiert** jetzt den `security`-Block jedes Dokuments aus dessen `Original`-Fachdaten
-   (via `ISecurityAttributeProvider` + `SecurityAttributeMaterializer`, Mappings pro `DataType`
-   gecacht) — zuvor kopierte er nur Felder und hätte die Konfig-Änderung nicht übernommen.
-   → `Simplic.OxS.Search.Service/SecurityAttributeConfigService.cs`,
-   `Simplic.OxS.Search.Service/ElasticSearchProvider.cs` (Reindex-Schleife + `MaterializeSecurityAsync`),
-   `Simplic.OxS.Search.Server/Controllers/SecurityAttributeConfigController.cs`
+4. **Reindex-Trigger & Konfig** — ✅ *erledigt.* Die Konfiguration ist synchronisierte Kopie
+   (§12.7, nur `GET` + `POST sync`). Ändern sich die Mappings, **re-materialisiert**
+   `ISearchProvider.RematerializeSecurity` den `security`-Block jedes Dokuments des Org-Index
+   (`v2-{orgId}`) aus dessen `Original`-Fachdaten (Scroll + Bulk-Partial-Update, via
+   `SecurityAttributeMaterializer`, Mappings pro `DataType` gecacht). Auch `MigrateIndex`
+   re-materialisiert die aus dem Legacy-Index übernommenen Dokumente.
+
+   **Dauerhaftigkeit (Sicherheits-Anforderung):** Fire-and-forget ist für diesen Schritt nicht
+   zulässig — ein Absturz oder eine Exception würde Dokumente stillschweigend mit veralteten
+   `security.*`-Blöcken zurücklassen, und der Sync würde Erfolg melden. Daher:
+   - Der Sync persistiert einen **Reindex-Auftrag je Org** (`search.abac-reindex-requests`,
+     `Generation` wird je Anforderung erhöht) **vor** dem Schreiben der neuen Mappings. Schlägt das
+     fehl, wird nichts geschrieben und der Sync liefert `Failed` → Event-Retry. Nach dem Schreiben
+     wird der Auftrag erneut ausgestellt, damit ein bereits laufender Lauf mit alten Mappings ihn
+     nicht abschließt. `ReindexTriggered = true` bedeutet „dauerhaft eingeplant“.
+   - `SearchReindexBackgroundService` (alle Pods) beansprucht fällige Aufträge atomar per **Lease**
+     (`FindOneAndUpdate`), führt `RematerializeSecurity` im Org-Kontext aus und **löscht den Auftrag
+     nur bei Erfolg und unveränderter `Generation`**; sonst wird er nur freigegeben und läuft erneut.
+   - Fehler: Auftrag bleibt bestehen, Fehler wird geloggt und gespeichert, Retry mit exponentiellem
+     Backoff. Absturz: Nach Lease-Ablauf übernimmt ein anderer Worker. Re-Materialisierung ist
+     idempotent, parallele Läufe kosten nur Aufwand.
+   - Konfig `Abac:Reindex`: `PollInterval` (15 s), `LeaseDuration` (30 min), `RetryBaseDelay` (30 s),
+     `RetryMaxDelay` (1 h).
+   - Restrisiko: Schlägt das erneute Ausstellen nach dem Schreiben fehl **und** lief zeitgleich ein
+     vor dem Commit gestarteter Lauf, kann dieser den Auftrag abschließen; der Fall wird als Fehler geloggt.
+
+   → `Simplic.OxS.Search.Service/Abac/AbacFieldMappingSyncService.cs`, `DurableSearchReindexTrigger.cs`,
+   `Simplic.OxS.Search.Data.DB/SearchReindexRequestStore.cs`,
+   `Simplic.OxS.Search.Server/Abac/SearchReindexBackgroundService.cs`,
+   `Simplic.OxS.Search.Service/ElasticSearchProvider.cs` (`RematerializeSecurity` + `MaterializeSecurityAsync`)
 5. **Feld-Pfad-Mapping** (§18.10) — ✅ *erledigt.* `AbacFieldMapping.SearchPath` +
    `SearchValuePrefix` werden im `AbacSearchFilterBuilder` angewendet (Attribute →
    `security.attributes.*`, Principals → `security.principals` mit `key:value`-Präfix,
@@ -1903,7 +1941,7 @@ Filter auf deren Pfade zeigen (Feld-Pfad-Mapping).
 > **Zielbild (§12.7):** Die Konfiguration aus Schritt 1/4 wird nach Identity verlagert (per Org,
 > Quelle der Wahrheit). Der Such-Service hält `SecurityAttributeConfig` nur noch als
 > **synchronisierte Kopie** (Event + Pull); der eigene CRUD-Endpunkt entfällt, der Reindex wird
-> durch den Sync ausgelöst.
+> durch den Sync dauerhaft eingeplant (Schritt 4). — ✅ umgesetzt.
 
 ---
 
